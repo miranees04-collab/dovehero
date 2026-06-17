@@ -21,9 +21,10 @@ import type {
   Swimlane,
   SavedView,
   FieldDef,
+  Pipeline,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { OBJECT_DEFS, OWNERS, ME } from '@/data/constants';
+import { OBJECT_DEFS, OWNERS, ME, PIPELINES } from '@/data/constants';
 import { askNova } from '@/lib/nova';
 import { uid } from '@/lib/format';
 
@@ -33,7 +34,10 @@ const emptyFilters: FilterState = {
   tags: [],
   minValue: null,
   health: 'any',
+  adv: [],
 };
+
+const PIPE_HUES = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899', '#EF4444'];
 
 export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'owner', 'close', 'ai_next'];
 export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
@@ -103,6 +107,7 @@ export interface AppState {
   deals: Deal[];
   objects: ObjectDef[];
   objectRecords: Record<string, ObjectRecord[]>;
+  pipelines: Pipeline[];
 
   // navigation
   nav: 'deals' | string; // 'deals' or an object key
@@ -152,6 +157,12 @@ export interface AppState {
   future: Deal[][];
 
   // derived helpers stored as actions
+  addPipeline: (name: string) => void;
+  renamePipeline: (k: string, name: string) => void;
+  deletePipeline: (k: string) => void;
+  recolorPipeline: (k: string) => void;
+  setAdvFilter: (rules: FilterState['adv']) => void;
+
   setNav: (nav: string) => void;
   setView: (v: DealView) => void;
   setPipeline: (p: string) => void;
@@ -263,6 +274,7 @@ export const useStore = create<AppState>()(
   deals: seeded,
   objects: OBJECT_DEFS,
   objectRecords: seedObjectRecords(seeded),
+  pipelines: PIPELINES.map((p) => ({ ...p })),
 
   nav: 'deals',
   view: 'board',
@@ -313,6 +325,36 @@ export const useStore = create<AppState>()(
   bulk: [],
   past: [],
   future: [],
+
+  addPipeline: (name) => {
+    const nm = name.trim();
+    if (!nm) return get().toast('Name the pipeline first', 'warn');
+    let key = nm.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pipe' + Date.now();
+    if (get().pipelines.some((p) => p.k === key)) key += '-' + Math.floor(Math.random() * 999);
+    const hue = PIPE_HUES[get().pipelines.length % PIPE_HUES.length];
+    set((s) => ({ pipelines: [...s.pipelines, { k: key, name: nm, hue }], pipeline: key }));
+    get().toast(`Pipeline “${nm}” created`, 'success');
+  },
+  renamePipeline: (k, name) =>
+    set((s) => ({ pipelines: s.pipelines.map((p) => (p.k === k ? { ...p, name } : p)) })),
+  deletePipeline: (k) =>
+    set((s) => {
+      if (s.pipelines.length <= 1) return {};
+      const fallback = s.pipelines.find((p) => p.k !== k)!.k;
+      return {
+        pipelines: s.pipelines.filter((p) => p.k !== k),
+        deals: s.deals.map((d) => (d.pipeline === k ? { ...d, pipeline: fallback as PipelineKey } : d)),
+        pipeline: s.pipeline === k ? fallback : s.pipeline,
+      };
+    }),
+  recolorPipeline: (k) =>
+    set((s) => {
+      const cur = s.pipelines.find((p) => p.k === k);
+      const idx = PIPE_HUES.indexOf(cur?.hue ?? '');
+      const next = PIPE_HUES[(idx + 1) % PIPE_HUES.length];
+      return { pipelines: s.pipelines.map((p) => (p.k === k ? { ...p, hue: next } : p)) };
+    }),
+  setAdvFilter: (adv) => set((s) => ({ filters: { ...s.filters, adv } })),
 
   setNav: (nav) => set({ nav, openDealId: null, openObjectId: null, mobileNavOpen: false }),
   setView: (view) => set({ view, openDealId: null }),
@@ -800,6 +842,22 @@ export function filterDeals(deals: Deal[], q: string, f: FilterState): Deal[] {
     if (f.minValue != null && d.value < f.minValue) return false;
     if (f.health === 'healthy' && d.health < 70) return false;
     if (f.health === 'risk' && d.health >= 45) return false;
+    for (const r of f.adv) {
+      if (!r.value) continue;
+      const num = parseFloat(r.value.replace(/[^0-9.\-]/g, '')) || 0;
+      const numFields: Record<string, number> = { value: d.value, win: d.win, health: d.health };
+      const strFields: Record<string, string> = { stage: d.stage, industry: d.industry, company: d.company };
+      if (r.field in numFields) {
+        const x = numFields[r.field];
+        const ok = r.op === 'lt' ? x < num : r.op === 'lte' ? x <= num : r.op === 'gte' ? x >= num : x > num;
+        if (!ok) return false;
+      } else {
+        const x = (strFields[r.field] ?? '').toLowerCase();
+        const v = r.value.toLowerCase();
+        const ok = r.op === 'isnot' ? x !== v : r.op === 'contains' ? x.includes(v) : x === v;
+        if (!ok) return false;
+      }
+    }
     return true;
   });
 }

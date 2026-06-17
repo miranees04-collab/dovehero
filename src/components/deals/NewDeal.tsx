@@ -3,7 +3,7 @@ import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
-import { OWNERS, STAGES, PIPELINES } from '@/data/constants';
+import { OWNERS, STAGES } from '@/data/constants';
 import type { PipelineKey, Priority, StageKey } from '@/types';
 
 export function NewDealButton() {
@@ -25,6 +25,7 @@ function NewDealModal({ onClose }: { onClose: () => void }) {
   const setNav = useStore((s) => s.setNav);
   const toast = useStore((s) => s.toast);
   const pipeline = useStore((s) => s.pipeline);
+  const pipelines = useStore((s) => s.pipelines);
 
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
@@ -91,7 +92,7 @@ function NewDealModal({ onClose }: { onClose: () => void }) {
         <div className="dh-field">
           <label>Pipeline</label>
           <select className="dh-select" value={pipe} onChange={(e) => setPipe(e.target.value)}>
-            {PIPELINES.map((p) => (
+            {pipelines.map((p) => (
               <option key={p.k} value={p.k}>
                 {p.name}
               </option>

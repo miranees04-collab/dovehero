@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
-import { Popover, MenuItem, Avatar } from '@/components/ui/primitives';
-import { PIPELINES, OWNERS, OPEN_STAGES } from '@/data/constants';
+import { Popover, MenuItem, Avatar, Button } from '@/components/ui/primitives';
+import { OWNERS, OPEN_STAGES } from '@/data/constants';
 import { money } from '@/lib/format';
-import type { Priority } from '@/types';
+import type { Priority, AdvRule } from '@/types';
+import { uid } from '@/lib/format';
 import './deals.css';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
@@ -27,6 +29,9 @@ export function PipelineBar() {
   const cardFields = useStore((s) => s.cardFields);
   const toggleCardField = useStore((s) => s.toggleCardField);
   const view = useStore((s) => s.view);
+  const pipelines = useStore((s) => s.pipelines);
+  const deals = useStore((s) => s.deals);
+  const setAdvFilter = useStore((s) => s.setAdvFilter);
 
   const all = useFilteredDeals().filter((d) => d.pipeline === pipeline);
   const open = all.filter((d) => OPEN_STAGES.includes(d.stage as never));
@@ -34,15 +39,15 @@ export function PipelineBar() {
   const weighted = Math.round(open.reduce((s, d) => s + (d.value * d.win) / 100, 0));
 
   const activeFilters =
-    filters.owners.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0);
+    filters.owners.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length;
 
   const toggleArr = <T,>(arr: T[], v: T): T[] => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
   return (
     <div className="dh-pipebar">
       <div className="dh-pipe-tabs" role="tablist">
-        {PIPELINES.map((p) => {
-          const n = useStore.getState().deals.filter((d) => d.pipeline === p.k && OPEN_STAGES.includes(d.stage as never)).length;
+        {pipelines.map((p) => {
+          const n = deals.filter((d) => d.pipeline === p.k && OPEN_STAGES.includes(d.stage as never)).length;
           return (
             <button
               key={p.k}
@@ -57,6 +62,7 @@ export function PipelineBar() {
             </button>
           );
         })}
+        <PipelineManage />
       </div>
 
       <div className="dh-pipe-stats">
@@ -179,6 +185,16 @@ export function PipelineBar() {
                 ))}
               </div>
 
+              <div className="dh-menu-head">Advanced conditions</div>
+              <div className="dh-adv-rules">
+                {filters.adv.map((r) => (
+                  <AdvRuleRow key={r.id} rule={r} onChange={(nr) => setAdvFilter(filters.adv.map((x) => (x.id === r.id ? nr : x)))} onRemove={() => setAdvFilter(filters.adv.filter((x) => x.id !== r.id))} />
+                ))}
+                <button className="dh-adv-add" onClick={() => setAdvFilter([...filters.adv, { id: uid('r'), field: 'value', op: 'gt', value: '' }])}>
+                  <Icon name="plus" size={13} /> Add condition
+                </button>
+              </div>
+
               {activeFilters > 0 && (
                 <button className="dh-filter-clear" onClick={resetFilters}>
                   <Icon name="x" size={13} /> Clear filters
@@ -189,5 +205,75 @@ export function PipelineBar() {
         </Popover>
       </div>
     </div>
+  );
+}
+
+const FIELD_OPTS: { k: AdvRule['field']; label: string; numeric: boolean }[] = [
+  { k: 'value', label: 'Value', numeric: true },
+  { k: 'win', label: 'Win %', numeric: true },
+  { k: 'health', label: 'Health', numeric: true },
+  { k: 'stage', label: 'Stage', numeric: false },
+  { k: 'industry', label: 'Industry', numeric: false },
+  { k: 'company', label: 'Company', numeric: false },
+];
+
+function AdvRuleRow({ rule, onChange, onRemove }: { rule: AdvRule; onChange: (r: AdvRule) => void; onRemove: () => void }) {
+  const meta = FIELD_OPTS.find((f) => f.k === rule.field)!;
+  const ops = meta.numeric
+    ? [['gt', '>'], ['gte', '≥'], ['lt', '<'], ['lte', '≤']]
+    : [['is', 'is'], ['isnot', 'is not'], ['contains', 'contains']];
+  return (
+    <div className="dh-adv-row">
+      <select className="dh-adv-sel" value={rule.field} onChange={(e) => { const f = e.target.value as AdvRule['field']; const num = FIELD_OPTS.find((x) => x.k === f)!.numeric; onChange({ ...rule, field: f, op: num ? 'gt' : 'is' }); }}>
+        {FIELD_OPTS.map((f) => <option key={f.k} value={f.k}>{f.label}</option>)}
+      </select>
+      <select className="dh-adv-sel" value={rule.op} onChange={(e) => onChange({ ...rule, op: e.target.value as AdvRule['op'] })}>
+        {ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+      <input className="dh-adv-in" value={rule.value} onChange={(e) => onChange({ ...rule, value: e.target.value })} placeholder={meta.numeric ? '0' : 'value'} />
+      <button className="dh-adv-del" onClick={onRemove} aria-label="Remove condition"><Icon name="x" size={12} /></button>
+    </div>
+  );
+}
+
+function PipelineManage() {
+  const pipelines = useStore((s) => s.pipelines);
+  const deals = useStore((s) => s.deals);
+  const addPipeline = useStore((s) => s.addPipeline);
+  const renamePipeline = useStore((s) => s.renamePipeline);
+  const deletePipeline = useStore((s) => s.deletePipeline);
+  const recolorPipeline = useStore((s) => s.recolorPipeline);
+  const [name, setName] = useState('');
+  return (
+    <Popover
+      width={300}
+      trigger={({ toggle }) => (
+        <button className="dh-pipe-tab dh-pipe-add" onClick={toggle} title="Manage pipelines">
+          <Icon name="plus" size={14} />
+        </button>
+      )}
+    >
+      {() => (
+        <div className="dh-pipemanage">
+          <div className="dh-menu-head">Manage pipelines</div>
+          {pipelines.map((p) => {
+            const n = deals.filter((d) => d.pipeline === p.k).length;
+            return (
+              <div key={p.k} className="dh-pm-row">
+                <button className="dh-pm-dot" style={{ background: p.hue }} onClick={() => recolorPipeline(p.k)} title="Recolor" />
+                <input className="dh-pm-name" value={p.name} onChange={(e) => renamePipeline(p.k, e.target.value)} />
+                <span className="dh-pm-ct">{n}</span>
+                <button className="dh-pm-del" disabled={pipelines.length <= 1} onClick={() => deletePipeline(p.k)} aria-label="Delete"><Icon name="trash" size={13} /></button>
+              </div>
+            );
+          })}
+          <div className="dh-pm-new">
+            <input className="dh-input" placeholder="New pipeline name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) { addPipeline(name); setName(''); } }} />
+            <Button variant="primary" size="sm" disabled={!name.trim()} onClick={() => { addPipeline(name); setName(''); }}><Icon name="plus" size={13} /></Button>
+          </div>
+          <p className="dh-pm-note">Deleting a pipeline moves its deals to the first one.</p>
+        </div>
+      )}
+    </Popover>
   );
 }

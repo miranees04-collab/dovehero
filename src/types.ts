@@ -177,12 +177,20 @@ export interface SortRule {
   dir: 1 | -1;
 }
 
+export interface AdvRule {
+  id: string;
+  field: 'value' | 'win' | 'health' | 'stage' | 'industry' | 'company';
+  op: 'gt' | 'lt' | 'gte' | 'lte' | 'is' | 'isnot' | 'contains';
+  value: string;
+}
+
 export interface FilterState {
   owners: string[];
   priorities: Priority[];
   tags: string[];
   minValue: number | null;
   health: 'any' | 'healthy' | 'risk';
+  adv: AdvRule[];
 }
 
 export interface NovaMessage {
