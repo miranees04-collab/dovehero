@@ -22,6 +22,7 @@ import type {
   SavedView,
   FieldDef,
   Pipeline,
+  Automation,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES } from '@/data/constants';
@@ -38,6 +39,21 @@ const emptyFilters: FilterState = {
 };
 
 const PIPE_HUES = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899', '#EF4444'];
+
+const DEFAULT_AUTOMATIONS: Automation[] = [
+  { id: 'au1', name: 'Re-engage stale deals', enabled: true, on: { t: 'stale', v: '14' }, cond: { f: 'none', v: '' }, act: { t: 'task', v: 'Re-engage — deal has gone quiet' } },
+  { id: 'au2', name: 'Flag big new deals', enabled: true, on: { t: 'created', v: '' }, cond: { f: 'value', v: '50000' }, act: { t: 'priority', v: 'high' } },
+  { id: 'au3', name: 'Tag deals in negotiation', enabled: false, on: { t: 'stage', v: 'Negotiation' }, cond: { f: 'none', v: '' }, act: { t: 'tag', v: 'Closing' } },
+];
+
+function staleDaysOf(w: string | undefined): number {
+  if (!w) return 99;
+  if (/today|now/i.test(w)) return 0;
+  const m = /(\d+)\s*([hdwm])/i.exec(w);
+  if (!m) return 1;
+  const n = +m[1], u = m[2].toLowerCase();
+  return u === 'h' ? 0 : u === 'd' ? n : u === 'w' ? n * 7 : n * 30;
+}
 
 export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'owner', 'close', 'ai_next'];
 export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
@@ -108,6 +124,7 @@ export interface AppState {
   objects: ObjectDef[];
   objectRecords: Record<string, ObjectRecord[]>;
   pipelines: Pipeline[];
+  automations: Automation[];
 
   // navigation
   nav: 'deals' | string; // 'deals' or an object key
@@ -151,6 +168,8 @@ export interface AppState {
   capture: { id: string; to: StageKey } | null;
   confettiAt: number;
   bulk: string[];
+  autoOpen: boolean;
+  autoEdit: Automation | null;
 
   // undo / redo history of the deals collection
   past: Deal[][];
@@ -162,6 +181,12 @@ export interface AppState {
   deletePipeline: (k: string) => void;
   recolorPipeline: (k: string) => void;
   setAdvFilter: (rules: FilterState['adv']) => void;
+  setAuto: (open: boolean) => void;
+  setAutoEdit: (a: Automation | null) => void;
+  saveAutomation: (a: Automation) => void;
+  toggleAutomation: (id: string) => void;
+  deleteAutomation: (id: string) => void;
+  runAutomations: () => void;
 
   setNav: (nav: string) => void;
   setView: (v: DealView) => void;
@@ -275,6 +300,7 @@ export const useStore = create<AppState>()(
   objects: OBJECT_DEFS,
   objectRecords: seedObjectRecords(seeded),
   pipelines: PIPELINES.map((p) => ({ ...p })),
+  automations: DEFAULT_AUTOMATIONS.map((a) => ({ ...a })),
 
   nav: 'deals',
   view: 'board',
@@ -323,6 +349,8 @@ export const useStore = create<AppState>()(
   capture: null,
   confettiAt: 0,
   bulk: [],
+  autoOpen: false,
+  autoEdit: null,
   past: [],
   future: [],
 
@@ -355,6 +383,49 @@ export const useStore = create<AppState>()(
       return { pipelines: s.pipelines.map((p) => (p.k === k ? { ...p, hue: next } : p)) };
     }),
   setAdvFilter: (adv) => set((s) => ({ filters: { ...s.filters, adv } })),
+
+  setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
+  setAutoEdit: (autoEdit) => set({ autoEdit }),
+  saveAutomation: (a) =>
+    set((s) => {
+      const exists = s.automations.some((x) => x.id === a.id);
+      return {
+        automations: exists ? s.automations.map((x) => (x.id === a.id ? a : x)) : [...s.automations, a],
+        autoEdit: null,
+      };
+    }),
+  toggleAutomation: (id) =>
+    set((s) => ({ automations: s.automations.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)) })),
+  deleteAutomation: (id) => set((s) => ({ automations: s.automations.filter((a) => a.id !== id) })),
+  runAutomations: () => {
+    const rules = get().automations.filter((r) => r.enabled && r.on.t !== 'created');
+    let n = 0;
+    const me = OWNERS[ME].name;
+    set((s) => {
+      const deals = s.deals.map((d) => {
+        let nd = d;
+        for (const r of rules) {
+          let match = false;
+          if (r.on.t === 'stage') match = !r.on.v || r.on.v === 'any' || d.stage === r.on.v;
+          else if (r.on.t === 'stale') match = staleDaysOf(d.acts?.[0]?.w) >= (+r.on.v || 14);
+          else if (r.on.t === 'health') match = d.health < (+r.on.v || 50);
+          if (!match) continue;
+          if (r.cond.f === 'priority' && d.priority !== r.cond.v) continue;
+          if (r.cond.f === 'value' && d.value < (+r.cond.v || 0)) continue;
+          if (r.cond.f === 'owner' && d.owner !== ME) continue;
+          if (r.act.t === 'priority') { if (nd.priority !== r.act.v) { nd = { ...nd, priority: r.act.v as Priority }; n++; } }
+          else if (r.act.t === 'tag') { if (!nd.tags.includes(r.act.v)) { nd = { ...nd, tags: [...nd.tags, r.act.v] }; n++; } }
+          else if (r.act.t === 'task') {
+            const has = nd.acts.some((a) => a.type === 'task' && a.title === r.act.v && !a.done);
+            if (!has) { nd = { ...nd, acts: [{ id: uid('a'), type: 'task' as const, who: me, w: 'now', title: r.act.v, ttype: 'todo', due: 'Tomorrow', prio: 'med' as Priority, done: false }, ...nd.acts] }; n++; }
+          }
+        }
+        return nd;
+      });
+      return { deals, past: [...s.past, s.deals].slice(-HISTORY_LIMIT), future: [] };
+    });
+    get().toast(n ? `Automations applied to ${n} deal${n !== 1 ? 's' : ''}` : 'No deals matched the active rules', n ? 'success' : 'default');
+  },
 
   setNav: (nav) => set({ nav, openDealId: null, openObjectId: null, mobileNavOpen: false }),
   setView: (view) => set({ view, openDealId: null }),

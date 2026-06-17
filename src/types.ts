@@ -156,7 +156,7 @@ export type ObjectRecord = Record<string, unknown> & { id: string };
 
 export type ThemeMode = 'light' | 'dark';
 
-export type DealView = 'board' | 'table' | 'insights';
+export type DealView = 'board' | 'table' | 'insights' | 'activity';
 
 export type Density = 'comfortable' | 'compact';
 export type GroupBy = 'none' | 'stage' | 'owner' | 'priority';
@@ -191,6 +191,15 @@ export interface FilterState {
   minValue: number | null;
   health: 'any' | 'healthy' | 'risk';
   adv: AdvRule[];
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  enabled: boolean;
+  on: { t: 'stage' | 'created' | 'stale' | 'health'; v: string };
+  cond: { f: 'none' | 'priority' | 'value' | 'owner'; v: string };
+  act: { t: 'task' | 'priority' | 'tag'; v: string };
 }
 
 export interface NovaMessage {

@@ -5,6 +5,7 @@ import { TopBar } from './components/layout/TopBar';
 import { Board } from './components/deals/Board';
 import { DealTable } from './components/deals/DealTable';
 import { Insights } from './components/insights/Insights';
+import { ActivityCenter } from './components/activity/ActivityCenter';
 import { RecordView } from './components/record/RecordView';
 import { ObjectView } from './components/objects/ObjectView';
 import { PipelineBar } from './components/deals/PipelineBar';
@@ -13,6 +14,7 @@ import { CommandPalette } from './components/command/CommandPalette';
 import { NotificationsPanel } from './components/panels/NotificationsPanel';
 import { TasksPanel } from './components/panels/TasksPanel';
 import { HubPanel } from './components/panels/HubPanel';
+import { AutomationsPanel } from './components/panels/AutomationsPanel';
 import { Composer } from './components/composer/Composer';
 import { CaptureSheet } from './components/deals/CaptureSheet';
 import { Confetti } from './components/deals/Confetti';
@@ -57,6 +59,8 @@ export default function App() {
     content = <RecordView />;
   } else if (view === 'insights') {
     content = <Insights />;
+  } else if (view === 'activity') {
+    content = <ActivityCenter />;
   } else {
     content = (
       <>
@@ -80,6 +84,7 @@ export default function App() {
       <NotificationsPanel />
       <TasksPanel />
       <HubPanel />
+      <AutomationsPanel />
       <Composer />
       <CaptureSheet />
       <Peek />

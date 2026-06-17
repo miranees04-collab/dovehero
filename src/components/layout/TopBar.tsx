@@ -19,6 +19,7 @@ export function TopBar() {
   const openDealId = useStore((s) => s.openDealId);
   const setTasks = useStore((s) => s.setTasks);
   const setHub = useStore((s) => s.setHub);
+  const setAuto = useStore((s) => s.setAuto);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
@@ -43,7 +44,7 @@ export function TopBar() {
 
       {nav === 'deals' && !openDealId && (
         <div className="dh-seg" role="tablist" aria-label="Deal views">
-          {(['board', 'table', 'insights'] as const).map((v) => (
+          {(['board', 'table', 'insights', 'activity'] as const).map((v) => (
             <button
               key={v}
               role="tab"
@@ -51,8 +52,8 @@ export function TopBar() {
               className={view === v ? 'on' : ''}
               onClick={() => setView(v)}
             >
-              <Icon name={v === 'board' ? 'grid' : v === 'table' ? 'list' : 'activity'} size={15} />
-              <span>{v === 'board' ? 'Board' : v === 'table' ? 'Table' : 'Insights'}</span>
+              <Icon name={v === 'board' ? 'grid' : v === 'table' ? 'list' : v === 'insights' ? 'activity' : 'target'} size={15} />
+              <span>{v === 'board' ? 'Board' : v === 'table' ? 'Table' : v === 'insights' ? 'Insights' : 'Activity'}</span>
             </button>
           ))}
         </div>
@@ -86,6 +87,10 @@ export function TopBar() {
           </button>
         </div>
       )}
+
+      <button className="dh-icon-btn hide-sm" onClick={() => setAuto(true)} aria-label="Automations" title="Automations">
+        <Icon name="zap" size={17} />
+      </button>
 
       <button className="dh-icon-btn hide-sm" onClick={() => setTasks(true)} aria-label="Tasks" title="My tasks">
         <Icon name="tasks" size={17} />
