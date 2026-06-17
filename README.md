@@ -1,84 +1,105 @@
 # Dovehero CRM
 
-A self-contained, AI-native CRM prototype — the "revenue command deck" — with the **Nova** assistant, deal pipelines, an enterprise data table, a Kanban board, a 360° record view, activity logging, and an insights/forecast view.
+An AI-native CRM prototype — the **"revenue command deck"** — built around the
+**Nova** assistant, deal pipelines, an enterprise data table, a Kanban board, a
+360° record view, activity logging, automations of intent, and an
+insights/forecast view.
 
-The entire app is **one file** (`index.html`) with all HTML, CSS, and JavaScript inline and all data in memory. There is **no backend and no build step**, so it runs anywhere and behaves identically wherever you open it.
+This is a **Vite + React + TypeScript** single-page app with a clean,
+light-first "enterprise" design system (think Linear/Notion), a dark theme, and
+all data seeded in memory. There is no backend — outbound integrations (email,
+WhatsApp, SMS, documents) are simulated to demonstrate the workflow.
+
+> The original single-file HTML prototype that this was rebuilt from is preserved
+> under [`legacy/`](./legacy) for reference.
 
 ---
 
 ## 1. Run it
 
-**Option A — just open the file (simplest)**
-
-Double-click `index.html`, or open it in any modern browser. That's it — no install, no server.
-
-**Option B — run a local dev server (nicer for development)**
-
-Requires [Node.js](https://nodejs.org) (any recent version). No `npm install` needed — the server has zero dependencies.
+Requires [Node.js](https://nodejs.org) 18+.
 
 ```bash
+npm install
 npm run dev
-# or:  node server.js
 ```
 
 Then open the printed URL (default `http://localhost:5173`).
 
-You can also use any static server you already have, e.g. `python3 -m http.server 5173`.
-
----
-
-## 2. Open it in Claude Code
-
-[Claude Code](https://docs.claude.com/en/docs/claude-code/overview) is Anthropic's agentic coding tool. To continue building this app there:
-
-**Install Claude Code** (pick one — the native installer needs no Node.js):
+Other scripts:
 
 ```bash
-# macOS / Linux / WSL  (recommended)
-curl -fsSL https://claude.ai/install.sh | bash
-
-# Windows (PowerShell)
-irm https://claude.ai/install.ps1 | iex
-
-# Or via npm (needs Node.js 18+)
-npm install -g @anthropic-ai/claude-code
+npm run build      # type-check + production build to dist/
+npm run preview    # serve the production build
+npm run typecheck  # tsc --noEmit
 ```
-
-Prefer a GUI? The **Claude Code desktop app** (macOS/Windows) lets you use it without the terminal.
-
-**Then point it at this project:**
-
-```bash
-cd dovehero-crm-app
-claude
-```
-
-Claude Code now has the full project in context. Ask it to run, explain, extend, or refactor the app — for example: *"Run this app and walk me through the architecture,"* or *"Add a Contacts page."*
-
-Setup reference: https://docs.claude.com/en/docs/claude-code/overview
 
 ---
 
-## 3. Good first tasks to ask Claude Code
+## 2. What's inside
 
-The app is intentionally a single file so it always works as-is. Once it's open in Claude Code, these are natural next steps it can do for you (and test locally):
+```
+src/
+  main.tsx                # entry; applies persisted theme
+  App.tsx                 # shell + routing between views/overlays
+  types.ts                # domain types (Deal, Activity, ObjectDef, …)
+  data/
+    constants.ts          # stages, pipelines, owners, object defs, helpers
+    seed.ts               # hero deals + deterministic breadth generator
+  lib/
+    nova.ts               # next-best-action, risk signals, NL pipeline Q&A
+    format.ts             # money / initials / relative-time helpers
+  store/
+    useStore.ts           # Zustand store + memoized selectors
+  styles/
+    tokens.css            # design tokens (light + dark)
+    global.css            # base + fonts + a11y focus rings
+  components/
+    layout/               # Sidebar, TopBar (responsive shell)
+    deals/                # PipelineBar, Board (DnD), DealCard, DealTable
+    record/               # RecordView — the 360° deal view
+    insights/             # Insights & forecast analytics
+    objects/              # Companies / Contacts / Products / Leads / …
+    nova/                 # Nova assistant panel
+    composer/             # Email / WhatsApp / SMS composer
+    command/              # ⌘K command palette
+    panels/               # Notifications
+    ui/                   # Button, Badge, Avatar, Ring, Modal, Toasts, Icon
+```
 
-- **Split into modules** — extract the inline `<style>` into `styles.css` and the inline `<script>` into `app.js`, leaving behavior identical. (Good first refactor before bigger changes.)
-- **Add persistence** — currently all data lives in memory and resets on reload. Wire it to `localStorage`, or a small backend (Express/SQLite, etc.).
-- **Make integrations real** — email/WhatsApp/SMS sending, calendar/meeting scheduling, and sequences are simulated. Connect them to real services.
-- **Add a build & deploy setup** — e.g. Vite + a host, if you want a production pipeline.
-- **Write tests** — the prototype was developed against a large assertion suite; Claude Code can recreate/extend a test setup for the split-out JS.
+### Features
+
+- **Deals** in three views — **Board** (Kanban with drag-and-drop and
+  owner swimlanes), **Table** (sortable, filterable, CSV export, a Nova
+  "next step" column), and **Insights** (KPIs, stage funnel, weighted
+  forecast by month, owner leaderboard, health distribution).
+- **360° record view** — stage stepper, a Nova brief with the recommended
+  next step and risk signals, buying-group with roles/strength, line items,
+  documents, and a live activity timeline with quick logging.
+- **Nova AI assistant** — ask natural-language questions about your pipeline
+  ("what's at risk?", "forecast", "what should I focus on today?") and get
+  computed answers with deep-link action chips.
+- **Composer** — draft and "send" Email / WhatsApp / SMS (logged to the
+  timeline), with a one-click "Draft with Nova".
+- **Command palette** (⌘K), **notifications**, **multi-object records**
+  (Companies, Contacts, Products, Leads, Tickets, Invoices), **light/dark**
+  theme, and a responsive layout with a mobile navigation drawer.
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘K` / `Ctrl+K` | Command palette |
+| `⌘J` / `Ctrl+J` | Ask Nova |
+| `Esc` | Close any overlay |
 
 ---
 
-## 4. What's inside
+## 3. Notes on the prototype
 
-- `index.html` — the complete app (UI + logic + seed data).
-- `server.js` — optional zero-dependency static dev server.
-- `package.json` — `dev` / `start` scripts.
-- `.gitignore`
-
-**Notes on the prototype**
-- Data is seeded in memory; refreshing the page resets it.
-- Outbound integrations (email, WhatsApp, SMS, meetings, sequences, document/PDF generation) are **simulated** to demonstrate the workflow, not connected to live services.
-- The theme toggle, pipelines, record-layout builder, and Nova assistant are all client-side.
+- Data is seeded in memory; refreshing the page resets it. The theme
+  preference is the one thing persisted (to `localStorage`).
+- Outbound integrations (email, WhatsApp, SMS, documents) are **simulated**
+  to demonstrate the workflow, not connected to live services.
+- Good next steps: wire persistence (localStorage or a small backend),
+  make integrations real, add saved-view management, and add a test suite.
