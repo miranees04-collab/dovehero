@@ -3,7 +3,10 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 // https://vite.dev/config/
-export default defineConfig({
+// Relative base so the production build works when served from a GitHub
+// Pages project subpath (e.g. /dovehero/) as well as from the root.
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? './' : '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -14,4 +17,4 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
-});
+}));
