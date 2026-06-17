@@ -321,6 +321,94 @@
   color: var(--dim);
   font-size: 12px;
 }
+.dh-col-collapse {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  color: var(--faint);
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.dh-col-collapse:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.dh-col-collapsed {
+  flex: 0 0 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: border-color var(--t) var(--ease);
+}
+.dh-col-collapsed:hover {
+  border-color: var(--col-hue);
+}
+.dh-col-collapsed-name {
+  writing-mode: vertical-rl;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.dh-col-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 10px 10px;
+  padding: 8px;
+  border: 1px dashed var(--border-strong);
+  background: none;
+  border-radius: var(--r-md);
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-col-add:hover {
+  border-color: var(--col-hue);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--col-hue) 7%, transparent);
+}
+.dh-col-addbox {
+  margin: 0 10px 10px;
+}
+.dh-col-addbox .dh-input {
+  font-size: 13px;
+}
+.dh-card-fields,
+.dh-cardfield-row {
+  font-size: 13px;
+}
+.dh-cardfield-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.dh-cardfield-row:hover {
+  background: var(--surface-hover);
+}
+.dh-cardfield-row input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-600);
+  cursor: pointer;
+}
 
 /* swimlane */
 .dh-swimlane {

@@ -142,11 +142,18 @@ export type ThemeMode = 'light' | 'dark';
 
 export type DealView = 'board' | 'table' | 'insights';
 
+export type Density = 'comfortable' | 'compact';
+export type GroupBy = 'none' | 'stage' | 'owner' | 'priority';
+export type Swimlane = 'none' | 'owner' | 'priority';
+
+/** A saved table configuration the user can re-apply as a tab. */
 export interface SavedView {
   name: string;
-  pipeline: PipelineKey | string;
-  filters: FilterState;
+  cols: string[];
+  density: Density;
+  group: GroupBy;
   sort: SortRule[];
+  filters: FilterState;
 }
 
 export interface SortRule {

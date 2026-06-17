@@ -16,6 +16,11 @@ import type {
   ObjectDef,
   ObjectRecord,
   Priority,
+  Density,
+  GroupBy,
+  Swimlane,
+  SavedView,
+  FieldDef,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME } from '@/data/constants';
@@ -29,6 +34,9 @@ const emptyFilters: FilterState = {
   minValue: null,
   health: 'any',
 };
+
+export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'owner', 'close', 'ai_next'];
+export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
 
 function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   const recs: Record<string, ObjectRecord[]> = {
@@ -107,7 +115,16 @@ export interface AppState {
   q: string;
   filters: FilterState;
   sort: SortRule[];
-  swimlane: 'none' | 'owner';
+  swimlane: Swimlane;
+
+  // customization
+  tableCols: string[];
+  density: Density;
+  group: GroupBy;
+  cardFields: string[];
+  collapsedCols: Record<string, boolean>;
+  savedViews: SavedView[];
+  activeView: string | null;
 
   // ui
   theme: ThemeMode;
@@ -137,7 +154,20 @@ export interface AppState {
   setFilters: (f: Partial<FilterState>) => void;
   resetFilters: () => void;
   toggleSort: (k: string) => void;
-  setSwimlane: (s: 'none' | 'owner') => void;
+  setSwimlane: (s: Swimlane) => void;
+
+  setDensity: (d: Density) => void;
+  setGroup: (g: GroupBy) => void;
+  toggleTableCol: (k: string) => void;
+  moveTableCol: (k: string, dir: -1 | 1) => void;
+  toggleCardField: (k: string) => void;
+  toggleColCollapse: (k: string) => void;
+  saveView: (name: string) => void;
+  applyView: (name: string) => void;
+  deleteView: (name: string) => void;
+  addField: (objKey: string, field: FieldDef) => void;
+  removeField: (objKey: string, fieldKey: string) => void;
+  addCustomObject: () => void;
 
   moveDeal: (id: string, stage: StageKey) => void;
   updateDeal: (id: string, patch: Partial<Deal>) => void;
@@ -163,6 +193,7 @@ export interface AppState {
   sendComposer: () => void;
 
   addObjectRecord: (objKey: string, rec: ObjectRecord) => void;
+  updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
 
   toast: (text: string, tone?: Toast['tone']) => void;
   dismissToast: (id: string) => void;
@@ -198,6 +229,14 @@ export const useStore = create<AppState>()(
   filters: { ...emptyFilters },
   sort: [{ k: 'value', dir: -1 }],
   swimlane: 'none',
+
+  tableCols: [...DEFAULT_TABLE_COLS],
+  density: 'comfortable',
+  group: 'none',
+  cardFields: [...DEFAULT_CARD_FIELDS],
+  collapsedCols: {},
+  savedViews: [],
+  activeView: null,
 
   theme: initialTheme(),
   role: 'admin',
@@ -240,6 +279,95 @@ export const useStore = create<AppState>()(
       return { sort: [{ k, dir: -1 }] };
     }),
   setSwimlane: (swimlane) => set({ swimlane }),
+
+  setDensity: (density) => set({ density, activeView: null }),
+  setGroup: (group) => set({ group, activeView: null }),
+  toggleTableCol: (k) =>
+    set((s) => {
+      if (k === 'name') return {}; // name column is always present
+      const has = s.tableCols.includes(k);
+      const next = has ? s.tableCols.filter((c) => c !== k) : [...s.tableCols, k];
+      return { tableCols: next, activeView: null };
+    }),
+  moveTableCol: (k, dir) =>
+    set((s) => {
+      const cols = [...s.tableCols];
+      const i = cols.indexOf(k);
+      const j = i + dir;
+      if (i < 0 || j < 1 || j >= cols.length) return {}; // keep 'name' first
+      [cols[i], cols[j]] = [cols[j], cols[i]];
+      return { tableCols: cols, activeView: null };
+    }),
+  toggleCardField: (k) =>
+    set((s) => ({
+      cardFields: s.cardFields.includes(k) ? s.cardFields.filter((c) => c !== k) : [...s.cardFields, k],
+    })),
+  toggleColCollapse: (k) =>
+    set((s) => ({ collapsedCols: { ...s.collapsedCols, [k]: !s.collapsedCols[k] } })),
+
+  saveView: (name) =>
+    set((s) => {
+      const view: SavedView = {
+        name,
+        cols: [...s.tableCols],
+        density: s.density,
+        group: s.group,
+        sort: JSON.parse(JSON.stringify(s.sort)),
+        filters: JSON.parse(JSON.stringify(s.filters)),
+      };
+      const others = s.savedViews.filter((v) => v.name !== name);
+      get().toast(`View “${name}” saved`, 'success');
+      return { savedViews: [...others, view], activeView: name };
+    }),
+  applyView: (name) =>
+    set((s) => {
+      const v = s.savedViews.find((x) => x.name === name);
+      if (!v) return {};
+      return {
+        tableCols: [...v.cols],
+        density: v.density,
+        group: v.group,
+        sort: JSON.parse(JSON.stringify(v.sort)),
+        filters: JSON.parse(JSON.stringify(v.filters)),
+        activeView: name,
+      };
+    }),
+  deleteView: (name) =>
+    set((s) => ({
+      savedViews: s.savedViews.filter((v) => v.name !== name),
+      activeView: s.activeView === name ? null : s.activeView,
+    })),
+
+  addField: (objKey, field) =>
+    set((s) => ({
+      objects: s.objects.map((o) =>
+        o.k === objKey && !o.fields.some((f) => f.k === field.k) ? { ...o, fields: [...o.fields, field] } : o,
+      ),
+    })),
+  removeField: (objKey, fieldKey) =>
+    set((s) => ({
+      objects: s.objects.map((o) =>
+        o.k === objKey ? { ...o, fields: o.fields.filter((f) => f.k === 'name' || f.k !== fieldKey) } : o,
+      ),
+    })),
+  addCustomObject: () => {
+    const n = get().objects.filter((o) => !o.system).length + 1;
+    const key = 'custom' + (Date.now() % 100000);
+    const def: ObjectDef = {
+      k: key,
+      name: 'Custom ' + n,
+      plural: 'Custom ' + n,
+      icon: 'box',
+      system: false,
+      fields: [
+        { k: 'name', label: 'Name', type: 'text' },
+        { k: 'status', label: 'Status', type: 'select', opts: ['Active', 'Archived'] },
+        { k: 'notes', label: 'Notes', type: 'longtext' },
+      ],
+    };
+    set((s) => ({ objects: [...s.objects, def], objectRecords: { ...s.objectRecords, [key]: [] }, nav: key, openObjectId: null }));
+    get().toast('Custom object created', 'success');
+  },
 
   moveDeal: (id, stage) =>
     set((s) => ({
@@ -373,6 +501,13 @@ export const useStore = create<AppState>()(
     set((s) => ({
       objectRecords: { ...s.objectRecords, [objKey]: [rec, ...(s.objectRecords[objKey] || [])] },
     })),
+  updateObjectRecord: (objKey, id, patch) =>
+    set((s) => ({
+      objectRecords: {
+        ...s.objectRecords,
+        [objKey]: (s.objectRecords[objKey] || []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      },
+    })),
 
   toast: (text, tone = 'default') => {
     const id = uid('t');
@@ -409,6 +544,10 @@ export const useStore = create<AppState>()(
         objects: s.objects,
         objectRecords: s.objectRecords,
         role: s.role,
+        tableCols: s.tableCols,
+        density: s.density,
+        cardFields: s.cardFields,
+        savedViews: s.savedViews,
       }),
     },
   ),

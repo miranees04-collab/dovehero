@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import { OWNERS, hueOf } from '@/data/constants';
-import type { Deal, StageKey } from '@/types';
+import type { Deal, StageKey, Priority } from '@/types';
 import { money } from '@/lib/format';
 import { DealCard } from './DealCard';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui/primitives';
 
 const BOARD_STAGES: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+const PRIO_LANES: { k: Priority; label: string }[] = [
+  { k: 'high', label: 'High priority' },
+  { k: 'med', label: 'Medium priority' },
+  { k: 'low', label: 'Low priority' },
+];
 
 export function Board() {
   const pipeline = useStore((s) => s.pipeline);
@@ -18,7 +23,7 @@ export function Board() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
-  const onDrop = (stage: StageKey, lane?: string) => {
+  const onDrop = (stage: StageKey) => {
     if (!dragId) return;
     const d = useStore.getState().deals.find((x) => x.id === dragId);
     setDragId(null);
@@ -28,8 +33,21 @@ export function Board() {
       moveDeal(dragId, stage);
       toast(`${d.company} moved to ${stage}`, stage === 'Won' ? 'success' : 'default');
     }
-    void lane;
   };
+
+  const colsFor = (subset: Deal[], laneKey?: string) => (
+    <BoardColumns
+      stages={BOARD_STAGES}
+      deals={subset}
+      dragId={dragId}
+      overStage={overStage}
+      laneKey={laneKey}
+      setDragId={setDragId}
+      setOverStage={setOverStage}
+      onDrop={onDrop}
+      compact={!!laneKey}
+    />
+  );
 
   if (swimlane === 'owner') {
     const owners = Array.from(new Set(deals.map((d) => d.owner)));
@@ -42,35 +60,35 @@ export function Board() {
               <b>{OWNERS[ok]?.name ?? ok}</b>
               <span className="dh-swimlane-count">{deals.filter((d) => d.owner === ok).length}</span>
             </div>
-            <BoardColumns
-              stages={BOARD_STAGES}
-              deals={deals.filter((d) => d.owner === ok)}
-              dragId={dragId}
-              overStage={overStage === ok ? overStage : null}
-              setDragId={setDragId}
-              setOverStage={(s) => setOverStage(s ? ok : null)}
-              onDrop={(st) => onDrop(st, ok)}
-              compact
-            />
+            {colsFor(deals.filter((d) => d.owner === ok), 'o-' + ok)}
           </div>
         ))}
       </div>
     );
   }
 
-  return (
-    <div className="dh-board">
-      <BoardColumns
-        stages={BOARD_STAGES}
-        deals={deals}
-        dragId={dragId}
-        overStage={overStage}
-        setDragId={setDragId}
-        setOverStage={setOverStage}
-        onDrop={onDrop}
-      />
-    </div>
-  );
+  if (swimlane === 'priority') {
+    return (
+      <div className="dh-board-scroll">
+        {PRIO_LANES.map((p) => {
+          const subset = deals.filter((d) => d.priority === p.k);
+          if (!subset.length) return null;
+          return (
+            <div className="dh-swimlane" key={p.k}>
+              <div className="dh-swimlane-head">
+                <span className={`dh-prio ${p.k}`} style={{ marginTop: 0 }} />
+                <b>{p.label}</b>
+                <span className="dh-swimlane-count">{subset.length}</span>
+              </div>
+              {colsFor(subset, 'p-' + p.k)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return <div className="dh-board">{colsFor(deals)}</div>;
 }
 
 function BoardColumns({
@@ -78,6 +96,7 @@ function BoardColumns({
   deals,
   dragId,
   overStage,
+  laneKey,
   setDragId,
   setOverStage,
   onDrop,
@@ -87,30 +106,50 @@ function BoardColumns({
   deals: Deal[];
   dragId: string | null;
   overStage: string | null;
+  laneKey?: string;
   setDragId: (id: string | null) => void;
   setOverStage: (s: string | null) => void;
   onDrop: (stage: StageKey) => void;
   compact?: boolean;
 }) {
+  const collapsedCols = useStore((s) => s.collapsedCols);
+  const toggleColCollapse = useStore((s) => s.toggleColCollapse);
+
   return (
     <div className={`dh-cols ${compact ? 'compact' : ''}`}>
       {stages.map((sk) => {
         const list = deals.filter((d) => d.stage === sk);
         const total = list.reduce((s, d) => s + d.value, 0);
         const hue = hueOf(sk);
-        const isOver = overStage === sk && dragId;
+        const overId = (laneKey ?? '') + sk;
+        const isOver = overStage === overId && dragId;
+        const collapsed = !laneKey && collapsedCols[sk];
+
+        if (collapsed) {
+          return (
+            <button
+              key={sk}
+              className="dh-col-collapsed"
+              style={{ ['--col-hue' as string]: hue }}
+              onClick={() => toggleColCollapse(sk)}
+              onDragOver={(e) => { e.preventDefault(); setOverStage(overId); }}
+              onDrop={() => onDrop(sk)}
+              title={`Expand ${sk}`}
+            >
+              <span className="dh-col-dot" style={{ background: hue }} />
+              <span className="dh-col-collapsed-name">{sk}</span>
+              <span className="dh-col-count">{list.length}</span>
+            </button>
+          );
+        }
+
         return (
           <div
             key={sk}
             className={`dh-col ${isOver ? 'over' : ''}`}
             style={{ ['--col-hue' as string]: hue }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setOverStage(sk);
-            }}
-            onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null);
-            }}
+            onDragOver={(e) => { e.preventDefault(); setOverStage(overId); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null); }}
             onDrop={() => onDrop(sk)}
           >
             <div className="dh-col-head">
@@ -118,6 +157,11 @@ function BoardColumns({
               <span className="dh-col-name">{sk}</span>
               <span className="dh-col-count">{list.length}</span>
               <span className="dh-col-total mono">{money(total, true)}</span>
+              {!laneKey && (
+                <button className="dh-col-collapse" onClick={() => toggleColCollapse(sk)} aria-label={`Collapse ${sk}`} title="Collapse">
+                  <Icon name="chevronLeft" size={14} />
+                </button>
+              )}
             </div>
             <div className="dh-col-cards">
               {list.map((d) => (
@@ -136,9 +180,55 @@ function BoardColumns({
                 </div>
               )}
             </div>
+            {!laneKey && sk !== 'Won' && <InlineAdd stage={sk} />}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function InlineAdd({ stage }: { stage: StageKey }) {
+  const createDeal = useStore((s) => s.createDeal);
+  const openDeal = useStore((s) => s.openDeal);
+  const toast = useStore((s) => s.toast);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+
+  const submit = (open: boolean) => {
+    const company = name.trim();
+    if (!company) {
+      setEditing(false);
+      return;
+    }
+    const id = createDeal({ company, name: `${company} — New deal`, stage });
+    setName('');
+    setEditing(false);
+    toast('Deal added', 'success');
+    if (open) openDeal(id);
+  };
+
+  if (!editing) {
+    return (
+      <button className="dh-col-add" onClick={() => setEditing(true)}>
+        <Icon name="plus" size={14} /> Add deal
+      </button>
+    );
+  }
+  return (
+    <div className="dh-col-addbox">
+      <input
+        autoFocus
+        className="dh-input"
+        placeholder="Company name…"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit(false);
+          if (e.key === 'Escape') { setName(''); setEditing(false); }
+        }}
+        onBlur={() => submit(false)}
+      />
     </div>
   );
 }

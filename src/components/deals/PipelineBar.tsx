@@ -7,6 +7,14 @@ import type { Priority } from '@/types';
 import './deals.css';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
+const CARD_FIELD_OPTS = [
+  { k: 'health', label: 'Health score' },
+  { k: 'tags', label: 'Tags' },
+  { k: 'nova', label: 'Nova next step' },
+  { k: 'value', label: 'Deal value' },
+  { k: 'win', label: 'Win probability' },
+  { k: 'owner', label: 'Owner' },
+];
 
 export function PipelineBar() {
   const pipeline = useStore((s) => s.pipeline);
@@ -16,6 +24,8 @@ export function PipelineBar() {
   const resetFilters = useStore((s) => s.resetFilters);
   const swimlane = useStore((s) => s.swimlane);
   const setSwimlane = useStore((s) => s.setSwimlane);
+  const cardFields = useStore((s) => s.cardFields);
+  const toggleCardField = useStore((s) => s.toggleCardField);
   const view = useStore((s) => s.view);
 
   const all = useFilteredDeals().filter((d) => d.pipeline === pipeline);
@@ -69,18 +79,44 @@ export function PipelineBar() {
           <Popover
             align="end"
             trigger={({ toggle }) => (
-              <button className="dh-filter-btn" onClick={toggle} title="Group board">
+              <button className={`dh-filter-btn ${swimlane !== 'none' ? 'active' : ''}`} onClick={toggle} title="Group board">
                 <Icon name="layers" size={15} />
-                <span className="hide-sm">{swimlane === 'owner' ? 'By owner' : 'By stage'}</span>
+                <span className="hide-sm">{swimlane === 'owner' ? 'By owner' : swimlane === 'priority' ? 'By priority' : 'By stage'}</span>
               </button>
             )}
           >
             {(close) => (
               <>
-                <div className="dh-menu-head">Group by</div>
+                <div className="dh-menu-head">Swimlanes</div>
                 <MenuItem active={swimlane === 'none'} onClick={() => { setSwimlane('none'); close(); }}>Stage only</MenuItem>
-                <MenuItem active={swimlane === 'owner'} onClick={() => { setSwimlane('owner'); close(); }}>Swimlanes by owner</MenuItem>
+                <MenuItem active={swimlane === 'owner'} onClick={() => { setSwimlane('owner'); close(); }}>By owner</MenuItem>
+                <MenuItem active={swimlane === 'priority'} onClick={() => { setSwimlane('priority'); close(); }}>By priority</MenuItem>
               </>
+            )}
+          </Popover>
+        )}
+
+        {view === 'board' && (
+          <Popover
+            align="end"
+            width={220}
+            trigger={({ toggle }) => (
+              <button className="dh-filter-btn" onClick={toggle} title="Customize cards">
+                <Icon name="sliders" size={15} />
+                <span className="hide-sm">Cards</span>
+              </button>
+            )}
+          >
+            {() => (
+              <div className="dh-card-fields">
+                <div className="dh-menu-head">Show on cards</div>
+                {CARD_FIELD_OPTS.map((f) => (
+                  <label key={f.k} className="dh-cardfield-row">
+                    <input type="checkbox" checked={cardFields.includes(f.k)} onChange={() => toggleCardField(f.k)} />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
             )}
           </Popover>
         )}
