@@ -1,0 +1,98 @@
+.dh-doc-lihead {
+  display: grid;
+  grid-template-columns: 1fr 70px 110px 100px 28px;
+  gap: 8px;
+  padding: 0 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dh-doc-li {
+  display: grid;
+  grid-template-columns: 1fr 70px 110px 100px 28px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.dh-doc-li .dh-input { padding: 7px 9px; font-size: 13px; }
+.dh-doc-amt { text-align: right; font-size: 13px; color: var(--ink); font-weight: 600; }
+.dh-doc-del {
+  width: 26px; height: 26px; display: grid; place-items: center;
+  border: none; background: none; color: var(--faint); border-radius: 6px; cursor: pointer;
+}
+.dh-doc-del:hover { background: var(--red-soft); color: var(--red); }
+.dh-doc-totals {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  max-width: 280px;
+  margin-left: auto;
+}
+.dh-doc-trow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.dh-doc-trow.total {
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding-top: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+}
+.dh-doc-pct {
+  width: 46px;
+  margin: 0 2px;
+  padding: 3px 5px;
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  text-align: right;
+}
+.dh-doc-total-foot { font-size: 13px; color: var(--sub); }
+.dh-doc-total-foot b { color: var(--ink); font-size: 15px; margin-left: 4px; }
+
+/* record documents section */
+.dh-doc-actions { display: flex; gap: 6px; margin-top: 10px; }
+.dh-doc-gen {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px dashed var(--border-strong);
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-doc-gen:hover { border-color: var(--accent-400); color: var(--accent-700); }
+[data-theme='dark'] .dh-doc-gen:hover { color: var(--accent); }
+.dh-doc-record {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  margin-bottom: 6px;
+}
+.dh-doc-record .di { color: var(--violet); }
+.dh-doc-record-main { flex: 1; min-width: 0; }
+.dh-doc-record-id { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dh-doc-record-sub { font-size: 11px; color: var(--faint); }
+.dh-doc-record-total { font-size: 12.5px; font-weight: 700; color: var(--ink); }

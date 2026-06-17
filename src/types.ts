@@ -84,6 +84,23 @@ export interface DealDoc {
   k: 'pdf' | 'doc' | 'xls';
 }
 
+export interface DocItem {
+  name: string;
+  qty: number;
+  unit: number;
+}
+
+export interface DealDocument {
+  id: string;
+  kind: 'quote' | 'invoice';
+  total: number;
+  status: string;
+  items: DocItem[];
+  discount: number;
+  tax: number;
+  created: string;
+}
+
 export interface Deal {
   id: string;
   name: string;
@@ -105,6 +122,8 @@ export interface Deal {
   products: LineItem[];
   docs: DealDoc[];
   acts: Activity[];
+  quotes?: DealDocument[];
+  invoices?: DealDocument[];
 }
 
 export interface Owner {

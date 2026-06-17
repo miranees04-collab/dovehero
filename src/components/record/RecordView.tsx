@@ -33,6 +33,7 @@ export function RecordView() {
   const requestStage = useStore((s) => s.requestStage);
   const logActivity = useStore((s) => s.logActivity);
   const openComposer = useStore((s) => s.openComposer);
+  const openDocBuilder = useStore((s) => s.openDocBuilder);
   const sendNova = useStore((s) => s.sendNova);
   const toast = useStore((s) => s.toast);
   const [note, setNote] = useState('');
@@ -274,20 +275,22 @@ export function RecordView() {
             </section>
           )}
 
-          {deal.docs.length > 0 && (
-            <section className="dh-rec-card">
-              <h4 className="dh-rail-title">Documents</h4>
-              <div className="dh-docs">
-                {deal.docs.map((d) => (
-                  <button key={d.n} className="dh-doc" onClick={() => toast(`Opening ${d.n}…`)}>
-                    <Icon name="fileText" size={15} />
-                    <span>{d.n}</span>
-                    <Icon name="arrowUpRight" size={13} />
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+          <section className="dh-rec-card">
+            <h4 className="dh-rail-title">Documents</h4>
+            <div className="dh-docs">
+              {deal.docs.map((d) => (
+                <button key={d.n} className="dh-doc" onClick={() => toast(`Opening ${d.n}…`)}>
+                  <Icon name="fileText" size={15} />
+                  <span>{d.n}</span>
+                  <Icon name="arrowUpRight" size={13} />
+                </button>
+              ))}
+            </div>
+            <div className="dh-doc-actions">
+              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'quote')}><Icon name="receipt" size={14} /> New quote</button>
+              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'invoice')}><Icon name="receipt" size={14} /> New invoice</button>
+            </div>
+          </section>
 
           {deal.tags.length > 0 && (
             <section className="dh-rec-card">

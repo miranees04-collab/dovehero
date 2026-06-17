@@ -23,6 +23,7 @@ import type {
   FieldDef,
   Pipeline,
   Automation,
+  DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES } from '@/data/constants';
@@ -170,6 +171,7 @@ export interface AppState {
   bulk: string[];
   autoOpen: boolean;
   autoEdit: Automation | null;
+  docBuilder: { dealId: string; kind: 'quote' | 'invoice'; items: DocItem[]; discount: number; tax: number } | null;
 
   // undo / redo history of the deals collection
   past: Deal[][];
@@ -187,6 +189,10 @@ export interface AppState {
   toggleAutomation: (id: string) => void;
   deleteAutomation: (id: string) => void;
   runAutomations: () => void;
+  openDocBuilder: (dealId: string, kind: 'quote' | 'invoice') => void;
+  setDocBuilder: (patch: Partial<NonNullable<AppState['docBuilder']>>) => void;
+  closeDocBuilder: () => void;
+  saveDoc: () => void;
 
   setNav: (nav: string) => void;
   setView: (v: DealView) => void;
@@ -351,6 +357,7 @@ export const useStore = create<AppState>()(
   bulk: [],
   autoOpen: false,
   autoEdit: null,
+  docBuilder: null,
   past: [],
   future: [],
 
@@ -425,6 +432,40 @@ export const useStore = create<AppState>()(
       return { deals, past: [...s.past, s.deals].slice(-HISTORY_LIMIT), future: [] };
     });
     get().toast(n ? `Automations applied to ${n} deal${n !== 1 ? 's' : ''}` : 'No deals matched the active rules', n ? 'success' : 'default');
+  },
+
+  openDocBuilder: (dealId, kind) => {
+    const d = get().deals.find((x) => x.id === dealId);
+    const items: DocItem[] = (d?.products ?? []).map((p) => ({ name: p.n, qty: 1, unit: p.v }));
+    if (!items.length) items.push({ name: 'Platform — annual', qty: 1, unit: 48000 });
+    set({ docBuilder: { dealId, kind, items, discount: 0, tax: 0 } });
+  },
+  setDocBuilder: (patch) => set((s) => (s.docBuilder ? { docBuilder: { ...s.docBuilder, ...patch } } : {})),
+  closeDocBuilder: () => set({ docBuilder: null }),
+  saveDoc: () => {
+    const b = get().docBuilder;
+    if (!b) return;
+    const d = get().deals.find((x) => x.id === b.dealId);
+    if (!d) return;
+    const sub = b.items.reduce((a, it) => a + it.qty * it.unit, 0);
+    const disc = Math.round((sub * b.discount) / 100);
+    const tax = Math.round(((sub - disc) * b.tax) / 100);
+    const total = sub - disc + tax;
+    const num = d.id.replace(/\D/g, '') || '000';
+    const isInv = b.kind === 'invoice';
+    const seq = ((isInv ? d.invoices?.length : d.quotes?.length) ?? 0) + 1;
+    const id = (isInv ? 'INV-' : 'Q-') + num + '-' + (seq < 10 ? '0' + seq : seq);
+    const doc = { id, kind: b.kind, total, status: isInv ? 'Sent' : 'Draft', items: b.items, discount: b.discount, tax: b.tax, created: 'now' };
+    set((s) => ({
+      deals: s.deals.map((x) =>
+        x.id === b.dealId
+          ? { ...x, [isInv ? 'invoices' : 'quotes']: [...(isInv ? x.invoices ?? [] : x.quotes ?? []), doc], docs: [{ n: `${id}.pdf`, k: 'pdf' as const }, ...x.docs] }
+          : x,
+      ),
+      docBuilder: null,
+    }));
+    get().addActivity(b.dealId, { type: 'file', who: 'You', w: 'now', text: `Generated ${b.kind} ${id}`, chan: `${id}.pdf` });
+    get().toast(`${isInv ? 'Invoice' : 'Quote'} ${id} created`, 'success');
   },
 
   setNav: (nav) => set({ nav, openDealId: null, openObjectId: null, mobileNavOpen: false }),
