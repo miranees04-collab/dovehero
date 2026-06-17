@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import type { Deal, GroupBy } from '@/types';
-import { OWNERS, hueOf, healthColor, healthBand } from '@/data/constants';
+import { OWNERS, hueOf, healthColor, healthBand, STAGES } from '@/data/constants';
 import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
@@ -80,6 +80,8 @@ export function DealTable() {
   const applyView = useStore((s) => s.applyView);
   const deleteView = useStore((s) => s.deleteView);
   const saveView = useStore((s) => s.saveView);
+  const bulk = useStore((s) => s.bulk);
+  const toggleBulk = useStore((s) => s.toggleBulk);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
 
@@ -267,6 +269,21 @@ export function DealTable() {
         <table className={`dh-table density-${density}`}>
           <thead>
             <tr>
+              <th className="dh-th-check">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={rows.length > 0 && rows.every((d) => bulk.includes(d.id))}
+                  ref={(el) => { if (el) el.indeterminate = bulk.length > 0 && !rows.every((d) => bulk.includes(d.id)); }}
+                  onChange={(e) => {
+                    const all = e.target.checked;
+                    rows.forEach((d) => {
+                      if (all && !bulk.includes(d.id)) toggleBulk(d.id);
+                      if (!all && bulk.includes(d.id)) toggleBulk(d.id);
+                    });
+                  }}
+                />
+              </th>
               {cols.map((c) => {
                 const active = sort[0]?.k === c.k;
                 return (
@@ -287,7 +304,7 @@ export function DealTable() {
           </thead>
           <tbody>
             {grouped.map((g) => (
-              <GroupBlock key={g.key || 'all'} groupKey={g.key} rows={g.rows} cols={cols} group={group} openDeal={openDeal} />
+              <GroupBlock key={g.key || 'all'} groupKey={g.key} rows={g.rows} cols={cols} group={group} openDeal={openDeal} bulk={bulk} toggleBulk={toggleBulk} />
             ))}
           </tbody>
         </table>
@@ -298,25 +315,68 @@ export function DealTable() {
           </div>
         )}
       </div>
+      <BulkBar />
+    </div>
+  );
+}
+
+function BulkBar() {
+  const bulk = useStore((s) => s.bulk);
+  const clearBulk = useStore((s) => s.clearBulk);
+  const bulkStage = useStore((s) => s.bulkStage);
+  const bulkOwner = useStore((s) => s.bulkOwner);
+  const bulkDelete = useStore((s) => s.bulkDelete);
+  if (!bulk.length) return null;
+  return (
+    <div className="dh-bulkbar">
+      <span className="dh-bulk-count">{bulk.length} selected</span>
+      <Popover
+        up
+        trigger={({ toggle }) => <button className="dh-bulk-btn" onClick={toggle}><Icon name="layers" size={15} /> Move to</button>}
+      >
+        {(close) => (
+          <>
+            {STAGES.map((s) => (
+              <MenuItem key={s.k} onClick={() => { bulkStage(s.k); close(); }}>{s.k}</MenuItem>
+            ))}
+          </>
+        )}
+      </Popover>
+      <Popover
+        up
+        trigger={({ toggle }) => <button className="dh-bulk-btn" onClick={toggle}><Icon name="users" size={15} /> Reassign</button>}
+      >
+        {(close) => (
+          <>
+            {Object.values(OWNERS).map((o) => (
+              <MenuItem key={o.key} icon={<Avatar ownerKey={o.key} size={20} />} onClick={() => { bulkOwner(o.key); close(); }}>{o.name}</MenuItem>
+            ))}
+          </>
+        )}
+      </Popover>
+      <button className="dh-bulk-btn danger" onClick={bulkDelete}><Icon name="trash" size={15} /> Delete</button>
+      <button className="dh-bulk-btn ghost" onClick={clearBulk}><Icon name="x" size={15} /></button>
     </div>
   );
 }
 
 function GroupBlock({
-  groupKey, rows, cols, group, openDeal,
+  groupKey, rows, cols, group, openDeal, bulk, toggleBulk,
 }: {
   groupKey: string;
   rows: Deal[];
   cols: ColMeta[];
   group: GroupBy;
   openDeal: (id: string) => void;
+  bulk: string[];
+  toggleBulk: (id: string) => void;
 }) {
   const total = rows.reduce((s, d) => s + d.value, 0);
   return (
     <>
       {group !== 'none' && (
         <tr className="dh-group-row">
-          <td colSpan={cols.length}>
+          <td colSpan={cols.length + 1}>
             <div className="dh-group-head">
               <span className="dh-group-name">{groupKey}</span>
               <span className="dh-group-count">{rows.length}</span>
@@ -326,7 +386,10 @@ function GroupBlock({
         </tr>
       )}
       {rows.map((d) => (
-        <tr key={d.id} onClick={() => openDeal(d.id)}>
+        <tr key={d.id} onClick={() => openDeal(d.id)} className={bulk.includes(d.id) ? 'selected' : ''}>
+          <td className="dh-td-check" onClick={(e) => e.stopPropagation()}>
+            <input type="checkbox" checked={bulk.includes(d.id)} onChange={() => toggleBulk(d.id)} aria-label={`Select ${d.name}`} />
+          </td>
           {cols.map((c) => (
             <td key={c.k} style={{ textAlign: c.align }} className={c.k === 'value' ? 'mono' : ''}>
               <Cell deal={d} col={c.k} />

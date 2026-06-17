@@ -106,11 +106,13 @@ export function Popover({
   children,
   align = 'start',
   width,
+  up = false,
 }: {
   trigger: (props: { open: boolean; toggle: () => void }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: 'start' | 'end';
   width?: number;
+  up?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ export function Popover({
     <div className="dh-pop-wrap" ref={ref}>
       {trigger({ open, toggle: () => setOpen((v) => !v) })}
       {open && (
-        <div className={`dh-pop a-${align}`} style={width ? { width } : undefined} role="menu">
+        <div className={`dh-pop a-${align} ${up ? 'up' : ''}`} style={width ? { width } : undefined} role="menu">
           {children(() => setOpen(false))}
         </div>
       )}
