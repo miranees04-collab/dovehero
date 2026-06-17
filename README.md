@@ -81,9 +81,12 @@ src/
   computed answers with deep-link action chips.
 - **Composer** — draft and "send" Email / WhatsApp / SMS (logged to the
   timeline), with a one-click "Draft with Nova".
-- **Command palette** (⌘K), **notifications**, **multi-object records**
-  (Companies, Contacts, Products, Leads, Tickets, Invoices), **light/dark**
-  theme, and a responsive layout with a mobile navigation drawer.
+- **Command palette** (⌘K), **notifications**, a global **Tasks** panel,
+  a **Customize** hub (theme + reset), **undo/redo**, **multi-object
+  records** (Companies, Contacts, Products, Leads, Tickets, Invoices),
+  **light/dark** theme, and a responsive layout with a mobile nav drawer.
+- **Persistence** — your deals, records, and changes are saved to
+  `localStorage` and survive reloads; reset anytime from **Customize**.
 
 ### Keyboard shortcuts
 
@@ -91,15 +94,17 @@ src/
 | --- | --- |
 | `⌘K` / `Ctrl+K` | Command palette |
 | `⌘J` / `Ctrl+J` | Ask Nova |
+| `⌘Z` / `⌘⇧Z` | Undo / redo |
 | `Esc` | Close any overlay |
 
 ---
 
 ## 3. Notes on the prototype
 
-- Data is seeded in memory; refreshing the page resets it. The theme
-  preference is the one thing persisted (to `localStorage`).
+- Deals, records, and edits persist to `localStorage` (keyed `dh-store`);
+  the theme preference persists separately. Use **Customize → Reset demo
+  data** to restore the seeded pipeline.
 - Outbound integrations (email, WhatsApp, SMS, documents) are **simulated**
   to demonstrate the workflow, not connected to live services.
-- Good next steps: wire persistence (localStorage or a small backend),
-  make integrations real, add saved-view management, and add a test suite.
+- Good next steps: make integrations real, add saved-view management, a
+  small backend for multi-user data, and a test suite.

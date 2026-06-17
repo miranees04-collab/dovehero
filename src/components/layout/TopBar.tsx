@@ -17,6 +17,15 @@ export function TopBar() {
   const setNotif = useStore((s) => s.setNotif);
   const setMobileNav = useStore((s) => s.setMobileNav);
   const openDealId = useStore((s) => s.openDealId);
+  const setTasks = useStore((s) => s.setTasks);
+  const setHub = useStore((s) => s.setHub);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const canUndo = useStore((s) => s.past.length > 0);
+  const canRedo = useStore((s) => s.future.length > 0);
+  const openTaskCount = useStore((s) =>
+    s.deals.reduce((n, d) => n + d.acts.filter((a) => a.type === 'task' && !a.done).length, 0),
+  );
 
   const obj = OBJECT_DEFS.find((o) => o.k === nav);
   const title = nav === 'deals' ? 'Deals' : obj?.plural ?? 'Records';
@@ -67,6 +76,22 @@ export function TopBar() {
         <span className="hide-sm">Ask Nova</span>
       </Button>
 
+      {(canUndo || canRedo) && (
+        <div className="dh-undo-group hide-sm">
+          <button className="dh-icon-btn" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)">
+            <Icon name="undo" size={16} />
+          </button>
+          <button className="dh-icon-btn" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (⌘⇧Z)">
+            <Icon name="redo" size={16} />
+          </button>
+        </div>
+      )}
+
+      <button className="dh-icon-btn hide-sm" onClick={() => setTasks(true)} aria-label="Tasks" title="My tasks">
+        <Icon name="tasks" size={17} />
+        {openTaskCount > 0 && <span className="dh-count-badge">{openTaskCount}</span>}
+      </button>
+
       <button
         className="dh-icon-btn"
         onClick={toggleTheme}
@@ -79,6 +104,10 @@ export function TopBar() {
       <button className="dh-icon-btn" onClick={() => setNotif(true)} aria-label="Notifications">
         <Icon name="bell" size={17} />
         <span className="dh-notif-dot" />
+      </button>
+
+      <button className="dh-icon-btn hide-sm" onClick={() => setHub(true)} aria-label="Settings" title="Customize">
+        <Icon name="sliders" size={17} />
       </button>
 
       <NewDealButton />

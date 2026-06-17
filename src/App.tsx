@@ -11,6 +11,8 @@ import { PipelineBar } from './components/deals/PipelineBar';
 import { NovaPanel } from './components/nova/NovaPanel';
 import { CommandPalette } from './components/command/CommandPalette';
 import { NotificationsPanel } from './components/panels/NotificationsPanel';
+import { TasksPanel } from './components/panels/TasksPanel';
+import { HubPanel } from './components/panels/HubPanel';
 import { Composer } from './components/composer/Composer';
 import { Toasts } from './components/ui/Toasts';
 
@@ -20,22 +22,30 @@ export default function App() {
   const openDealId = useStore((s) => s.openDealId);
   const setPalette = useStore((s) => s.setPalette);
   const setNova = useStore((s) => s.setNova);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
 
   // global keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      const typing = /^(input|textarea)$/i.test((e.target as HTMLElement)?.tagName ?? '');
+      if (mod && key === 'k') {
         e.preventDefault();
         setPalette(true);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+      } else if (mod && key === 'j') {
         e.preventDefault();
         setNova(true);
+      } else if (mod && key === 'z' && !typing) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setPalette, setNova]);
+  }, [setPalette, setNova, undo, redo]);
 
   let content;
   if (nav !== 'deals') {
@@ -65,6 +75,8 @@ export default function App() {
       <NovaPanel />
       <CommandPalette />
       <NotificationsPanel />
+      <TasksPanel />
+      <HubPanel />
       <Composer />
       <Toasts />
     </div>

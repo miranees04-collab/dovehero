@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
   Deal,
   StageKey,
@@ -119,6 +120,12 @@ export interface AppState {
   composer: ComposerState | null;
   toasts: Toast[];
   mobileNavOpen: boolean;
+  tasksOpen: boolean;
+  hubOpen: boolean;
+
+  // undo / redo history of the deals collection
+  past: Deal[][];
+  future: Deal[][];
 
   // derived helpers stored as actions
   setNav: (nav: string) => void;
@@ -146,6 +153,10 @@ export interface AppState {
   sendNova: (text: string) => void;
   setNotif: (open: boolean) => void;
   setMobileNav: (open: boolean) => void;
+  setTasks: (open: boolean) => void;
+  setHub: (open: boolean) => void;
+  undo: () => void;
+  redo: () => void;
 
   openComposer: (c: ComposerState) => void;
   closeComposer: () => void;
@@ -168,8 +179,11 @@ export interface ComposerState {
 }
 
 const seeded = seedDeals();
+const HISTORY_LIMIT = 40;
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   deals: seeded,
   objects: OBJECT_DEFS,
   objectRecords: seedObjectRecords(seeded),
@@ -206,6 +220,10 @@ export const useStore = create<AppState>((set, get) => ({
   composer: null,
   toasts: [],
   mobileNavOpen: false,
+  tasksOpen: false,
+  hubOpen: false,
+  past: [],
+  future: [],
 
   setNav: (nav) => set({ nav, openDealId: null, openObjectId: null, mobileNavOpen: false }),
   setView: (view) => set({ view, openDealId: null }),
@@ -230,10 +248,16 @@ export const useStore = create<AppState>((set, get) => ({
         const win = stage === 'Won' ? 100 : stage === 'Lost' ? 0 : d.win;
         return { ...d, stage, win };
       }),
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
     })),
 
   updateDeal: (id, patch) =>
-    set((s) => ({ deals: s.deals.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
+    set((s) => ({
+      deals: s.deals.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
+    })),
 
   createDeal: (partial) => {
     const id = uid('NX');
@@ -259,7 +283,7 @@ export const useStore = create<AppState>((set, get) => ({
       docs: partial.docs || [],
       acts: [{ id: uid('a'), type: 'note', who: 'You', w: 'today', text: 'Deal created.' }],
     };
-    set((s) => ({ deals: [deal, ...s.deals] }));
+    set((s) => ({ deals: [deal, ...s.deals], past: [...s.past, s.deals].slice(-HISTORY_LIMIT), future: [] }));
     return id;
   },
 
@@ -268,6 +292,8 @@ export const useStore = create<AppState>((set, get) => ({
       deals: s.deals.map((d) =>
         d.id === dealId ? { ...d, acts: [{ id: uid('a'), ...act }, ...d.acts] } : d,
       ),
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
     })),
 
   logActivity: (dealId, type, text, extra = {}) => {
@@ -281,7 +307,22 @@ export const useStore = create<AppState>((set, get) => ({
           ? { ...d, acts: d.acts.map((a) => (a.id === actId ? { ...a, done: !a.done } : a)) }
           : d,
       ),
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
     })),
+
+  undo: () =>
+    set((s) => {
+      if (!s.past.length) return {};
+      const prev = s.past[s.past.length - 1];
+      return { deals: prev, past: s.past.slice(0, -1), future: [s.deals, ...s.future].slice(0, HISTORY_LIMIT) };
+    }),
+  redo: () =>
+    set((s) => {
+      if (!s.future.length) return {};
+      const next = s.future[0];
+      return { deals: next, future: s.future.slice(1), past: [...s.past, s.deals].slice(-HISTORY_LIMIT) };
+    }),
 
   setTheme: (theme) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('dh-theme', theme);
@@ -293,6 +334,8 @@ export const useStore = create<AppState>((set, get) => ({
   setNova: (novaOpen) => set({ novaOpen }),
   setNotif: (notifOpen) => set({ notifOpen }),
   setMobileNav: (mobileNavOpen) => set({ mobileNavOpen }),
+  setTasks: (tasksOpen) => set({ tasksOpen }),
+  setHub: (hubOpen) => set({ hubOpen }),
 
   sendNova: (text) => {
     const userMsg: NovaMessage = { id: uid('nova'), role: 'user', text, ts: Date.now() };
@@ -342,6 +385,7 @@ export const useStore = create<AppState>((set, get) => ({
     const fresh = seedDeals();
     set({
       deals: fresh,
+      objects: OBJECT_DEFS,
       objectRecords: seedObjectRecords(fresh),
       openDealId: null,
       openObjectId: null,
@@ -349,10 +393,26 @@ export const useStore = create<AppState>((set, get) => ({
       view: 'board',
       filters: { ...emptyFilters },
       q: '',
+      past: [],
+      future: [],
     });
     get().toast('Demo data reset');
   },
-}));
+    }),
+    {
+      name: 'dh-store',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      // Persist data + a couple of preferences; skip transient UI state.
+      partialize: (s) => ({
+        deals: s.deals,
+        objects: s.objects,
+        objectRecords: s.objectRecords,
+        role: s.role,
+      }),
+    },
+  ),
+);
 
 // ---- selectors ----
 // Pure filter. NOTE: never call this directly inside useStore(selector) — it

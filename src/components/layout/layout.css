@@ -296,6 +296,39 @@
   background: var(--red);
   border: 1.5px solid var(--surface);
 }
+.dh-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.dh-undo-group {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+}
+.dh-undo-group .dh-icon-btn {
+  width: 30px;
+  height: 30px;
+}
+.dh-count-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-600);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--surface);
+}
 
 /* ---------------- Scrim ---------------- */
 .dh-scrim {

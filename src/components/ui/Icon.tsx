@@ -54,6 +54,12 @@ import {
   Briefcase,
   PanelLeft,
   GripVertical,
+  Undo2,
+  Redo2,
+  ListChecks,
+  SlidersHorizontal,
+  RotateCcw,
+  Sparkle,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -116,6 +122,12 @@ const MAP: Record<string, LucideIcon> = {
   briefcase: Briefcase,
   panelLeft: PanelLeft,
   grip: GripVertical,
+  undo: Undo2,
+  redo: Redo2,
+  tasks: ListChecks,
+  sliders: SlidersHorizontal,
+  reset: RotateCcw,
+  sparkle: Sparkle,
 };
 
 // Map activity types to icons
