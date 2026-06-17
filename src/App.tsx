@@ -14,6 +14,9 @@ import { NotificationsPanel } from './components/panels/NotificationsPanel';
 import { TasksPanel } from './components/panels/TasksPanel';
 import { HubPanel } from './components/panels/HubPanel';
 import { Composer } from './components/composer/Composer';
+import { CaptureSheet } from './components/deals/CaptureSheet';
+import { Confetti } from './components/deals/Confetti';
+import { Peek } from './components/deals/Peek';
 import { Toasts } from './components/ui/Toasts';
 
 export default function App() {
@@ -78,6 +81,9 @@ export default function App() {
       <TasksPanel />
       <HubPanel />
       <Composer />
+      <CaptureSheet />
+      <Peek />
+      <Confetti />
       <Toasts />
     </div>
   );

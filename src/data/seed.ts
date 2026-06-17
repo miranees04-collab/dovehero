@@ -47,24 +47,51 @@ const HEROES: Deal[] = [
       { n: 'Security pack.pdf', k: 'pdf' },
     ],
     acts: [
-      A('email', 'Devin Hart', '2h', 'Routing the order form to procurement now — should land today.', {
-        subj: 'Re: Order form',
-        chan: 'devin@northwind.io',
-        dir: 'in',
+      A('email', 'You', '1d', 'Aurora rollout — order form', {
+        subj: 'Aurora rollout — order form',
+        chan: 'renata@northwind.io',
+        dir: 'out',
         status: 'opened',
+        opens: 2,
+        attach: ['Order form v3.pdf'],
+        thread: [
+          { dir: 'out', who: 'You', w: '2d', text: 'Hi Renata — attaching the final order form for the Aurora rollout. Scope and pricing match what we agreed. Let me know if procurement needs anything else.' },
+          { dir: 'in', who: 'Renata Cole', w: '1d', text: 'Thanks Amara — this looks right. Routing to procurement now, should have it signed this week.' },
+        ],
       }),
-      A('whatsapp', 'Renata Cole', '5h', 'Looks good on our side, pushing internally 🚀', {
+      A('whatsapp', 'Renata Cole', '5h', 'All good on our side, pushing internally 🚀', {
         chan: '+1 (415) 555-0148',
-        dir: 'in',
+        thread: [
+          { dir: 'out', who: 'You', w: '6h', text: 'Hi Renata, quick nudge — anything blocking the order form? 👋' },
+          { dir: 'in', who: 'Renata Cole', w: '5h', text: 'All good on our side, pushing internally 🚀' },
+        ],
       }),
-      A('marketing', 'Nova', '1d', 'Opened "Aurora ROI" sequence — 3 of 4 emails opened, pricing page visited twice.', {
+      A('meeting', 'You', '2d', 'Final scoping call', {
+        subj: 'Final scoping call',
+        when: 'Thu · 11:00',
+        dur: '45',
+        provider: 'meet',
+        link: 'meet.google.com/aur-ro1l-out',
+        attendees: ['Renata Cole', 'Devin Hart', 'You'],
+        agenda: 'Confirm rollout phases, go-live date, and the security sign-off path.',
+      }),
+      A('marketing', 'Nova', '1d', '3 of 4 emails opened · pricing page visited twice.', {
+        subj: 'ROI nurture',
         chan: 'Aurora ROI · nurture',
+        seq: { k: 'roi', name: 'ROI nurture', steps: ['Day 0 · Intro email', 'Day 2 · ROI one-pager', 'Day 5 · Case study', 'Day 9 · Check-in call'] },
+        step: 3,
       }),
-      A('meeting', 'You', '2d', 'Final scoping call — agreed rollout plan and go-live date.', {
-        chan: '45 min · Zoom',
+      A('call', 'You', '4d', 'Procurement intro — confirmed paper process and signers.', { outcome: 'Connected', dur: '18' }),
+      A('task', 'Amara Reyes', '1d', 'Send security questionnaire response', {
+        title: 'Send security questionnaire response',
+        ttype: 'email',
+        due: 'Today',
+        prio: 'high',
+        done: false,
       }),
-      A('call', 'You', '4d', 'Procurement intro — confirmed paper process and signers.', { chan: '18 min' }),
-      A('note', 'You', '5d', 'Renata wants a phased rollout across 3 regions; flagged to delivery.'),
+      A('note', 'You', '5d', 'Renata wants a phased rollout across 3 regions. Flagged to delivery — capacity looks fine for a Q3 start.', {
+        reminder: { title: 'Loop in delivery on phased rollout', due: 'Tomorrow', done: false },
+      }),
       A('file', 'Devin Hart', '1w', 'Uploaded current architecture diagram.', { chan: 'architecture.pdf' }),
     ],
   },

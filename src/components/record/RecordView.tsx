@@ -1,24 +1,37 @@
 import { useState } from 'react';
-import { useStore } from '@/store/useStore';
-import { STAGES, OWNERS, healthColor, healthBand, ACTIVITY_META } from '@/data/constants';
-import type { StageKey, Activity } from '@/types';
-import { money } from '@/lib/format';
+import { useStore, type ComposerKind } from '@/store/useStore';
+import { STAGES, OWNERS, healthColor, healthBand } from '@/data/constants';
+import type { StageKey } from '@/types';
+import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Button, Ring } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
-import { ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
+import { Timeline } from './Timeline';
 import './record.css';
 
 const STEPPER: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+
+function healthFactors(deal: { stage: StageKey; value: number; health: number; acts: { w: string }[]; contacts: { r: string; s: string }[] }) {
+  const sd = staleDays(deal.acts?.[0]?.w);
+  const si = STAGES.findIndex((s) => s.k === deal.stage);
+  const champ = deal.contacts.some((c) => c.r === 'Economic buyer' || c.s === 'Strong');
+  const eng = deal.acts.length;
+  return [
+    { label: 'Recency', tone: sd >= 14 ? 'bad' : sd >= 7 ? 'warn' : 'good', note: sd >= 14 ? `${sd}d quiet` : sd >= 7 ? `${sd}d ago` : 'active' },
+    { label: 'Stage', tone: deal.stage === 'Lost' ? 'bad' : si >= 3 ? 'good' : 'warn', note: deal.stage },
+    { label: 'Deal size', tone: deal.value >= 100000 ? 'good' : deal.value >= 25000 ? 'warn' : 'bad', note: money(deal.value, true) },
+    { label: 'Engagement', tone: eng >= 8 ? 'good' : eng >= 4 ? 'warn' : 'bad', note: `${eng} touches` },
+    { label: 'Champion', tone: champ ? 'good' : 'warn', note: champ ? 'identified' : 'unconfirmed' },
+  ];
+}
 
 export function RecordView() {
   const dealId = useStore((s) => s.openDealId);
   const deal = useStore((s) => s.deals.find((d) => d.id === dealId));
   const openDeal = useStore((s) => s.openDeal);
   const view = useStore((s) => s.view);
-  const moveDeal = useStore((s) => s.moveDeal);
+  const requestStage = useStore((s) => s.requestStage);
   const logActivity = useStore((s) => s.logActivity);
-  const toggleTask = useStore((s) => s.toggleTask);
   const openComposer = useStore((s) => s.openComposer);
   const sendNova = useStore((s) => s.sendNova);
   const toast = useStore((s) => s.toast);
@@ -29,21 +42,23 @@ export function RecordView() {
   const stageIdx = STEPPER.indexOf(deal.stage);
   const risks = riskFactors(deal);
   const signals = dealSignals(deal);
+  const factors = healthFactors(deal);
 
-  const compose = (channel: 'email' | 'whatsapp' | 'sms') => {
+  const open = (kind: ComposerKind) => {
     const c = deal.contacts[0];
+    const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
     openComposer({
       dealId: deal.id,
-      channel,
-      to: channel === 'email' ? `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com` : '+1 (415) 555-0140',
-      subject: channel === 'email' ? `${deal.name} — next steps` : '',
+      kind,
+      to: kind === 'email' ? email : '+1 (415) 555-0140',
+      subject: kind === 'email' ? `${deal.name} — next steps` : '',
       body: '',
+      outcome: 'Connected',
+      due: 'Tomorrow',
+      prio: 'med',
+      dur: '30',
+      title: kind === 'task' ? String(deal.next ?? 'Follow up') : kind === 'meeting' ? `Next steps — ${deal.name}` : '',
     });
-  };
-
-  const quickLog = (type: 'call' | 'meeting' | 'note', text: string) => {
-    logActivity(deal.id, type, text);
-    toast(`${ACTIVITY_META[type].label} logged`, 'success');
   };
 
   const addNote = () => {
@@ -112,10 +127,7 @@ export function RecordView() {
                 key={sk}
                 className={`dh-step ${done ? 'done' : ''} ${cur ? 'cur' : ''}`}
                 style={cur || done ? { ['--sc' as string]: hue } : undefined}
-                onClick={() => {
-                  moveDeal(deal.id, sk);
-                  toast(`Moved to ${sk}`, sk === 'Won' ? 'success' : 'default');
-                }}
+                onClick={() => requestStage(deal.id, sk)}
               >
                 {done ? <Icon name="check" size={13} /> : <span className="dh-step-i">{i + 1}</span>}
                 {sk}
@@ -161,21 +173,12 @@ export function RecordView() {
 
           {/* Quick actions */}
           <div className="dh-rec-actions">
-            <button onClick={() => compose('email')}>
-              <Icon name="mail" size={16} /> Email
-            </button>
-            <button onClick={() => quickLog('call', 'Logged a call.')}>
-              <Icon name="phone" size={16} /> Log call
-            </button>
-            <button onClick={() => quickLog('meeting', 'Booked a meeting.')}>
-              <Icon name="calendar" size={16} /> Meeting
-            </button>
-            <button onClick={() => compose('whatsapp')}>
-              <Icon name="whatsapp" size={16} /> WhatsApp
-            </button>
-            <button onClick={() => compose('sms')}>
-              <Icon name="sms" size={16} /> SMS
-            </button>
+            <button onClick={() => open('email')}><Icon name="mail" size={16} /> Email</button>
+            <button onClick={() => open('call')}><Icon name="phone" size={16} /> Log call</button>
+            <button onClick={() => open('meeting')}><Icon name="calendar" size={16} /> Meeting</button>
+            <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
+            <button onClick={() => open('whatsapp')}><Icon name="whatsapp" size={16} /> WhatsApp</button>
+            <button onClick={() => open('sms')}><Icon name="sms" size={16} /> SMS</button>
           </div>
 
           {/* Note composer */}
@@ -203,16 +206,25 @@ export function RecordView() {
               <h3>Activity</h3>
               <span className="dh-timeline-count">{deal.acts.length}</span>
             </div>
-            <div className="dh-timeline-list">
-              {deal.acts.map((a) => (
-                <TimelineItem key={a.id} act={a} dealId={deal.id} onToggleTask={toggleTask} />
-              ))}
-            </div>
+            <Timeline deal={deal} />
           </section>
         </div>
 
         {/* Side rail */}
         <aside className="dh-rec-rail">
+          <section className="dh-rec-card">
+            <h4 className="dh-rail-title">Deal coach</h4>
+            <div className="dh-coach">
+              {factors.map((f) => (
+                <div key={f.label} className="dh-coach-row">
+                  <span className={`dh-coach-dot t-${f.tone}`} />
+                  <span className="dh-coach-label">{f.label}</span>
+                  <span className="dh-coach-note">{f.note}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="dh-rec-card">
             <h4 className="dh-rail-title">Buying signals</h4>
             <div className="dh-signals">
@@ -290,43 +302,6 @@ export function RecordView() {
             </section>
           )}
         </aside>
-      </div>
-    </div>
-  );
-}
-
-function TimelineItem({
-  act,
-  dealId,
-  onToggleTask,
-}: {
-  act: Activity;
-  dealId: string;
-  onToggleTask: (dealId: string, actId: string) => void;
-}) {
-  const meta = ACTIVITY_META[act.type];
-  const iconName = ACTIVITY_ICONS[act.type] ?? 'note';
-  return (
-    <div className="dh-tl-item">
-      <div className="dh-tl-icon" style={{ color: meta.color, background: `color-mix(in srgb, ${meta.color} 13%, transparent)` }}>
-        <Icon name={iconName} size={14} />
-      </div>
-      <div className="dh-tl-content">
-        <div className="dh-tl-meta">
-          <b>{act.who}</b>
-          {act.subj && <span className="dh-tl-subj">{act.subj}</span>}
-          {act.dir && <Badge tone={act.dir === 'in' ? 'blue' : 'neutral'}>{act.dir === 'in' ? 'Received' : 'Sent'}</Badge>}
-          <span className="dh-tl-time">{act.w}</span>
-        </div>
-        {act.type === 'task' ? (
-          <label className="dh-tl-task">
-            <input type="checkbox" checked={!!act.done} onChange={() => onToggleTask(dealId, act.id)} />
-            <span className={act.done ? 'done' : ''}>{act.title ?? act.text}</span>
-          </label>
-        ) : (
-          act.text && <p className="dh-tl-text">{act.text}</p>
-        )}
-        {act.chan && <span className="dh-tl-chan">{act.chan}</span>}
       </div>
     </div>
   );

@@ -140,6 +140,13 @@ export interface AppState {
   tasksOpen: boolean;
   hubOpen: boolean;
 
+  // deal interactions
+  cardMenuId: string | null;
+  peekId: string | null;
+  capture: { id: string; to: StageKey } | null;
+  confettiAt: number;
+  bulk: string[];
+
   // undo / redo history of the deals collection
   past: Deal[][];
   future: Deal[][];
@@ -175,6 +182,21 @@ export interface AppState {
   addActivity: (dealId: string, act: Omit<Activity, 'id'>) => void;
   logActivity: (dealId: string, type: ActivityType, text: string, extra?: Partial<Activity>) => void;
   toggleTask: (dealId: string, actId: string) => void;
+  toggleReminder: (dealId: string, actId: string) => void;
+  duplicateDeal: (id: string) => void;
+  deleteDeal: (id: string) => void;
+  setDealPriority: (id: string, p: Priority) => void;
+  setDealOwner: (id: string, owner: string) => void;
+  requestStage: (id: string, to: StageKey) => void;
+  applyCapture: (reason: string, note: string, amount?: number) => void;
+  cancelCapture: () => void;
+  setCardMenu: (id: string | null) => void;
+  setPeek: (id: string | null) => void;
+  toggleBulk: (id: string) => void;
+  clearBulk: () => void;
+  bulkStage: (to: StageKey) => void;
+  bulkOwner: (owner: string) => void;
+  bulkDelete: () => void;
 
   setTheme: (t: ThemeMode) => void;
   toggleTheme: () => void;
@@ -201,13 +223,36 @@ export interface AppState {
   resetDemo: () => void;
 }
 
+export type ComposerKind = 'note' | 'call' | 'task' | 'meeting' | 'email' | 'whatsapp' | 'sms';
+
 export interface ComposerState {
   dealId: string;
-  channel: 'email' | 'whatsapp' | 'sms';
-  to: string;
-  subject: string;
-  body: string;
+  kind: ComposerKind;
+  to?: string;
+  subject?: string;
+  body?: string;
+  // call
+  outcome?: 'Connected' | 'Voicemail' | 'No answer' | 'Busy';
+  followup?: boolean;
+  // task
+  title?: string;
+  due?: string;
+  prio?: Priority;
+  // meeting
+  when?: string;
+  dur?: string;
+  loc?: string;
+  // note
+  pin?: boolean;
+  reminder?: boolean;
+  reminderTitle?: string;
 }
+
+const STAGE_GATES: Partial<Record<StageKey, string[]>> = {
+  Proposal: ['amount'],
+  Negotiation: ['amount', 'close'],
+  Won: ['amount'],
+};
 
 const seeded = seedDeals();
 const HISTORY_LIMIT = 40;
@@ -261,6 +306,11 @@ export const useStore = create<AppState>()(
   mobileNavOpen: false,
   tasksOpen: false,
   hubOpen: false,
+  cardMenuId: null,
+  peekId: null,
+  capture: null,
+  confettiAt: 0,
+  bulk: [],
   past: [],
   future: [],
 
@@ -439,6 +489,137 @@ export const useStore = create<AppState>()(
       future: [],
     })),
 
+  toggleReminder: (dealId, actId) =>
+    set((s) => ({
+      deals: s.deals.map((d) =>
+        d.id === dealId
+          ? {
+              ...d,
+              acts: d.acts.map((a) =>
+                a.id === actId && a.reminder ? { ...a, reminder: { ...a.reminder, done: !a.reminder.done } } : a,
+              ),
+            }
+          : d,
+      ),
+    })),
+
+  duplicateDeal: (id) => {
+    const o = get().deals.find((d) => d.id === id);
+    if (!o) return;
+    const copy: Deal = JSON.parse(JSON.stringify(o));
+    copy.id = uid('NX');
+    copy.name = o.name + ' (copy)';
+    set((s) => {
+      const i = s.deals.findIndex((d) => d.id === id);
+      const next = s.deals.slice();
+      next.splice(i + 1, 0, copy);
+      return { deals: next, cardMenuId: null, past: [...s.past, s.deals].slice(-HISTORY_LIMIT), future: [] };
+    });
+    get().toast('Deal duplicated', 'success');
+  },
+  deleteDeal: (id) => {
+    set((s) => ({
+      deals: s.deals.filter((d) => d.id !== id),
+      openDealId: s.openDealId === id ? null : s.openDealId,
+      cardMenuId: null,
+      peekId: null,
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
+    }));
+    get().toast('Deal deleted', 'warn');
+  },
+  setDealPriority: (id, p) => {
+    get().updateDeal(id, { priority: p });
+    set({ cardMenuId: null });
+  },
+  setDealOwner: (id, owner) => {
+    get().updateDeal(id, { owner });
+    set({ cardMenuId: null });
+  },
+
+  requestStage: (id, to) => {
+    const d = get().deals.find((x) => x.id === id);
+    if (!d || d.stage === to) {
+      set({ cardMenuId: null });
+      return;
+    }
+    // stage gates
+    const need = STAGE_GATES[to] || [];
+    const missing: string[] = [];
+    if (need.includes('amount') && !(d.value > 0)) missing.push('an amount');
+    if (need.includes('close') && (!d.close || !String(d.close).trim())) missing.push('a close date');
+    if (missing.length) {
+      get().toast(`Add ${missing.join(' and ')} before moving to ${to}`, 'warn');
+      set({ cardMenuId: null });
+      return;
+    }
+    if (to === 'Won' || to === 'Lost') {
+      set({ capture: { id, to }, cardMenuId: null });
+      return;
+    }
+    get().moveDeal(id, to);
+    set({ cardMenuId: null });
+    get().toast(`Moved to ${to}`);
+  },
+  applyCapture: (reason, note, amount) => {
+    const cap = get().capture;
+    if (!cap) return;
+    const patch: Partial<Deal> = { stage: cap.to, win: cap.to === 'Won' ? 100 : 0 };
+    if (cap.to === 'Won' && amount && amount > 0) patch.value = amount;
+    get().updateDeal(cap.id, patch);
+    get().addActivity(cap.id, {
+      type: 'note',
+      who: 'You',
+      w: 'now',
+      text: `Stage moved to ${cap.to}${reason ? ' · ' + reason : ''}.${note ? ' ' + note : ''}`,
+    });
+    set({ capture: null });
+    if (cap.to === 'Won') set({ confettiAt: Date.now() });
+    get().toast(cap.to === 'Won' ? 'Deal won 🎉' : 'Marked lost', cap.to === 'Won' ? 'success' : 'warn');
+  },
+  cancelCapture: () => set({ capture: null }),
+  setCardMenu: (cardMenuId) => set({ cardMenuId }),
+  setPeek: (peekId) => set({ peekId }),
+
+  toggleBulk: (id) =>
+    set((s) => ({ bulk: s.bulk.includes(id) ? s.bulk.filter((x) => x !== id) : [...s.bulk, id] })),
+  clearBulk: () => set({ bulk: [] }),
+  bulkStage: (to) => {
+    const ids = get().bulk;
+    if (!ids.length) return;
+    set((s) => ({
+      deals: s.deals.map((d) =>
+        ids.includes(d.id) ? { ...d, stage: to, win: to === 'Won' ? 100 : to === 'Lost' ? 0 : d.win } : d,
+      ),
+      bulk: [],
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
+    }));
+    get().toast(`Moved ${ids.length} deals to ${to}`, 'success');
+  },
+  bulkOwner: (owner) => {
+    const ids = get().bulk;
+    if (!ids.length) return;
+    set((s) => ({
+      deals: s.deals.map((d) => (ids.includes(d.id) ? { ...d, owner } : d)),
+      bulk: [],
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
+    }));
+    get().toast(`Reassigned ${ids.length} deals`, 'success');
+  },
+  bulkDelete: () => {
+    const ids = get().bulk;
+    if (!ids.length) return;
+    set((s) => ({
+      deals: s.deals.filter((d) => !ids.includes(d.id)),
+      bulk: [],
+      past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
+      future: [],
+    }));
+    get().toast(`Deleted ${ids.length} deals`, 'warn');
+  },
+
   undo: () =>
     set((s) => {
       if (!s.past.length) return {};
@@ -487,13 +668,65 @@ export const useStore = create<AppState>()(
   sendComposer: () => {
     const c = get().composer;
     if (!c) return;
-    const labelByChan = { email: 'Email', whatsapp: 'WhatsApp', sms: 'SMS' } as const;
-    get().logActivity(c.dealId, c.channel, c.body.slice(0, 140) || `${labelByChan[c.channel]} sent`, {
-      subj: c.channel === 'email' ? c.subject : undefined,
-      chan: c.to,
-      status: 'sent',
-    });
-    get().toast(`${labelByChan[c.channel]} sent to ${c.to}`, 'success');
+    const dealId = c.dealId;
+    const me = OWNERS[ME].name;
+    switch (c.kind) {
+      case 'note': {
+        if (!c.body?.trim()) return get().toast('Write a note first', 'warn');
+        get().addActivity(dealId, {
+          type: 'note', who: 'You', w: 'now', text: c.body.trim(), pin: c.pin,
+          ...(c.reminder && c.reminderTitle?.trim()
+            ? { reminder: { title: c.reminderTitle.trim(), due: c.due || 'Tomorrow', done: false } }
+            : {}),
+        });
+        get().toast(c.pin ? 'Note saved · pinned' : 'Note saved', 'success');
+        break;
+      }
+      case 'call':
+        get().addActivity(dealId, {
+          type: 'call', who: 'You', w: 'now', outcome: c.outcome || 'Connected',
+          text: c.body?.trim() || 'Logged a call.', dur: c.dur,
+        });
+        if (c.followup) {
+          get().addActivity(dealId, { type: 'task', who: me, w: 'now', title: 'Follow up after call', ttype: 'todo', due: 'Tomorrow', prio: 'med', done: false });
+        }
+        get().toast(c.followup ? 'Call logged · follow-up set' : 'Call logged', 'success');
+        break;
+      case 'task':
+        if (!c.title?.trim()) return get().toast('Name the task first', 'warn');
+        get().addActivity(dealId, { type: 'task', who: me, w: 'now', title: c.title.trim(), ttype: 'todo', due: c.due || 'Tomorrow', prio: c.prio || 'med', done: false });
+        get().toast('Task created', 'success');
+        break;
+      case 'meeting':
+        if (!c.title?.trim()) return get().toast('Add a meeting title', 'warn');
+        get().addActivity(dealId, {
+          type: 'meeting', who: 'You', w: 'now', subj: c.title.trim(),
+          when: c.when?.trim() || 'TBD', dur: c.dur || '30', provider: 'meet',
+          link: 'meet.google.com/' + Math.random().toString(36).slice(2, 6) + '-' + Math.random().toString(36).slice(2, 6),
+          agenda: c.loc?.trim(),
+        });
+        get().toast('Meeting scheduled', 'success');
+        break;
+      case 'email': {
+        if (!c.body?.trim()) return get().toast('Write the email first', 'warn');
+        get().addActivity(dealId, {
+          type: 'email', who: 'You', w: 'now', subj: c.subject?.trim() || '(no subject)', dir: 'out',
+          status: 'sent', opens: 0, chan: c.to,
+          thread: [{ dir: 'out', who: 'You', w: 'now', text: c.body.trim() }],
+        });
+        get().toast('Email sent · tracking on', 'success');
+        break;
+      }
+      case 'whatsapp':
+      case 'sms':
+        if (!c.body?.trim()) return get().toast('Write a message first', 'warn');
+        get().addActivity(dealId, {
+          type: c.kind, who: 'You', w: 'now', chan: c.to,
+          thread: [{ dir: 'out', who: 'You', w: 'now', text: c.body.trim() }],
+        });
+        get().toast(`${c.kind === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent`, 'success');
+        break;
+    }
     set({ composer: null });
   },
 

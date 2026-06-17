@@ -9,10 +9,84 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 4px 0 0;
+  margin: 10px 0 0;
   font-size: 11.5px;
   color: var(--faint);
 }
 .dh-comp-note svg {
   color: var(--accent-500);
+}
+.dh-comp-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+  flex-wrap: wrap;
+}
+.dh-comp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-comp-tab:hover { color: var(--ink); background: var(--surface-hover); }
+.dh-comp-tab.on { color: var(--accent-700); }
+[data-theme='dark'] .dh-comp-tab.on { color: var(--accent); }
+.dh-comp-tab.on::after {
+  content: '';
+  position: absolute;
+  left: 10px; right: 10px; bottom: -3px; height: 2px;
+  background: var(--accent-600);
+  border-radius: 2px;
+}
+.dh-comp-seg {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 3px;
+}
+.dh-comp-seg button {
+  flex: 1;
+  padding: 7px 6px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-comp-seg button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+.dh-comp-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.dh-comp-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-600);
+  cursor: pointer;
 }

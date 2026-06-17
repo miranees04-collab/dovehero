@@ -46,8 +46,24 @@ export interface Activity {
   due?: string;
   prio?: Priority;
   done?: boolean;
-  /** misc extras used by seeded activities */
-  status_label?: string;
+  ttype?: string;
+  /** email */
+  opens?: number;
+  attach?: string[];
+  /** meeting */
+  when?: string;
+  dur?: string;
+  provider?: 'meet' | 'zoom' | 'phone' | 'teams';
+  link?: string;
+  attendees?: string[];
+  agenda?: string;
+  /** call */
+  outcome?: 'Connected' | 'Voicemail' | 'No answer' | 'Busy';
+  /** marketing sequence */
+  seq?: { k: string; name: string; steps: string[] };
+  step?: number;
+  /** note */
+  pin?: boolean;
   reminder?: { title: string; due: string; done: boolean };
 }
 

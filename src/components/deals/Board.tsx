@@ -17,22 +17,17 @@ const PRIO_LANES: { k: Priority; label: string }[] = [
 export function Board() {
   const pipeline = useStore((s) => s.pipeline);
   const swimlane = useStore((s) => s.swimlane);
-  const moveDeal = useStore((s) => s.moveDeal);
-  const toast = useStore((s) => s.toast);
+  const requestStage = useStore((s) => s.requestStage);
   const deals = useFilteredDeals().filter((d) => d.pipeline === pipeline);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
   const onDrop = (stage: StageKey) => {
     if (!dragId) return;
-    const d = useStore.getState().deals.find((x) => x.id === dragId);
+    const id = dragId;
     setDragId(null);
     setOverStage(null);
-    if (!d) return;
-    if (d.stage !== stage) {
-      moveDeal(dragId, stage);
-      toast(`${d.company} moved to ${stage}`, stage === 'Won' ? 'success' : 'default');
-    }
+    requestStage(id, stage);
   };
 
   const colsFor = (subset: Deal[], laneKey?: string) => (

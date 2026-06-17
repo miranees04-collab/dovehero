@@ -1,10 +1,12 @@
 import { useStore } from '@/store/useStore';
-import type { Deal } from '@/types';
+import type { Deal, StageKey, Priority } from '@/types';
 import { money, staleDays } from '@/lib/format';
-import { healthColor } from '@/data/constants';
-import { Avatar, Badge } from '@/components/ui/primitives';
+import { healthColor, OWNERS, STAGES } from '@/data/constants';
+import { Avatar, Badge, Popover } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
+
+const STAGE_KEYS: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 
 export function DealCard({
   deal,
@@ -51,6 +53,7 @@ export function DealCard({
             {deal.health}
           </span>
         )}
+        <CardMenu deal={deal} />
       </div>
 
       <div className="dh-card-company">{deal.company}</div>
@@ -97,5 +100,64 @@ export function DealCard({
         </div>
       )}
     </article>
+  );
+}
+
+function CardMenu({ deal }: { deal: Deal }) {
+  const requestStage = useStore((s) => s.requestStage);
+  const setDealPriority = useStore((s) => s.setDealPriority);
+  const setDealOwner = useStore((s) => s.setDealOwner);
+  const duplicateDeal = useStore((s) => s.duplicateDeal);
+  const deleteDeal = useStore((s) => s.deleteDeal);
+  const setPeek = useStore((s) => s.setPeek);
+
+  return (
+    <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Popover
+        align="end"
+        width={210}
+        trigger={({ toggle }) => (
+          <button className="dh-card-more" onClick={toggle} aria-label="Deal actions">
+            <Icon name="more" size={15} />
+          </button>
+        )}
+      >
+        {(close) => (
+          <div className="dh-cardmenu">
+            <button className="dh-menu-item" onClick={() => { setPeek(deal.id); close(); }}>
+              <span className="dh-menu-icon"><Icon name="eye" size={15} /></span>Quick peek
+            </button>
+            <div className="dh-menu-sep" />
+            <div className="dh-menu-head">Move to</div>
+            <div className="dh-cardmenu-chips">
+              {STAGE_KEYS.filter((s) => s !== deal.stage).map((s) => (
+                <button key={s} className="dh-chip" style={{ ['--pc' as string]: STAGES.find((x) => x.k === s)?.hue }} onClick={() => { requestStage(deal.id, s); close(); }}>{s}</button>
+              ))}
+            </div>
+            <div className="dh-menu-head">Priority</div>
+            <div className="dh-cardmenu-chips">
+              {(['high', 'med', 'low'] as Priority[]).map((p) => (
+                <button key={p} className={`dh-chip ${deal.priority === p ? 'on' : ''}`} onClick={() => { setDealPriority(deal.id, p); close(); }}>{p === 'high' ? 'High' : p === 'med' ? 'Med' : 'Low'}</button>
+              ))}
+            </div>
+            <div className="dh-menu-head">Owner</div>
+            <div className="dh-cardmenu-owners">
+              {Object.values(OWNERS).map((o) => (
+                <button key={o.key} className={`dh-cardmenu-owner ${deal.owner === o.key ? 'on' : ''}`} onClick={() => { setDealOwner(deal.id, o.key); close(); }} title={o.name}>
+                  <Avatar ownerKey={o.key} size={24} />
+                </button>
+              ))}
+            </div>
+            <div className="dh-menu-sep" />
+            <button className="dh-menu-item" onClick={() => { duplicateDeal(deal.id); close(); }}>
+              <span className="dh-menu-icon"><Icon name="layers" size={15} /></span>Duplicate
+            </button>
+            <button className="dh-menu-item danger" onClick={() => { deleteDeal(deal.id); close(); }}>
+              <span className="dh-menu-icon"><Icon name="trash" size={15} /></span>Delete
+            </button>
+          </div>
+        )}
+      </Popover>
+    </span>
   );
 }
