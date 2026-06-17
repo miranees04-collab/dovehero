@@ -1,0 +1,12 @@
+{
+  "name": "dovehero-crm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dovehero CRM — a single-file revenue command-deck CRM prototype with the Nova AI assistant.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "keywords": ["crm", "prototype", "dovehero", "nova"],
+  "license": "UNLICENSED"
+}

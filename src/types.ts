@@ -1,0 +1,177 @@
+// ---- Domain types for Dovehero CRM ----
+
+export type StageKey =
+  | 'Lead'
+  | 'Qualified'
+  | 'Proposal'
+  | 'Negotiation'
+  | 'Won'
+  | 'Lost';
+
+export type Priority = 'high' | 'med' | 'low';
+
+export type PipelineKey = 'sales' | 'renewals' | 'onboarding';
+
+export type ActivityType =
+  | 'note'
+  | 'email'
+  | 'call'
+  | 'meeting'
+  | 'whatsapp'
+  | 'sms'
+  | 'marketing'
+  | 'task'
+  | 'file';
+
+export interface ThreadMsg {
+  dir: 'in' | 'out';
+  who: string;
+  w: string;
+  text: string;
+}
+
+export interface Activity {
+  id: string;
+  type: ActivityType;
+  who: string;
+  w: string; // relative time label e.g. "2h", "1d"
+  text?: string;
+  subj?: string;
+  chan?: string;
+  dir?: 'in' | 'out';
+  status?: string;
+  thread?: ThreadMsg[];
+  /** task-specific */
+  title?: string;
+  due?: string;
+  prio?: Priority;
+  done?: boolean;
+  /** misc extras used by seeded activities */
+  status_label?: string;
+  reminder?: { title: string; due: string; done: boolean };
+}
+
+export interface Contact {
+  n: string; // name
+  r: string; // role (Champion, Economic buyer, ...)
+  t: string; // title
+  s: 'Strong' | 'Medium' | 'Weak' | 'Dormant'; // signal strength
+}
+
+export interface LineItem {
+  n: string;
+  v: number;
+}
+
+export interface DealDoc {
+  n: string;
+  k: 'pdf' | 'doc' | 'xls';
+}
+
+export interface Deal {
+  id: string;
+  name: string;
+  company: string;
+  industry: string;
+  stage: StageKey;
+  pipeline: PipelineKey;
+  owner: string; // owner key e.g. 'AR'
+  value: number;
+  win: number; // win probability 0-100
+  health: number; // 0-100
+  priority: Priority;
+  tags: string[];
+  close: string;
+  created: string;
+  next: string | null;
+  summary: string;
+  contacts: Contact[];
+  products: LineItem[];
+  docs: DealDoc[];
+  acts: Activity[];
+}
+
+export interface Owner {
+  key: string;
+  name: string;
+  g: string; // gradient for avatar
+}
+
+export interface Stage {
+  k: StageKey;
+  hue: string;
+}
+
+export interface Pipeline {
+  k: PipelineKey | string;
+  name: string;
+  hue: string;
+}
+
+export type FieldType =
+  | 'text'
+  | 'longtext'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'select'
+  | 'checkbox'
+  | 'url'
+  | 'email'
+  | 'relation';
+
+export interface FieldDef {
+  k: string;
+  label: string;
+  type: FieldType;
+  opts?: string[];
+}
+
+export interface ObjectDef {
+  k: string;
+  name: string;
+  plural: string;
+  icon: string;
+  system: boolean;
+  fields: FieldDef[];
+}
+
+export type ObjectRecord = Record<string, unknown> & { id: string };
+
+export type ThemeMode = 'light' | 'dark';
+
+export type DealView = 'board' | 'table' | 'insights';
+
+export interface SavedView {
+  name: string;
+  pipeline: PipelineKey | string;
+  filters: FilterState;
+  sort: SortRule[];
+}
+
+export interface SortRule {
+  k: string;
+  dir: 1 | -1;
+}
+
+export interface FilterState {
+  owners: string[];
+  priorities: Priority[];
+  tags: string[];
+  minValue: number | null;
+  health: 'any' | 'healthy' | 'risk';
+}
+
+export interface NovaMessage {
+  id: string;
+  role: 'user' | 'nova';
+  text: string;
+  chips?: { label: string; action?: string }[];
+  ts: number;
+}
+
+export interface Toast {
+  id: string;
+  text: string;
+  tone?: 'default' | 'success' | 'warn';
+}

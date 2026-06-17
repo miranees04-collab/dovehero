@@ -1,0 +1,127 @@
+/* ============================================================
+   Dovehero design tokens — light-first "enterprise" system.
+   A restrained neutral surface palette + an indigo→violet accent.
+   Dark mode is a deliberate, low-glare counterpart (not the old neon).
+   ============================================================ */
+
+:root {
+  /* Accent ramp (indigo → violet) */
+  --accent-50: #eef2ff;
+  --accent-100: #e0e7ff;
+  --accent-200: #c7d2fe;
+  --accent-300: #a5b4fc;
+  --accent-400: #818cf8;
+  --accent-500: #6366f1;
+  --accent-600: #4f46e5;
+  --accent-700: #4338ca;
+  --accent: var(--accent-600);
+  --accent-soft: var(--accent-50);
+  --accent-contrast: #ffffff;
+  --grad: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+
+  /* Semantic status */
+  --green: #10b981;
+  --green-soft: #ecfdf5;
+  --amber: #f59e0b;
+  --amber-soft: #fffbeb;
+  --red: #ef4444;
+  --red-soft: #fef2f2;
+  --blue: #3b82f6;
+  --blue-soft: #eff6ff;
+  --violet: #8b5cf6;
+  --pink: #ec4899;
+  --cyan: #06b6d4;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Radii */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --t-fast: 0.12s;
+  --t: 0.18s;
+}
+
+/* ---------- Light (default) ---------- */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f7f8fa;
+  --bg-sunk: #f1f3f7;
+  --surface: #ffffff;
+  --surface-2: #fbfbfd;
+  --surface-hover: #f5f6f9;
+  --surface-active: #eef0f5;
+  --sidebar: #fbfbfd;
+
+  --ink: #1a1d29;
+  --ink-2: #3d4254;
+  --sub: #6b7185;
+  --faint: #969cb0;
+  --dim: #c2c7d4;
+
+  --border: #e8eaf0;
+  --border-2: #dde0ea;
+  --border-strong: #cbd0dd;
+
+  --shadow-xs: 0 1px 2px rgba(20, 23, 38, 0.04);
+  --shadow-sm: 0 1px 3px rgba(20, 23, 38, 0.06), 0 1px 2px rgba(20, 23, 38, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(20, 23, 38, 0.08), 0 2px 6px -2px rgba(20, 23, 38, 0.05);
+  --shadow-lg: 0 12px 32px -8px rgba(20, 23, 38, 0.16), 0 4px 12px -4px rgba(20, 23, 38, 0.08);
+  --shadow-pop: 0 16px 48px -12px rgba(20, 23, 38, 0.22);
+
+  --accent-soft: var(--accent-50);
+  --ring: rgba(99, 102, 241, 0.35);
+  --overlay: rgba(28, 31, 46, 0.32);
+}
+
+/* ---------- Dark ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0d0f17;
+  --bg-sunk: #090b12;
+  --surface: #161922;
+  --surface-2: #1b1f2a;
+  --surface-hover: #1f2330;
+  --surface-active: #262b3a;
+  --sidebar: #11131b;
+
+  --ink: #eceef5;
+  --ink-2: #c4c9d8;
+  --sub: #8b91a6;
+  --faint: #646b82;
+  --dim: #3f4659;
+
+  --border: #242838;
+  --border-2: #2d3243;
+  --border-strong: #3a4055;
+
+  --accent: #818cf8;
+  --accent-600: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.14);
+  --accent-contrast: #ffffff;
+
+  --green-soft: rgba(16, 185, 129, 0.14);
+  --amber-soft: rgba(245, 158, 11, 0.14);
+  --red-soft: rgba(239, 68, 68, 0.14);
+  --blue-soft: rgba(59, 130, 246, 0.14);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 14px 40px -10px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 18px 50px -12px rgba(0, 0, 0, 0.7);
+
+  --ring: rgba(129, 140, 248, 0.45);
+  --overlay: rgba(0, 0, 0, 0.55);
+}

@@ -1,0 +1,141 @@
+.dh-obj {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dh-obj-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex: none;
+}
+.dh-obj-count {
+  font-size: 12.5px;
+  color: var(--sub);
+  font-weight: 500;
+}
+.dh-obj-toolbar .dh-btn {
+  margin-left: auto;
+}
+.dh-obj-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+.dh-obj-table th {
+  text-transform: none;
+  font-size: 12px;
+}
+.dh-obj-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dh-obj-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+[data-theme='dark'] .dh-obj-avatar {
+  color: var(--accent);
+}
+.dh-obj-name b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.dh-obj-dim {
+  color: var(--dim);
+}
+.dh-obj-link {
+  color: var(--accent-600);
+}
+[data-theme='dark'] .dh-obj-link {
+  color: var(--accent);
+}
+.dh-obj-empty {
+  padding: 40px;
+  color: var(--sub);
+}
+
+/* record */
+.dh-obj-record {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.dh-obj-rec-head {
+  padding: 14px 22px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.dh-obj-rec-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+.dh-obj-rec-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.dh-obj-rec-title h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+}
+.dh-obj-rec-id {
+  font-size: 12px;
+  color: var(--faint);
+}
+.dh-obj-rec-body {
+  padding: 20px 22px;
+  max-width: 640px;
+}
+.dh-obj-fields {
+  display: flex;
+  flex-direction: column;
+}
+.dh-obj-field {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.dh-obj-field:last-child {
+  border-bottom: none;
+}
+.dh-obj-field-label {
+  color: var(--sub);
+  font-weight: 500;
+}
+.dh-obj-field-value {
+  color: var(--ink);
+}
+@media (max-width: 640px) {
+  .dh-obj-field {
+    grid-template-columns: 120px 1fr;
+  }
+}

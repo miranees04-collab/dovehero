@@ -1,0 +1,142 @@
+.dh-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: start center;
+  padding: 8vh 20px 20px;
+  animation: fadeIn 0.16s var(--ease);
+  overflow-y: auto;
+}
+.dh-modal {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-pop);
+  max-width: calc(100vw - 32px);
+  animation: popIn 0.18s var(--ease);
+  overflow: hidden;
+}
+.dh-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.dh-modal-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.dh-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.dh-modal-body {
+  padding: 18px;
+}
+.dh-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+/* ---------------- Drawer ---------------- */
+.dh-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  display: flex;
+  animation: fadeIn 0.16s var(--ease);
+}
+.dh-drawer {
+  margin-left: auto;
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border-2);
+  box-shadow: var(--shadow-pop);
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.22s var(--ease);
+}
+.dh-drawer.side-left {
+  margin-left: 0;
+  margin-right: auto;
+  border-left: none;
+  border-right: 1px solid var(--border-2);
+}
+
+/* ---------------- Form controls (shared) ---------------- */
+.dh-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.dh-field:last-child {
+  margin-bottom: 0;
+}
+.dh-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sub);
+}
+.dh-input,
+.dh-select,
+.dh-textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.dh-input:focus,
+.dh-select:focus,
+.dh-textarea:focus {
+  border-color: var(--accent-400);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dh-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.dh-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .dh-field-row {
+    grid-template-columns: 1fr;
+  }
+}
