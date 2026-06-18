@@ -1,4 +1,4 @@
-import { useStore } from '@/store/useStore';
+import { useStore, type ComposerKind } from '@/store/useStore';
 import type { Deal, StageKey, Priority } from '@/types';
 import { money, staleDays } from '@/lib/format';
 import { healthColor, OWNERS, STAGES } from '@/data/constants';
@@ -128,7 +128,42 @@ export function DealCard({
           <span style={{ width: `${deal.win}%`, background: hc }} />
         </div>
       )}
+
+      <CardActions deal={deal} />
     </article>
+  );
+}
+
+const QUICK_ACTS: { k: ComposerKind; icon: string; label: string }[] = [
+  { k: 'note', icon: 'note', label: 'Note' },
+  { k: 'email', icon: 'mail', label: 'Email' },
+  { k: 'call', icon: 'phone', label: 'Log call' },
+  { k: 'meeting', icon: 'calendar', label: 'Meeting' },
+  { k: 'task', icon: 'check', label: 'Task' },
+  { k: 'whatsapp', icon: 'whatsapp', label: 'WhatsApp' },
+];
+
+export function CardActions({ deal, className = '' }: { deal: Deal; className?: string }) {
+  const openComposer = useStore((s) => s.openComposer);
+  const open = (kind: ComposerKind) => {
+    const c = deal.contacts[0];
+    const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+    openComposer({
+      dealId: deal.id, kind,
+      to: kind === 'email' ? email : '+1 (415) 555-0140',
+      subject: kind === 'email' ? `${deal.name} — next steps` : '',
+      body: '', outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30',
+      title: kind === 'task' ? String(deal.next ?? 'Follow up') : kind === 'meeting' ? `Next steps — ${deal.name}` : '',
+    });
+  };
+  return (
+    <div className={`dh-card-acts ${className}`} onClick={(e) => e.stopPropagation()}>
+      {QUICK_ACTS.map((q) => (
+        <button key={q.k} title={q.label} aria-label={q.label} onClick={() => open(q.k)}>
+          <Icon name={q.icon} size={14} />
+        </button>
+      ))}
+    </div>
   );
 }
 

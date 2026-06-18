@@ -476,3 +476,38 @@
     padding: 9px 10px;
   }
 }
+
+/* Per-row quick activity actions (right-aligned, reveal on row hover) */
+.dh-th-acts { width: 1%; padding: 0 !important; }
+.dh-td-acts { width: 1%; white-space: nowrap; padding-right: 12px !important; }
+.dh-row-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.dh-row-acts .dh-card-acts {
+  /* override the card's hover-collapse behaviour in the table context */
+  max-height: none;
+  opacity: 0;
+  overflow: visible;
+  margin-top: 0;
+  gap: 2px;
+}
+.dh-table tbody tr:hover .dh-row-acts .dh-card-acts { opacity: 1; }
+.dh-row-acts .dh-card-acts button { flex: none; width: 28px; height: 28px; }
+.dh-row-peek {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-table tbody tr:hover .dh-row-peek { opacity: 1; }
+.dh-row-peek:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }

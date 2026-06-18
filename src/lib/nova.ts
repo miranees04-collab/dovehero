@@ -42,6 +42,39 @@ export interface NovaReply {
   chips?: { label: string; action?: string }[];
 }
 
+/** Grounded, deterministic answer about a single deal — used by the inline
+ *  Nova "deal intelligence" panel on the record page. */
+export function answerForDeal(d: Deal, q: string): string {
+  const t = q.toLowerCase();
+  const band = d.health >= 75 ? 'healthy' : d.health >= 50 ? 'mixed' : 'at risk';
+  if (/risk|danger|worry|concern/.test(t)) {
+    if (d.health < 50) {
+      return `Top risk: this deal is ${band} at health ${d.health}. ${d.tags.includes('At-risk') ? 'It has stalled — re-engagement is urgent.' : 'Watch engagement closely.'} I'd escalate to the economic buyer and confirm the timeline.`;
+    }
+    return `Signals look ${band} (health ${d.health}, win ${d.win}%). No material risks — keep momentum and close on the agreed paper path.`;
+  }
+  if (/summar|overview|recap|tell me/.test(t)) return d.summary;
+  if (/draft|email|follow.?up|write|outreach|whatsapp|message/.test(t)) {
+    const c = d.contacts[0];
+    const first = c ? c.n.split(' ')[0] : 'there';
+    return `Here's a follow-up to ${c ? c.n : 'the buyer'}:\n\n"Hi ${first} — thanks for the time on ${d.company}. ${d.next ? 'As a next step, ' + d.next.toLowerCase() + '.' : 'Wanted to keep things moving.'} Happy to jump on a quick call this week — does Thursday work?"\n\nWant me to send it or tweak the tone?`;
+  }
+  if (/next|do|action|move|advance/.test(t)) {
+    return d.next
+      ? `Recommended next action: ${d.next}. ${d.win >= 70 ? 'Confidence is high — push for signature.' : 'Confirm the buying group is aligned before advancing the stage.'}`
+      : `No next step is logged. I'd set one — start by confirming the economic buyer and the decision timeline.`;
+  }
+  if (/win|forecast|likely|close|chance/.test(t)) {
+    return `AI win-likelihood is ${d.win}% and health is ${d.health} (${band}). Forecast close: ${d.close} at ${money(d.value)}.`;
+  }
+  if (/who|contact|stake|buyer|champion|group/.test(t)) {
+    const group = d.contacts.map((c) => `${c.n} (${c.r})`).join(', ') || 'no contacts logged yet';
+    const hasEB = d.contacts.some((c) => c.r === 'Economic buyer');
+    return `Buying group: ${group}. ${hasEB ? 'Economic buyer is identified.' : "No economic buyer confirmed yet — that's the gap."}`;
+  }
+  return `On ${d.name}: ${d.summary} Ask me about risks, the buying group, or the next action.`;
+}
+
 /** Lightweight natural-language understanding over the pipeline. */
 export function askNova(q: string, deals: Deal[]): NovaReply {
   const query = q.trim().toLowerCase();

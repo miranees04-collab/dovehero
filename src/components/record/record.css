@@ -339,6 +339,65 @@
   background: var(--accent-600); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none;
 }
 .dh-nova-askbox button:disabled { opacity: 0.4; cursor: not-allowed; }
+.dh-nova-clear {
+  width: 26px; height: 26px; flex: none; display: grid; place-items: center;
+  border: none; background: none; border-radius: var(--r-sm); color: var(--faint); cursor: pointer;
+}
+.dh-nova-clear:hover { background: var(--surface-hover); color: var(--ink); }
+/* Inline Nova thread — Claude-style prompting right on the deal */
+.dh-nova-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 4px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.dh-nova-msg { display: flex; gap: 8px; align-items: flex-start; }
+.dh-nova-msg.user { flex-direction: row-reverse; }
+.dh-nova-who {
+  flex: none;
+  min-width: 30px;
+  height: 24px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent-700);
+  background: var(--accent-soft);
+}
+.dh-nova-msg.user .dh-nova-who { color: var(--ink-2); background: var(--surface-2); }
+.dh-nova-bubble {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  white-space: pre-wrap;
+  max-width: 86%;
+}
+.dh-nova-msg.nova .dh-nova-bubble {
+  background: var(--accent-soft);
+  border-color: var(--accent-200);
+  color: var(--ink);
+}
+[data-theme='dark'] .dh-nova-msg.nova .dh-nova-bubble { border-color: rgba(129,140,248,.28); }
+.dh-nova-msg.user .dh-nova-bubble { background: var(--surface-3, var(--surface-2)); }
+
+/* 360° View header inside the record */
+.dh-360 { display: flex; flex-direction: column; gap: 14px; }
+.dh-360-head { display: flex; flex-direction: column; gap: 2px; }
+.dh-360-lead {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 14px; font-weight: 650; color: var(--ink);
+}
+.dh-360-lead svg { color: var(--accent-600); }
+.dh-360-sub { font-size: 12px; color: var(--sub); }
 .dh-rec-metrics-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

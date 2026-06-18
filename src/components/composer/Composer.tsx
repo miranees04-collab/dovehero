@@ -1,5 +1,4 @@
 import { useStore, type ComposerKind } from '@/store/useStore';
-import { Modal } from '@/components/ui/Modal';
 import { Button, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import type { Priority, Deal } from '@/types';
@@ -71,34 +70,21 @@ export function Composer() {
   };
 
   return (
-    <Modal
-      open
-      onClose={close}
-      width={560}
-      title={
-        <>
-          <span className="dh-comp-chan-icon" style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}>
-            <Icon name={m.icon} size={15} />
-          </span>
-          {m.title}
-        </>
-      }
-      footer={
-        <>
-          {(c.kind === 'email' || isChat) && (
-            <Button variant="ai" onClick={draftWithNova}>
-              <Icon name="sparkles" size={15} /> Draft with Nova
-            </Button>
-          )}
-          <button className="dh-comp-tool" onClick={() => update({ minimized: true })} title="Minimize to dock"><Icon name="arrowLeft" size={14} className="dh-rot90" /> Minimize</button>
-          <div style={{ flex: 1 }} />
-          <Button variant="ghost" onClick={close}>Cancel</Button>
-          <Button variant="primary" onClick={send}>
-            <Icon name="check" size={15} /> {m.cta}
-          </Button>
-        </>
-      }
-    >
+    <aside className="dh-composer-panel" style={{ ['--ac' as string]: m.color }}>
+      <div className="dh-composer-head">
+        <span className="dh-comp-chan-icon" style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}>
+          <Icon name={m.icon} size={15} />
+        </span>
+        <div className="dh-composer-head-titles">
+          <b>{m.title}</b>
+          {deal && <small>{deal.name} · {deal.company}</small>}
+        </div>
+        <div className="dh-composer-head-ctrls">
+          <button onClick={() => update({ minimized: true })} title="Minimize to dock" aria-label="Minimize"><Icon name="minus" size={16} /></button>
+          <button onClick={close} title="Discard" aria-label="Close"><Icon name="x" size={16} /></button>
+        </div>
+      </div>
+      <div className="dh-composer-body">
       {!isChat && (
         <div className="dh-comp-tabs">
           {TABS.map((t) => (
@@ -240,6 +226,19 @@ export function Composer() {
       <p className="dh-comp-note">
         <Icon name="zap" size={12} /> Demo mode — everything is logged to the deal timeline; nothing is actually sent.
       </p>
-    </Modal>
+      </div>
+      <div className="dh-composer-foot">
+        {(c.kind === 'email' || isChat) && (
+          <Button variant="ai" onClick={draftWithNova}>
+            <Icon name="sparkles" size={15} /> Draft with Nova
+          </Button>
+        )}
+        <div style={{ flex: 1 }} />
+        <Button variant="ghost" onClick={close}>Cancel</Button>
+        <Button variant="primary" onClick={send}>
+          <Icon name="check" size={15} /> {m.cta}
+        </Button>
+      </div>
+    </aside>
   );
 }

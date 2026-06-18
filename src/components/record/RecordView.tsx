@@ -40,7 +40,9 @@ export function RecordView() {
   const addDealProduct = useStore((s) => s.addDealProduct);
   const removeDealProduct = useStore((s) => s.removeDealProduct);
   const enrollSequence = useStore((s) => s.enrollSequence);
-  const sendNova = useStore((s) => s.sendNova);
+  const askDealNova = useStore((s) => s.askDealNova);
+  const clearDealNova = useStore((s) => s.clearDealNova);
+  const novaThread = useStore((s) => (dealId ? s.dealNova[dealId] : undefined));
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
   const recordSections = useStore((s) => s.recordSections);
@@ -346,7 +348,7 @@ export function RecordView() {
 
         {/* Main column */}
         <div className="dh-rec-main">
-          {/* Nova deal intelligence */}
+          {/* Nova deal intelligence — inline, answers right here on the deal */}
           <section className="dh-rec-card dh-nova-brief">
             <div className="dh-nova-brief-head">
               <span className="dh-nova-mark sm">
@@ -356,8 +358,11 @@ export function RecordView() {
                 <b>Nova — deal intelligence</b>
                 <small>Grounded in this deal · {deal.acts.length} activities · {deal.contacts.length} contacts</small>
               </div>
+              {novaThread && novaThread.length > 0 && (
+                <button className="dh-nova-clear" onClick={() => clearDealNova(deal.id)} title="Clear conversation"><Icon name="x" size={14} /></button>
+              )}
             </div>
-            <p className="dh-nova-summary">{deal.summary}</p>
+            {!novaThread?.length && <p className="dh-nova-summary">{deal.summary}</p>}
             <div className="dh-nova-chips">
               {[
                 ['Summarize', `Summarize ${deal.company}`],
@@ -366,17 +371,29 @@ export function RecordView() {
                 ['Buying group', `Who's in the buying group at ${deal.company}?`],
                 ['Next action', `What's my next best action on ${deal.company}?`],
               ].map(([label, prompt]) => (
-                <button key={label} className="dh-nova-actchip" onClick={() => sendNova(prompt)}>{label}</button>
+                <button key={label} className="dh-nova-actchip" onClick={() => askDealNova(deal.id, prompt)}>{label}</button>
               ))}
             </div>
-            <div className="dh-nba">
-              <Icon name="zap" size={14} />
-              <div>
-                <span className="dh-nba-label">Recommended next step</span>
-                <span className="dh-nba-text">{nextBestAction(deal)}</span>
+            {novaThread && novaThread.length > 0 && (
+              <div className="dh-nova-thread">
+                {novaThread.map((m, i) => (
+                  <div key={i} className={`dh-nova-msg ${m.role}`}>
+                    <span className="dh-nova-who">{m.role === 'nova' ? <Icon name="sparkles" size={13} /> : 'You'}</span>
+                    <div className="dh-nova-bubble">{m.text}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-            {risks.length > 0 && (
+            )}
+            {!novaThread?.length && (
+              <div className="dh-nba">
+                <Icon name="zap" size={14} />
+                <div>
+                  <span className="dh-nba-label">Recommended next step</span>
+                  <span className="dh-nba-text">{nextBestAction(deal)}</span>
+                </div>
+              </div>
+            )}
+            {!novaThread?.length && risks.length > 0 && (
               <div className="dh-risks">
                 {risks.map((r) => (
                   <Badge key={r} tone="red">
@@ -387,14 +404,19 @@ export function RecordView() {
             )}
             <form
               className="dh-nova-askbox"
-              onSubmit={(e) => { e.preventDefault(); const v = ask.trim(); if (v) { sendNova(v); setAsk(''); } }}
+              onSubmit={(e) => { e.preventDefault(); const v = ask.trim(); if (v) { askDealNova(deal.id, v); setAsk(''); } }}
             >
               <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={`Ask Nova anything about ${deal.company}…`} />
               <button type="submit" aria-label="Ask Nova" disabled={!ask.trim()}><Icon name="send" size={15} /></button>
             </form>
           </section>
 
-          {/* 360 metrics */}
+          {/* 360° View — every interaction & engagement signal on this deal */}
+          <section className="dh-rec-card dh-360">
+          <div className="dh-360-head">
+            <div className="dh-360-lead"><Icon name="target" size={15} /> 360° View</div>
+            <div className="dh-360-sub">Every interaction, activity &amp; engagement signal on this deal</div>
+          </div>
           <div className="dh-rec-metrics-row">
             {[
               ['Interactions', String(deal.acts.length)],
@@ -450,11 +472,8 @@ export function RecordView() {
 
           {/* Timeline */}
           <section className="dh-timeline">
-            <div className="dh-timeline-head">
-              <h3>Activity</h3>
-              <span className="dh-timeline-count">{deal.acts.length}</span>
-            </div>
             <Timeline deal={deal} />
+          </section>
           </section>
         </div>
 

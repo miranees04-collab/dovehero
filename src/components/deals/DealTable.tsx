@@ -6,7 +6,7 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
-import { CommBubble } from './DealCard';
+import { CommBubble, CardActions } from './DealCard';
 import './table.css';
 
 interface ColMeta {
@@ -344,6 +344,7 @@ export function DealTable() {
                   </th>
                 );
               })}
+              <th className="dh-th-acts" aria-label="Quick actions" />
             </tr>
             {colSearchOpen && (
               <tr className="dh-search-row">
@@ -361,6 +362,7 @@ export function DealTable() {
                     )}
                   </th>
                 ))}
+                <th className="dh-th-acts" />
               </tr>
             )}
           </thead>
@@ -390,6 +392,18 @@ export function DealTable() {
         )}
       </div>
       <BulkBar />
+    </div>
+  );
+}
+
+function RowActions({ deal }: { deal: Deal }) {
+  const setPeek = useStore((s) => s.setPeek);
+  return (
+    <div className="dh-row-acts">
+      <CardActions deal={deal} className="dh-row-cardacts" />
+      <button className="dh-row-peek" title="Quick preview" aria-label="Quick preview" onClick={() => setPeek(deal.id)}>
+        <Icon name="eye" size={15} />
+      </button>
     </div>
   );
 }
@@ -485,7 +499,7 @@ function GroupBlock({
     <>
       {group !== 'none' && (
         <tr className="dh-group-row">
-          <td colSpan={cols.length + 1}>
+          <td colSpan={cols.length + 2}>
             <button className="dh-group-head" onClick={onToggleCollapse}>
               <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={13} />
               <span className="dh-group-name">{groupKey}</span>
@@ -505,6 +519,9 @@ function GroupBlock({
               <Cell deal={d} col={c.k} updateDeal={updateDeal} />
             </td>
           ))}
+          <td className="dh-td-acts" onClick={(e) => e.stopPropagation()}>
+            <RowActions deal={d} />
+          </td>
         </tr>
       ))}
     </>

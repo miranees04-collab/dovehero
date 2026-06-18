@@ -60,6 +60,8 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Sparkle,
+  Minus,
+  Maximize2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -128,6 +130,8 @@ const MAP: Record<string, LucideIcon> = {
   sliders: SlidersHorizontal,
   reset: RotateCcw,
   sparkle: Sparkle,
+  minus: Minus,
+  expand: Maximize2,
 };
 
 // Map activity types to icons

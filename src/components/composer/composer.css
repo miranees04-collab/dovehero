@@ -117,6 +117,53 @@
 }
 .dh-comp-tool:hover { border-color: var(--border-strong); color: var(--ink); }
 .dh-rot90 { transform: rotate(90deg); }
+/* Docked side-by-side composer — pinned to the right edge so the main deal
+   view stays visible & interactive (copy/paste from timeline into compose). */
+.dh-composer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 94vw);
+  z-index: 360;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border-2);
+  box-shadow: var(--shadow-lg);
+  animation: slideInRight 0.22s var(--spring);
+}
+@keyframes slideInRight {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.dh-composer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  border-top: 3px solid var(--ac, var(--accent-600));
+}
+.dh-composer-head-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dh-composer-head-titles b { font-size: 14px; font-weight: 650; color: var(--ink); }
+.dh-composer-head-titles small { font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dh-composer-head-ctrls { display: flex; gap: 2px; }
+.dh-composer-head-ctrls button {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: none; background: none; border-radius: var(--r-sm); color: var(--sub); cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-composer-head-ctrls button:hover { background: var(--surface-hover); color: var(--ink); }
+.dh-composer-body { flex: 1; overflow-y: auto; padding: 16px; }
+.dh-composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunk);
+}
 .dh-compose-dock {
   position: fixed;
   bottom: 18px;

@@ -27,7 +27,7 @@ import type {
 } from '@/types';
 import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
-import { askNova } from '@/lib/nova';
+import { askNova, answerForDeal } from '@/lib/nova';
 import { uid } from '@/lib/format';
 import { inboundCount } from '@/lib/comms';
 
@@ -166,6 +166,7 @@ export interface AppState {
   novaOpen: boolean;
   novaMessages: NovaMessage[];
   novaThinking: boolean;
+  dealNova: Record<string, { role: 'user' | 'nova'; text: string }[]>;
   notifOpen: boolean;
   composer: ComposerState | null;
   toasts: Toast[];
@@ -276,6 +277,8 @@ export interface AppState {
   setPalette: (open: boolean) => void;
   setNova: (open: boolean) => void;
   sendNova: (text: string) => void;
+  askDealNova: (dealId: string, text: string) => void;
+  clearDealNova: (dealId: string) => void;
   setNotif: (open: boolean) => void;
   setMobileNav: (open: boolean) => void;
   setTasks: (open: boolean) => void;
@@ -386,6 +389,7 @@ export const useStore = create<AppState>()(
     },
   ],
   novaThinking: false,
+  dealNova: {},
   notifOpen: false,
   composer: null,
   toasts: [],
@@ -937,6 +941,26 @@ export const useStore = create<AppState>()(
       set((s) => ({ novaMessages: [...s.novaMessages, novaMsg], novaThinking: false }));
     }, 480);
   },
+
+  askDealNova: (dealId, text) => {
+    const q = text.trim();
+    if (!q) return;
+    const d = get().deals.find((x) => x.id === dealId);
+    if (!d) return;
+    const reply = answerForDeal(d, q);
+    set((s) => ({
+      dealNova: {
+        ...s.dealNova,
+        [dealId]: [...(s.dealNova[dealId] ?? []), { role: 'user', text: q }, { role: 'nova', text: reply }],
+      },
+    }));
+  },
+  clearDealNova: (dealId) =>
+    set((s) => {
+      const next = { ...s.dealNova };
+      delete next[dealId];
+      return { dealNova: next };
+    }),
 
   openComposer: (composer) => set({ composer }),
   closeComposer: () => set({ composer: null }),
