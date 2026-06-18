@@ -37,11 +37,16 @@ export function RecordView() {
   const sendNova = useStore((s) => s.sendNova);
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
+  const companies = useStore((s) => s.objectRecords.company ?? []);
+  const allDeals = useStore((s) => s.deals);
   const toast = useStore((s) => s.toast);
   const [note, setNote] = useState('');
   const [ask, setAsk] = useState('');
 
   if (!deal) return null;
+  const companyRec = companies.find((c) => c.name === deal.company);
+  const companyDeals = allDeals.filter((d) => d.company === deal.company && d.stage !== 'Won' && d.stage !== 'Lost');
+  const companyWon = allDeals.filter((d) => d.company === deal.company && d.stage === 'Won').length;
   const hc = healthColor(deal.health);
   const stageIdx = STEPPER.indexOf(deal.stage);
   const risks = riskFactors(deal);
@@ -144,6 +149,11 @@ export function RecordView() {
               </button>
             );
           })}
+          {stageIdx >= 0 && stageIdx < STEPPER.length - 1 && (
+            <button className="dh-advance-btn" onClick={() => requestStage(deal.id, STEPPER[stageIdx + 1])}>
+              <Icon name="arrowRight" size={14} /> Advance to {STEPPER[stageIdx + 1]}
+            </button>
+          )}
         </div>
       </div>
 
@@ -285,8 +295,14 @@ export function RecordView() {
               <span className="dh-account-av"><Icon name="building" size={18} /></span>
               <div>
                 <b>{deal.company}</b>
-                <small>{deal.industry}</small>
+                <small>{deal.industry}{companyRec?.employees ? ` · ${companyRec.employees} employees` : ''}</small>
               </div>
+            </div>
+            {companyRec?.domain ? <a className="dh-account-domain" href={`https://${String(companyRec.domain)}`} target="_blank" rel="noreferrer"><Icon name="arrowUpRight" size={12} /> {String(companyRec.domain)}</a> : null}
+            <div className="dh-account-tiles">
+              <div><span className="v mono">{companyDeals.length}</span><span className="l">Open deals</span></div>
+              <div><span className="v mono">{money(companyDeals.reduce((s, d) => s + d.value, 0), true)}</span><span className="l">Pipeline</span></div>
+              <div><span className="v mono">{companyWon}</span><span className="l">Won</span></div>
             </div>
           </section>
 

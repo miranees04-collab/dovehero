@@ -205,6 +205,7 @@ export interface AdvRule {
 
 export interface FilterState {
   owners: string[];
+  stages: StageKey[];
   priorities: Priority[];
   tags: string[];
   minValue: number | null;

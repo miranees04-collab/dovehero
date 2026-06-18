@@ -2,13 +2,32 @@ import { useState } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Popover, MenuItem, Avatar, Button } from '@/components/ui/primitives';
-import { OWNERS, OPEN_STAGES } from '@/data/constants';
+import { OWNERS, OPEN_STAGES, STAGES } from '@/data/constants';
+import type { ReactNode } from 'react';
 import { money, uid } from '@/lib/format';
 import { inboundCount } from '@/lib/comms';
 import type { Priority, AdvRule } from '@/types';
 import './deals.css';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
+const BOARD_STAGE_KEYS = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+
+function Facet({ label, count, width, children }: { label: string; count: number; width?: number; children: (close: () => void) => ReactNode }) {
+  return (
+    <Popover
+      width={width ?? 230}
+      trigger={({ open: o, toggle }) => (
+        <button className={`dh-facet-btn ${count ? 'active' : ''} ${o ? 'open' : ''}`} onClick={toggle}>
+          {label}{count > 0 && <span className="dh-facet-ct">{count}</span>}
+          <Icon name="chevronDown" size={12} />
+        </button>
+      )}
+    >
+      {children}
+    </Popover>
+  );
+}
+
 const CARD_FIELD_OPTS = [
   { k: 'health', label: 'Health score' },
   { k: 'tags', label: 'Tags' },
@@ -31,6 +50,11 @@ export function PipelineBar() {
   const pipelines = useStore((s) => s.pipelines);
   const deals = useStore((s) => s.deals);
   const setAdvFilter = useStore((s) => s.setAdvFilter);
+  const kbCompact = useStore((s) => s.kbCompact);
+  const setKbCompact = useStore((s) => s.setKbCompact);
+  const setAllCollapsed = useStore((s) => s.setAllCollapsed);
+  const collapsedCols = useStore((s) => s.collapsedCols);
+  const allCollapsed = BOARD_STAGE_KEYS.every((k) => collapsedCols[k]);
 
   const all = useFilteredDeals().filter((d) => d.pipeline === pipeline);
   const open = all.filter((d) => OPEN_STAGES.includes(d.stage as never));
@@ -39,7 +63,7 @@ export function PipelineBar() {
   const inboundTotal = deals.filter((d) => d.pipeline === pipeline).reduce((s, d) => s + inboundCount(d), 0);
 
   const activeFilters =
-    filters.owners.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length + (filters.inbox ? 1 : 0);
+    filters.owners.length + filters.stages.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length + (filters.inbox ? 1 : 0);
 
   const toggleArr = <T,>(arr: T[], v: T): T[] => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
@@ -83,7 +107,7 @@ export function PipelineBar() {
 
     <div className="dh-controlbar">
       <span className="dh-pipe-label"><Icon name="filter" size={13} /> Filter</span>
-      <div className="dh-pipe-actions">
+      <div className="dh-facets">
         {inboundTotal > 0 && (
           <button
             className={`dh-inbox-btn ${filters.inbox ? 'on' : ''}`}
@@ -95,36 +119,106 @@ export function PipelineBar() {
             <span className="dh-inbox-count">{inboundTotal}</span>
           </button>
         )}
-        {view === 'board' && (
+
+        <Facet label="Owner" count={filters.owners.length}>
+          {() => (
+            <div className="dh-facet-owners">
+              {Object.values(OWNERS).map((o) => (
+                <button key={o.key} className={`dh-facet-owner ${filters.owners.includes(o.key) ? 'on' : ''}`} onClick={() => setFilters({ owners: toggleArr(filters.owners, o.key) })}>
+                  <Avatar ownerKey={o.key} size={22} /> <span>{o.name}</span>
+                  {filters.owners.includes(o.key) && <Icon name="check" size={14} color="var(--accent-600)" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </Facet>
+
+        <Facet label="Stage" count={filters.stages.length}>
+          {() => (
+            <div className="dh-facet-list">
+              {STAGES.map((s) => (
+                <button key={s.k} className={`dh-facet-item ${filters.stages.includes(s.k) ? 'on' : ''}`} onClick={() => setFilters({ stages: toggleArr(filters.stages, s.k) })}>
+                  <span className="dh-pm-dot static" style={{ background: s.hue }} /> {s.k}
+                  {filters.stages.includes(s.k) && <Icon name="check" size={14} color="var(--accent-600)" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </Facet>
+
+        <Facet label="Priority" count={filters.priorities.length}>
+          {() => (
+            <div className="dh-facet-list">
+              {(['high', 'med', 'low'] as Priority[]).map((p) => (
+                <button key={p} className={`dh-facet-item ${filters.priorities.includes(p) ? 'on' : ''}`} onClick={() => setFilters({ priorities: toggleArr(filters.priorities, p) })}>
+                  <span className={`dh-prio ${p}`} style={{ marginTop: 0 }} /> {p === 'high' ? 'High' : p === 'med' ? 'Medium' : 'Low'}
+                  {filters.priorities.includes(p) && <Icon name="check" size={14} color="var(--accent-600)" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </Facet>
+
+        <Facet label="Advanced" count={filters.adv.length + (filters.health !== 'any' ? 1 : 0) + filters.tags.length} width={280}>
+          {() => (
+            <div className="dh-facet-adv">
+              <div className="dh-menu-head">Health</div>
+              <div className="dh-chip-row">
+                {(['any', 'healthy', 'risk'] as const).map((h) => (
+                  <button key={h} className={`dh-chip ${filters.health === h ? 'on' : ''}`} onClick={() => setFilters({ health: h })}>
+                    {h === 'any' ? 'Any' : h === 'healthy' ? 'Healthy' : 'At risk'}
+                  </button>
+                ))}
+              </div>
+              <div className="dh-menu-head">Tags</div>
+              <div className="dh-chip-row wrap">
+                {ALL_TAGS.map((t) => (
+                  <button key={t} className={`dh-chip ${filters.tags.includes(t) ? 'on' : ''}`} onClick={() => setFilters({ tags: toggleArr(filters.tags, t) })}>{t}</button>
+                ))}
+              </div>
+              <div className="dh-menu-head">Conditions</div>
+              <div className="dh-adv-rules">
+                {filters.adv.map((r) => (
+                  <AdvRuleRow key={r.id} rule={r} onChange={(nr) => setAdvFilter(filters.adv.map((x) => (x.id === r.id ? nr : x)))} onRemove={() => setAdvFilter(filters.adv.filter((x) => x.id !== r.id))} />
+                ))}
+                <button className="dh-adv-add" onClick={() => setAdvFilter([...filters.adv, { id: uid('r'), field: 'value', op: 'gt', value: '' }])}>
+                  <Icon name="plus" size={13} /> Add condition
+                </button>
+              </div>
+            </div>
+          )}
+        </Facet>
+
+        {activeFilters > 0 && (
+          <button className="dh-filter-clear inline" onClick={resetFilters}><Icon name="x" size={13} /> Clear</button>
+        )}
+      </div>
+
+      {view === 'board' && (
+        <div className="dh-board-controls">
           <Popover
             align="end"
             trigger={({ toggle }) => (
-              <button className={`dh-filter-btn ${swimlane !== 'none' ? 'active' : ''}`} onClick={toggle} title="Group board">
-                <Icon name="layers" size={15} />
-                <span className="hide-sm">{swimlane === 'owner' ? 'By owner' : swimlane === 'priority' ? 'By priority' : 'By stage'}</span>
+              <button className={`dh-ctl-btn ${swimlane !== 'none' ? 'active' : ''}`} onClick={toggle}>
+                Swimlanes: <b>{swimlane === 'owner' ? 'Owner' : swimlane === 'priority' ? 'Priority' : 'None'}</b> <Icon name="chevronDown" size={12} />
               </button>
             )}
           >
             {(close) => (
               <>
-                <div className="dh-menu-head">Swimlanes</div>
-                <MenuItem active={swimlane === 'none'} onClick={() => { setSwimlane('none'); close(); }}>Stage only</MenuItem>
+                <MenuItem active={swimlane === 'none'} onClick={() => { setSwimlane('none'); close(); }}>None</MenuItem>
                 <MenuItem active={swimlane === 'owner'} onClick={() => { setSwimlane('owner'); close(); }}>By owner</MenuItem>
                 <MenuItem active={swimlane === 'priority'} onClick={() => { setSwimlane('priority'); close(); }}>By priority</MenuItem>
               </>
             )}
           </Popover>
-        )}
-
-        {view === 'board' && (
+          <button className={`dh-ctl-btn ${kbCompact ? 'active' : ''}`} onClick={() => setKbCompact(!kbCompact)}>Compact</button>
+          <button className="dh-ctl-btn" onClick={() => setAllCollapsed(BOARD_STAGE_KEYS, !allCollapsed)}>{allCollapsed ? 'Expand all' : 'Collapse all'}</button>
           <Popover
             align="end"
             width={220}
             trigger={({ toggle }) => (
-              <button className="dh-filter-btn" onClick={toggle} title="Customize cards">
-                <Icon name="sliders" size={15} />
-                <span className="hide-sm">Cards</span>
-              </button>
+              <button className="dh-ctl-btn" onClick={toggle}><Icon name="sliders" size={14} /> Card layout</button>
             )}
           >
             {() => (
@@ -139,85 +233,16 @@ export function PipelineBar() {
               </div>
             )}
           </Popover>
-        )}
+        </div>
+      )}
+    </div>
 
-        <Popover
-          align="end"
-          width={260}
-          trigger={({ toggle }) => (
-            <button className={`dh-filter-btn ${activeFilters ? 'active' : ''}`} onClick={toggle}>
-              <Icon name="filter" size={15} />
-              <span className="hide-sm">Filter</span>
-              {activeFilters > 0 && <span className="dh-filter-badge">{activeFilters}</span>}
-            </button>
-          )}
-        >
-          {() => (
-            <div className="dh-filter-panel">
-              <div className="dh-menu-head">Owner</div>
-              <div className="dh-filter-owners">
-                {Object.values(OWNERS).map((o) => (
-                  <button
-                    key={o.key}
-                    className={`dh-filter-owner ${filters.owners.includes(o.key) ? 'on' : ''}`}
-                    onClick={() => setFilters({ owners: toggleArr(filters.owners, o.key) })}
-                    title={o.name}
-                  >
-                    <Avatar ownerKey={o.key} size={24} />
-                  </button>
-                ))}
-              </div>
-
-              <div className="dh-menu-head">Priority</div>
-              <div className="dh-chip-row">
-                {(['high', 'med', 'low'] as Priority[]).map((p) => (
-                  <button
-                    key={p}
-                    className={`dh-chip ${filters.priorities.includes(p) ? 'on' : ''}`}
-                    onClick={() => setFilters({ priorities: toggleArr(filters.priorities, p) })}
-                  >
-                    {p === 'high' ? 'High' : p === 'med' ? 'Medium' : 'Low'}
-                  </button>
-                ))}
-              </div>
-
-              <div className="dh-menu-head">Health</div>
-              <div className="dh-chip-row">
-                {(['any', 'healthy', 'risk'] as const).map((h) => (
-                  <button key={h} className={`dh-chip ${filters.health === h ? 'on' : ''}`} onClick={() => setFilters({ health: h })}>
-                    {h === 'any' ? 'Any' : h === 'healthy' ? 'Healthy' : 'At risk'}
-                  </button>
-                ))}
-              </div>
-
-              <div className="dh-menu-head">Tags</div>
-              <div className="dh-chip-row wrap">
-                {ALL_TAGS.map((t) => (
-                  <button key={t} className={`dh-chip ${filters.tags.includes(t) ? 'on' : ''}`} onClick={() => setFilters({ tags: toggleArr(filters.tags, t) })}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-
-              <div className="dh-menu-head">Advanced conditions</div>
-              <div className="dh-adv-rules">
-                {filters.adv.map((r) => (
-                  <AdvRuleRow key={r.id} rule={r} onChange={(nr) => setAdvFilter(filters.adv.map((x) => (x.id === r.id ? nr : x)))} onRemove={() => setAdvFilter(filters.adv.filter((x) => x.id !== r.id))} />
-                ))}
-                <button className="dh-adv-add" onClick={() => setAdvFilter([...filters.adv, { id: uid('r'), field: 'value', op: 'gt', value: '' }])}>
-                  <Icon name="plus" size={13} /> Add condition
-                </button>
-              </div>
-
-              {activeFilters > 0 && (
-                <button className="dh-filter-clear" onClick={resetFilters}>
-                  <Icon name="x" size={13} /> Clear filters
-                </button>
-              )}
-            </div>
-          )}
-        </Popover>
-      </div>
+    <div className="dh-statsrow">
+      <span><b>{all.length}</b> deals</span>
+      <span className="dot-sep" />
+      <span><b className="mono">{money(total, true)}</b> open value</span>
+      <span className="dot-sep" />
+      <span><b className="mono">{money(all.length ? Math.round(all.reduce((s, d) => s + d.value, 0) / all.length) : 0, true)}</b> avg deal</span>
     </div>
     </>
   );

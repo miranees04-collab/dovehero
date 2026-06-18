@@ -33,6 +33,7 @@ import { inboundCount } from '@/lib/comms';
 
 const emptyFilters: FilterState = {
   owners: [],
+  stages: [],
   priorities: [],
   tags: [],
   minValue: null,
@@ -148,6 +149,7 @@ export interface AppState {
   group: GroupBy;
   cardFields: string[];
   collapsedCols: Record<string, boolean>;
+  kbCompact: boolean;
   savedViews: SavedView[];
   activeView: string | null;
   recordLayout: 'standard' | 'tri';
@@ -215,6 +217,8 @@ export interface AppState {
   moveTableCol: (k: string, dir: -1 | 1) => void;
   toggleCardField: (k: string) => void;
   toggleColCollapse: (k: string) => void;
+  setAllCollapsed: (keys: string[], v: boolean) => void;
+  setKbCompact: (v: boolean) => void;
   saveView: (name: string) => void;
   applyView: (name: string) => void;
   deleteView: (name: string) => void;
@@ -328,6 +332,7 @@ export const useStore = create<AppState>()(
   group: 'none',
   cardFields: [...DEFAULT_CARD_FIELDS],
   collapsedCols: {},
+  kbCompact: false,
   savedViews: [],
   activeView: null,
   recordLayout: 'standard',
@@ -514,6 +519,13 @@ export const useStore = create<AppState>()(
     })),
   toggleColCollapse: (k) =>
     set((s) => ({ collapsedCols: { ...s.collapsedCols, [k]: !s.collapsedCols[k] } })),
+  setAllCollapsed: (keys, v) =>
+    set((s) => {
+      const next = { ...s.collapsedCols };
+      keys.forEach((k) => { next[k] = v; });
+      return { collapsedCols: next };
+    }),
+  setKbCompact: (kbCompact) => set({ kbCompact }),
 
   saveView: (name) =>
     set((s) => {
@@ -956,6 +968,7 @@ export function filterDeals(deals: Deal[], q: string, f: FilterState): Deal[] {
   return deals.filter((d) => {
     if (query && !(d.name + ' ' + d.company + ' ' + d.tags.join(' ')).toLowerCase().includes(query)) return false;
     if (f.owners.length && !f.owners.includes(d.owner)) return false;
+    if (f.stages.length && !f.stages.includes(d.stage)) return false;
     if (f.priorities.length && !f.priorities.includes(d.priority)) return false;
     if (f.tags.length && !f.tags.some((t) => d.tags.includes(t))) return false;
     if (f.minValue != null && d.value < f.minValue) return false;

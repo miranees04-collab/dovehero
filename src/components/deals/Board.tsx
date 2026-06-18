@@ -17,6 +17,7 @@ const PRIO_LANES: { k: Priority; label: string }[] = [
 export function Board() {
   const pipeline = useStore((s) => s.pipeline);
   const swimlane = useStore((s) => s.swimlane);
+  const kbCompact = useStore((s) => s.kbCompact);
   const requestStage = useStore((s) => s.requestStage);
   const deals = useFilteredDeals().filter((d) => d.pipeline === pipeline);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export function Board() {
     );
   }
 
-  return <div className="dh-board">{colsFor(deals)}</div>;
+  return <div className={`dh-board ${kbCompact ? 'compact-cards' : ''}`}>{colsFor(deals)}</div>;
 }
 
 function BoardColumns({
