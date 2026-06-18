@@ -26,7 +26,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { OBJECT_DEFS, OWNERS, ME, PIPELINES } from '@/data/constants';
+import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova } from '@/lib/nova';
 import { uid } from '@/lib/format';
 import { inboundCount } from '@/lib/comms';
@@ -238,9 +238,19 @@ export interface AppState {
   updateDeal: (id: string, patch: Partial<Deal>) => void;
   createDeal: (partial: Partial<Deal>) => string;
   addActivity: (dealId: string, act: Omit<Activity, 'id'>) => void;
+  pushActivity: (dealId: string, act: Activity) => void;
+  updateActivity: (dealId: string, actId: string, patch: Partial<Activity>) => void;
   logActivity: (dealId: string, type: ActivityType, text: string, extra?: Partial<Activity>) => void;
   toggleTask: (dealId: string, actId: string) => void;
   toggleReminder: (dealId: string, actId: string) => void;
+  enrollSequence: (dealId: string, seqKey: string) => void;
+  bulkEnroll: (seqKey: string) => void;
+  togglePinNote: (dealId: string, actId: string) => void;
+  convertQuoteToInvoice: (dealId: string, quoteId: string) => void;
+  sendDoc: (dealId: string, docName: string) => void;
+  addDealProduct: (dealId: string, item: { n: string; v: number }) => void;
+  removeDealProduct: (dealId: string, index: number) => void;
+  addDealContact: (dealId: string, contact: { n: string; r: string; t: string; s: 'Strong' | 'Medium' | 'Weak' | 'Dormant' }) => void;
   duplicateDeal: (id: string) => void;
   deleteDeal: (id: string) => void;
   setDealPriority: (id: string, p: Priority) => void;
@@ -287,6 +297,11 @@ export interface ComposerState {
   dealId: string;
   kind: ComposerKind;
   to?: string;
+  cc?: string;
+  bcc?: string;
+  showCc?: boolean;
+  attachments?: string[];
+  minimized?: boolean;
   subject?: string;
   body?: string;
   // call
@@ -670,9 +685,64 @@ export const useStore = create<AppState>()(
       future: [],
     })),
 
+  pushActivity: (dealId, act) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, acts: [act, ...d.acts] } : d)) })),
+  updateActivity: (dealId, actId, patch) =>
+    set((s) => ({
+      deals: s.deals.map((d) =>
+        d.id === dealId ? { ...d, acts: d.acts.map((a) => (a.id === actId ? { ...a, ...patch } : a)) } : d,
+      ),
+    })),
+
   logActivity: (dealId, type, text, extra = {}) => {
     get().addActivity(dealId, { type, who: 'You', w: 'now', text, dir: 'out', ...extra });
   },
+
+  enrollSequence: (dealId, seqKey) => {
+    const seq = SEQUENCES.find((s) => s.k === seqKey);
+    if (!seq) return;
+    get().addActivity(dealId, { type: 'marketing', who: 'Nova', w: 'now', subj: seq.name, seq, step: 1, text: `Enrolled in “${seq.name}”.`, chan: `${seq.name} · sequence` });
+    get().toast(`Enrolled in ${seq.name}`, 'success');
+  },
+  bulkEnroll: (seqKey) => {
+    const ids = get().bulk;
+    const seq = SEQUENCES.find((s) => s.k === seqKey);
+    if (!ids.length || !seq) return;
+    ids.forEach((id) => get().addActivity(id, { type: 'marketing', who: 'Nova', w: 'now', subj: seq.name, seq, step: 1, text: `Enrolled in “${seq.name}”.`, chan: `${seq.name} · sequence` }));
+    set({ bulk: [] });
+    get().toast(`Enrolled ${ids.length} deals in ${seq.name}`, 'success');
+  },
+  togglePinNote: (dealId, actId) =>
+    set((s) => ({
+      deals: s.deals.map((d) =>
+        d.id === dealId ? { ...d, acts: d.acts.map((a) => (a.id === actId ? { ...a, pin: !a.pin } : a)) } : d,
+      ),
+    })),
+  convertQuoteToInvoice: (dealId, quoteId) => {
+    const d = get().deals.find((x) => x.id === dealId);
+    const q = d?.quotes?.find((x) => x.id === quoteId);
+    if (!d || !q) return;
+    const num = d.id.replace(/\D/g, '') || '000';
+    const seq = (d.invoices?.length ?? 0) + 1;
+    const id = 'INV-' + num + '-' + (seq < 10 ? '0' + seq : seq);
+    const inv = { ...q, id, kind: 'invoice' as const, status: 'Sent', created: 'now' };
+    set((s) => ({
+      deals: s.deals.map((x) =>
+        x.id === dealId ? { ...x, invoices: [...(x.invoices ?? []), inv], docs: [{ n: `${id}.pdf`, k: 'pdf' as const }, ...x.docs] } : x,
+      ),
+    }));
+    get().toast(`Invoice ${id} created from ${quoteId}`, 'success');
+  },
+  sendDoc: (dealId, docName) => {
+    get().addActivity(dealId, { type: 'email', who: 'You', w: 'now', subj: `Sent ${docName}`, dir: 'out', status: 'sent', attach: [docName], thread: [{ dir: 'out', who: 'You', w: 'now', text: `Please find ${docName} attached.` }] });
+    get().toast(`${docName} sent`, 'success');
+  },
+  addDealProduct: (dealId, item) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, products: [...d.products, item] } : d)) })),
+  removeDealProduct: (dealId, index) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, products: d.products.filter((_, i) => i !== index) } : d)) })),
+  addDealContact: (dealId, contact) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, contacts: [...d.contacts, contact] } : d)) })),
 
   toggleTask: (dealId, actId) =>
     set((s) => ({
@@ -905,12 +975,28 @@ export const useStore = create<AppState>()(
         break;
       case 'email': {
         if (!c.body?.trim()) return get().toast('Write the email first', 'warn');
-        get().addActivity(dealId, {
-          type: 'email', who: 'You', w: 'now', subj: c.subject?.trim() || '(no subject)', dir: 'out',
-          status: 'sent', opens: 0, chan: c.to,
+        const aid = uid('a');
+        const deal = get().deals.find((d) => d.id === dealId);
+        const contact = deal?.contacts[0]?.n ?? 'there';
+        get().pushActivity(dealId, {
+          id: aid, type: 'email', who: 'You', w: 'now', subj: c.subject?.trim() || '(no subject)', dir: 'out',
+          status: 'sent', opens: 0, chan: c.to, attach: c.attachments?.length ? c.attachments : undefined,
           thread: [{ dir: 'out', who: 'You', w: 'now', text: c.body.trim() }],
         });
         get().toast('Email sent · tracking on', 'success');
+        // Simulate delivery → open → client reply
+        window.setTimeout(() => get().updateActivity(dealId, aid, { status: 'delivered' }), 1100);
+        window.setTimeout(() => get().updateActivity(dealId, aid, { status: 'opened', opens: 1 }), 2600);
+        window.setTimeout(() => {
+          const d2 = get().deals.find((d) => d.id === dealId);
+          const a = d2?.acts.find((x) => x.id === aid);
+          if (!a) return;
+          get().updateActivity(dealId, aid, {
+            opens: 2,
+            thread: [...(a.thread ?? []), { dir: 'in', who: contact, w: 'now', text: `Thanks ${OWNERS[ME].name.split(' ')[0]} — reviewing now, will revert shortly.` }],
+          });
+          get().toast(`${contact.split(' ')[0]} replied`, 'default');
+        }, 4600);
         break;
       }
       case 'whatsapp':

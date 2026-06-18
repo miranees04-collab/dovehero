@@ -1,9 +1,21 @@
 import { useStore, type ComposerKind } from '@/store/useStore';
 import { Modal } from '@/components/ui/Modal';
-import { Button } from '@/components/ui/primitives';
+import { Button, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
-import type { Priority } from '@/types';
+import type { Priority, Deal } from '@/types';
 import './composer.css';
+
+const EMAIL_TEMPLATES = [
+  { name: 'Send proposal', subject: '{deal} — proposal', body: 'Hi {name},\n\nAttaching our proposal for {deal}. It covers scope, pricing, and timeline as discussed.\n\nHappy to walk the team through it — when works this week?\n\nBest,\nAmara' },
+  { name: 'Follow-up', subject: 'Following up — {deal}', body: 'Hi {name},\n\nJust checking in on {deal}. Anything I can help unblock to keep us on track?\n\nThanks,\nAmara' },
+  { name: 'Pricing', subject: 'Pricing for {deal}', body: 'Hi {name},\n\nAs requested, here\'s the pricing summary for {deal}. Let me know if you\'d like to adjust scope or terms.\n\nBest,\nAmara' },
+];
+function fillTemplate(t: string, deal?: Deal): string {
+  return t.replace(/{name}/g, deal?.contacts[0]?.n?.split(' ')[0] ?? 'there').replace(/{deal}/g, deal?.name ?? 'your deal');
+}
+function pickAttachment(n: number): string {
+  return ['Proposal.pdf', 'Pricing.pdf', 'Case study.pdf', 'Order form.pdf', 'Deck.pdf'][n % 5];
+}
 
 const TABS: { k: ComposerKind; label: string; icon: string }[] = [
   { k: 'note', label: 'Note', icon: 'note' },
@@ -41,6 +53,16 @@ export function Composer() {
   const isChat = c.kind === 'whatsapp' || c.kind === 'sms';
   const update = (patch: Partial<typeof composer>) => openComposer({ ...composer, ...patch });
 
+  if (c.minimized) {
+    return (
+      <button className="dh-compose-dock" onClick={() => update({ minimized: false })}>
+        <span className="dh-comp-chan-icon" style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}><Icon name={m.icon} size={14} /></span>
+        <span className="dh-compose-dock-title">{c.kind === 'email' ? (c.subject || 'New email') : m.title}</span>
+        <span className="dh-compose-dock-x" onClick={(e) => { e.stopPropagation(); close(); }}><Icon name="x" size={14} /></span>
+      </button>
+    );
+  }
+
   const draftWithNova = () => {
     const name = deal?.contacts[0]?.n?.split(' ')[0] ?? 'there';
     const text = NOVA_DRAFTS[Math.floor(Math.random() * NOVA_DRAFTS.length)]
@@ -68,6 +90,7 @@ export function Composer() {
               <Icon name="sparkles" size={15} /> Draft with Nova
             </Button>
           )}
+          <button className="dh-comp-tool" onClick={() => update({ minimized: true })} title="Minimize to dock"><Icon name="arrowLeft" size={14} className="dh-rot90" /> Minimize</button>
           <div style={{ flex: 1 }} />
           <Button variant="ghost" onClick={close}>Cancel</Button>
           <Button variant="primary" onClick={send}>
@@ -164,14 +187,41 @@ export function Composer() {
 
       {c.kind === 'email' && (
         <>
-          <div className="dh-field"><label>To</label>
+          <div className="dh-field" style={{ marginBottom: 8 }}>
+            <label>To {!c.showCc && <button className="dh-cc-toggle" onClick={() => update({ showCc: true })}>Cc/Bcc</button>}</label>
             <input className="dh-input" value={c.to ?? ''} onChange={(e) => update({ to: e.target.value })} />
           </div>
+          {c.showCc && (
+            <div className="dh-field-row" style={{ marginBottom: 8 }}>
+              <div className="dh-field"><label>Cc</label><input className="dh-input" value={c.cc ?? ''} onChange={(e) => update({ cc: e.target.value })} placeholder="cc@…" /></div>
+              <div className="dh-field"><label>Bcc</label><input className="dh-input" value={c.bcc ?? ''} onChange={(e) => update({ bcc: e.target.value })} placeholder="bcc@…" /></div>
+            </div>
+          )}
           <div className="dh-field"><label>Subject</label>
             <input className="dh-input" value={c.subject ?? ''} onChange={(e) => update({ subject: e.target.value })} />
           </div>
           <div className="dh-field"><label>Message</label>
-            <textarea className="dh-textarea" style={{ minHeight: 140 }} placeholder="Write your email…  or let Nova draft it." value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} />
+            <textarea className="dh-textarea" style={{ minHeight: 130 }} placeholder="Write your email…  or let Nova draft it." value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} />
+          </div>
+          {(c.attachments?.length ?? 0) > 0 && (
+            <div className="dh-attach-row">
+              {c.attachments!.map((a) => (
+                <span key={a} className="dh-attach-chip"><Icon name="paperclip" size={12} /> {a} <button onClick={() => update({ attachments: c.attachments!.filter((x) => x !== a) })}><Icon name="x" size={11} /></button></span>
+              ))}
+            </div>
+          )}
+          <div className="dh-comp-toolrow">
+            <button className="dh-comp-tool" onClick={() => update({ attachments: [...(c.attachments ?? []), pickAttachment(deal?.docs?.length ?? 0)] })}><Icon name="paperclip" size={14} /> Attach</button>
+            <Popover align="start" trigger={({ toggle }) => <button className="dh-comp-tool" onClick={toggle}><Icon name="fileText" size={14} /> Templates</button>}>
+              {(close) => (
+                <>
+                  <div className="dh-menu-head">Email templates</div>
+                  {EMAIL_TEMPLATES.map((t) => (
+                    <MenuItem key={t.name} onClick={() => { update({ subject: t.subject, body: fillTemplate(t.body, deal) }); close(); }}>{t.name}</MenuItem>
+                  ))}
+                </>
+              )}
+            </Popover>
           </div>
         </>
       )}

@@ -38,6 +38,12 @@ export const OWNERS: Record<string, Owner> = {
 
 export const ME = 'AR';
 
+export const SEQUENCES = [
+  { k: 'roi', name: 'ROI nurture', steps: ['Day 0 · Intro email', 'Day 2 · ROI one-pager', 'Day 5 · Case study', 'Day 9 · Check-in call'] },
+  { k: 'expansion', name: 'Expansion playbook', steps: ['Day 0 · Usage recap', 'Day 3 · Seat-expansion guide', 'Day 7 · Exec brief'] },
+  { k: 'reengage', name: 'Re-engagement', steps: ['Day 0 · "Still interested?"', 'Day 4 · New case study', 'Day 8 · Break-up email'] },
+];
+
 export const CATALOG = [
   { n: 'Platform — Annual', v: 48000 },
   { n: 'Platform — Monthly', v: 4800 },

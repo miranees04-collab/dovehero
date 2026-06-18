@@ -265,10 +265,16 @@ function TaskCard({ act, deal }: { act: Activity; deal: Deal }) {
 
 function NoteCard({ act, deal }: { act: Activity; deal: Deal }) {
   const toggleReminder = useStore((s) => s.toggleReminder);
+  const togglePinNote = useStore((s) => s.togglePinNote);
   const r = act.reminder;
   return (
     <>
-      <Meta who={act.who} w={act.w} label={act.pin ? 'Pinned note' : 'Note'} />
+      <div className="dh-tl-noterow">
+        <Meta who={act.who} w={act.w} label={act.pin ? 'Pinned note' : 'Note'} />
+        <button className={`dh-pin-btn ${act.pin ? 'on' : ''}`} onClick={() => togglePinNote(deal.id, act.id)} title={act.pin ? 'Unpin' : 'Pin to top'}>
+          <Icon name="star" size={13} />
+        </button>
+      </div>
       <p className="dh-tl-text">{act.text}</p>
       {r && (
         <div className={`dh-rem-chip ${r.done ? 'done' : ''}`}>

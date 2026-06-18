@@ -90,3 +90,50 @@
   accent-color: var(--accent-600);
   cursor: pointer;
 }
+.dh-cc-toggle {
+  margin-left: 8px;
+  border: none;
+  background: none;
+  color: var(--accent-600);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-theme='dark'] .dh-cc-toggle { color: var(--accent); }
+.dh-attach-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.dh-attach-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  background: var(--surface-2); font-size: 12px; color: var(--ink-2);
+}
+.dh-attach-chip button { border: none; background: none; color: var(--faint); cursor: pointer; display: grid; place-items: center; }
+.dh-attach-chip button:hover { color: var(--red); }
+.dh-comp-toolrow { display: flex; gap: 8px; }
+.dh-comp-tool {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 11px; border: 1px solid var(--border-2); background: var(--surface);
+  border-radius: var(--r-sm); color: var(--ink-2); font-size: 12.5px; font-weight: 550; cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-comp-tool:hover { border-color: var(--border-strong); color: var(--ink); }
+.dh-rot90 { transform: rotate(90deg); }
+.dh-compose-dock {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  max-width: 280px;
+  animation: popIn 0.18s var(--spring);
+}
+.dh-compose-dock-title { flex: 1; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dh-compose-dock-x { color: var(--faint); display: grid; place-items: center; }
+.dh-compose-dock-x:hover { color: var(--red); }

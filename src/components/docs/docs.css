@@ -96,3 +96,25 @@
 .dh-doc-record-id { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .dh-doc-record-sub { font-size: 11px; color: var(--faint); }
 .dh-doc-record-total { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.dh-doc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  margin-bottom: 6px;
+}
+.dh-doc-row .di { color: var(--violet); flex: none; }
+.dh-doc-row-main { flex: 1; min-width: 0; }
+.dh-doc-row-id { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dh-doc-row-sub { font-size: 10.5px; color: var(--faint); }
+.dh-doc-row-total { font-size: 12px; font-weight: 700; color: var(--ink); }
+.dh-doc-mini {
+  width: 26px; height: 26px; display: grid; place-items: center; flex: none;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: 6px;
+  color: var(--sub); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-doc-mini:hover { border-color: var(--accent-400); color: var(--accent-600); }
+[data-theme='dark'] .dh-doc-mini:hover { color: var(--accent); }

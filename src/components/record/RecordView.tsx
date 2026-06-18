@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useStore, type ComposerKind } from '@/store/useStore';
-import { STAGES, OWNERS, healthColor, healthBand } from '@/data/constants';
+import { STAGES, OWNERS, healthColor, healthBand, SEQUENCES, CATALOG } from '@/data/constants';
 import type { StageKey } from '@/types';
 import { money, staleDays } from '@/lib/format';
-import { Avatar, Badge, Button, Ring } from '@/components/ui/primitives';
+import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
 import { Timeline } from './Timeline';
@@ -34,6 +34,11 @@ export function RecordView() {
   const logActivity = useStore((s) => s.logActivity);
   const openComposer = useStore((s) => s.openComposer);
   const openDocBuilder = useStore((s) => s.openDocBuilder);
+  const convertQuoteToInvoice = useStore((s) => s.convertQuoteToInvoice);
+  const sendDoc = useStore((s) => s.sendDoc);
+  const addDealProduct = useStore((s) => s.addDealProduct);
+  const removeDealProduct = useStore((s) => s.removeDealProduct);
+  const enrollSequence = useStore((s) => s.enrollSequence);
   const sendNova = useStore((s) => s.sendNova);
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
@@ -256,6 +261,19 @@ export function RecordView() {
             <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
             <button onClick={() => open('whatsapp')}><Icon name="whatsapp" size={16} /> WhatsApp</button>
             <button onClick={() => open('sms')}><Icon name="sms" size={16} /> SMS</button>
+            <Popover
+              align="start"
+              trigger={({ toggle }) => <button onClick={toggle}><Icon name="megaphone" size={16} /> Enroll</button>}
+            >
+              {(close) => (
+                <>
+                  <div className="dh-menu-head">Enroll in sequence</div>
+                  {SEQUENCES.map((s) => (
+                    <MenuItem key={s.k} icon={<Icon name="megaphone" size={15} />} onClick={() => { enrollSequence(deal.id, s.k); close(); }}>{s.name}</MenuItem>
+                  ))}
+                </>
+              )}
+            </Popover>
           </div>
 
           {/* Note composer */}
@@ -307,7 +325,10 @@ export function RecordView() {
           </section>
 
           <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Buying group</h4>
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title">Buying group</h4>
+              <AddContact dealId={deal.id} />
+            </div>
             <div className="dh-contacts">
               {deal.contacts.map((c) => (
                 <div key={c.n} className="dh-contact">
@@ -325,32 +346,65 @@ export function RecordView() {
             </div>
           </section>
 
-          {deal.products.length > 0 && (
-            <section className="dh-rec-card">
+          <section className="dh-rec-card">
+            <div className="dh-rail-titlerow">
               <h4 className="dh-rail-title">Line items</h4>
-              <div className="dh-lineitems">
-                {deal.products.map((p) => (
-                  <div key={p.n} className="dh-lineitem">
-                    <span>{p.n}</span>
-                    <span className="mono">{money(p.v)}</span>
-                  </div>
-                ))}
+              <Popover align="end" width={240} trigger={({ toggle }) => <button className="dh-rail-add" onClick={toggle}><Icon name="plus" size={13} /> Add</button>}>
+                {(close) => (
+                  <>
+                    <div className="dh-menu-head">Add product</div>
+                    {CATALOG.map((p) => (
+                      <MenuItem key={p.n} onClick={() => { addDealProduct(deal.id, p); close(); }}>
+                        <span style={{ flex: 1 }}>{p.n}</span><span className="mono" style={{ color: 'var(--faint)' }}>{money(p.v, true)}</span>
+                      </MenuItem>
+                    ))}
+                  </>
+                )}
+              </Popover>
+            </div>
+            <div className="dh-lineitems">
+              {deal.products.length === 0 && <div className="dh-lineitem" style={{ color: 'var(--faint)' }}>No products linked yet.</div>}
+              {deal.products.map((p, i) => (
+                <div key={p.n + i} className="dh-lineitem">
+                  <span>{p.n}</span>
+                  <span className="mono">{money(p.v)}</span>
+                  <button className="dh-lineitem-rm" onClick={() => removeDealProduct(deal.id, i)} aria-label="Remove"><Icon name="x" size={12} /></button>
+                </div>
+              ))}
+              {deal.products.length > 0 && (
                 <div className="dh-lineitem total">
                   <span>Total</span>
                   <span className="mono">{money(deal.products.reduce((s, p) => s + p.v, 0))}</span>
                 </div>
-              </div>
-            </section>
-          )}
+              )}
+            </div>
+          </section>
 
           <section className="dh-rec-card">
             <h4 className="dh-rail-title">Documents</h4>
             <div className="dh-docs">
+              {(deal.quotes ?? []).map((q) => (
+                <div key={q.id} className="dh-doc-row">
+                  <Icon name="receipt" size={15} className="di" />
+                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{q.id}</div><div className="dh-doc-row-sub">Quote · {q.status}</div></div>
+                  <span className="dh-doc-row-total mono">{money(q.total, true)}</span>
+                  <button className="dh-doc-mini" title="Convert to invoice" onClick={() => convertQuoteToInvoice(deal.id, q.id)}><Icon name="arrowRight" size={13} /></button>
+                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${q.id}.pdf`)}><Icon name="send" size={13} /></button>
+                </div>
+              ))}
+              {(deal.invoices ?? []).map((inv) => (
+                <div key={inv.id} className="dh-doc-row">
+                  <Icon name="receipt" size={15} className="di" />
+                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{inv.id}</div><div className="dh-doc-row-sub">Invoice · {inv.status}</div></div>
+                  <span className="dh-doc-row-total mono">{money(inv.total, true)}</span>
+                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${inv.id}.pdf`)}><Icon name="send" size={13} /></button>
+                </div>
+              ))}
               {deal.docs.map((d) => (
-                <button key={d.n} className="dh-doc" onClick={() => toast(`Opening ${d.n}…`)}>
+                <button key={d.n} className="dh-doc" onClick={() => sendDoc(deal.id, d.n)}>
                   <Icon name="fileText" size={15} />
                   <span>{d.n}</span>
-                  <Icon name="arrowUpRight" size={13} />
+                  <Icon name="send" size={13} />
                 </button>
               ))}
             </div>
@@ -375,5 +429,25 @@ export function RecordView() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function AddContact({ dealId }: { dealId: string }) {
+  const addDealContact = useStore((s) => s.addDealContact);
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('Champion');
+  return (
+    <Popover align="end" width={230} trigger={({ toggle }) => <button className="dh-rail-add" onClick={toggle}><Icon name="plus" size={13} /> Add</button>}>
+      {(close) => (
+        <div style={{ padding: 8 }}>
+          <div className="dh-menu-head">Add contact</div>
+          <input className="dh-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 8 }} autoFocus />
+          <select className="dh-select" value={role} onChange={(e) => setRole(e.target.value)} style={{ marginBottom: 8 }}>
+            {['Champion', 'Economic buyer', 'Influencer', 'User'].map((r) => <option key={r}>{r}</option>)}
+          </select>
+          <Button variant="primary" size="sm" style={{ width: '100%' }} disabled={!name.trim()} onClick={() => { addDealContact(dealId, { n: name.trim(), r: role, t: role, s: 'Medium' }); setName(''); close(); }}>Add to group</Button>
+        </div>
+      )}
+    </Popover>
   );
 }

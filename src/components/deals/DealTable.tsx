@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode, type ReactElement } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import type { Deal, GroupBy } from '@/types';
-import { OWNERS, hueOf, healthColor, healthBand, STAGES } from '@/data/constants';
+import { OWNERS, hueOf, healthColor, healthBand, STAGES, SEQUENCES } from '@/data/constants';
 import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
@@ -400,6 +400,7 @@ function BulkBar() {
   const bulkStage = useStore((s) => s.bulkStage);
   const bulkOwner = useStore((s) => s.bulkOwner);
   const bulkDelete = useStore((s) => s.bulkDelete);
+  const bulkEnroll = useStore((s) => s.bulkEnroll);
   if (!bulk.length) return null;
   return (
     <div className="dh-bulkbar">
@@ -424,6 +425,18 @@ function BulkBar() {
           <>
             {Object.values(OWNERS).map((o) => (
               <MenuItem key={o.key} icon={<Avatar ownerKey={o.key} size={20} />} onClick={() => { bulkOwner(o.key); close(); }}>{o.name}</MenuItem>
+            ))}
+          </>
+        )}
+      </Popover>
+      <Popover
+        up
+        trigger={({ toggle }) => <button className="dh-bulk-btn" onClick={toggle}><Icon name="megaphone" size={15} /> Enroll</button>}
+      >
+        {(close) => (
+          <>
+            {SEQUENCES.map((s) => (
+              <MenuItem key={s.k} onClick={() => { bulkEnroll(s.k); close(); }}>{s.name}</MenuItem>
             ))}
           </>
         )}

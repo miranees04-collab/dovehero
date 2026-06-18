@@ -26,6 +26,15 @@
   background: color-mix(in srgb, var(--fc, var(--accent-500)) 10%, transparent);
 }
 .dh-feed-empty { padding: 24px 0; text-align: center; color: var(--faint); font-size: 13px; }
+.dh-tl-noterow { display: flex; align-items: center; justify-content: space-between; }
+.dh-pin-btn {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border: none; background: none; color: var(--faint); border-radius: 6px; cursor: pointer;
+  opacity: 0; transition: all var(--t-fast) var(--ease);
+}
+.dh-tl-item:hover .dh-pin-btn { opacity: 1; }
+.dh-pin-btn.on { opacity: 1; color: var(--violet); }
+.dh-pin-btn:hover { background: var(--surface-hover); color: var(--violet); }
 .dh-tl-group {
   margin-bottom: 6px;
 }
