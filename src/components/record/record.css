@@ -168,6 +168,22 @@
   justify-content: space-between;
 }
 .dh-rec-head-tools { display: flex; align-items: center; gap: 8px; }
+.dh-rec-headtog {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-sm);
+  color: var(--sub); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-rec-headtog:hover { border-color: var(--border-strong); color: var(--ink); }
+/* Minimized record header — compact one-line strip */
+.dh-rec-headmin {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 6px 0 14px;
+}
+.dh-rec-headmin .dh-prio { margin-top: 0; }
+.dh-rec-headmin-title { font-size: 16px; font-weight: 700; margin: 0; color: var(--ink); letter-spacing: -0.01em; }
+.dh-rec-headmin-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-left: auto; }
+.dh-rec-headmin-stats .s { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); font-weight: 550; }
+.dh-rec-headmin-stats .s i { font-style: normal; font-size: 11px; color: var(--faint); }
 .dh-rec-layout-switch {
   display: flex;
   gap: 2px;
@@ -344,6 +360,10 @@
   border: none; background: none; border-radius: var(--r-sm); color: var(--faint); cursor: pointer;
 }
 .dh-nova-clear:hover { background: var(--surface-hover); color: var(--ink); }
+.dh-nova-brief.min .dh-nova-brief-head { margin-bottom: 0; }
+.dh-nova-brief.min .dh-nova-brief-titles small {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
 /* Inline Nova thread — Claude-style prompting right on the deal */
 .dh-nova-thread {
   display: flex;

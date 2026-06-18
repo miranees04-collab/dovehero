@@ -61,6 +61,8 @@ export function RecordView() {
   const [note, setNote] = useState('');
   const [ask, setAsk] = useState('');
   const [preview, setPreview] = useState<DerivedAsset | null>(null);
+  const [novaMin, setNovaMin] = useState(false);
+  const [headMin, setHeadMin] = useState(false);
 
   if (!deal) return null;
   const companyRec = companies.find((c) => c.name === deal.company);
@@ -347,9 +349,26 @@ export function RecordView() {
                 </div>
               )}
             </Popover>
+            <button className="dh-rec-headtog" onClick={() => setHeadMin((v) => !v)} title={headMin ? 'Expand details' : 'Minimize details'} aria-label={headMin ? 'Expand details' : 'Minimize details'}>
+              <Icon name={headMin ? 'expand' : 'minus'} size={15} />
+            </button>
           </div>
         </div>
 
+        {headMin ? (
+          <div className="dh-rec-headmin">
+            <span className={`dh-prio ${deal.priority}`} />
+            <h1 className="dh-rec-headmin-title"><InlineEdit value={deal.name} onCommit={(v) => v.trim() && updateDeal(deal.id, { name: v.trim() })} /></h1>
+            <span className="dh-rec-headmin-stats">
+              <span className="dh-stage-pill" style={{ ['--pc' as string]: STAGES.find((s) => s.k === deal.stage)?.hue }}><span className="dot" /> {deal.stage}</span>
+              <span className="s"><b className="mono">{money(deal.value, true)}</b></span>
+              <span className="s"><i>Win</i> {deal.win}%</span>
+              <span className="s"><i>Health</i> <b style={{ color: hc }}>{deal.health}</b></span>
+              <span className="s"><Avatar ownerKey={deal.owner} size={18} /> {OWNERS[deal.owner]?.name}</span>
+            </span>
+          </div>
+        ) : (
+        <>
         <div className="dh-rec-headmain">
           <div className="dh-rec-title">
             <span className={`dh-prio ${deal.priority}`} />
@@ -417,6 +436,8 @@ export function RecordView() {
             </button>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Body */}
@@ -427,19 +448,23 @@ export function RecordView() {
         {/* Main column */}
         <div className="dh-rec-main">
           {/* Nova deal intelligence — inline, answers right here on the deal */}
-          <section className="dh-rec-card dh-nova-brief">
+          <section className={`dh-rec-card dh-nova-brief ${novaMin ? 'min' : ''}`}>
             <div className="dh-nova-brief-head">
               <span className="dh-nova-mark sm">
                 <Icon name="sparkles" size={13} color="#fff" />
               </span>
               <div className="dh-nova-brief-titles">
                 <b>Nova — deal intelligence</b>
-                <small>Grounded in this deal · {deal.acts.length} activities · {deal.contacts.length} contacts</small>
+                <small>{novaMin ? `${deal.summary.slice(0, 80)}…` : `Grounded in this deal · ${deal.acts.length} activities · ${deal.contacts.length} contacts`}</small>
               </div>
-              {novaThread && novaThread.length > 0 && (
+              {!novaMin && novaThread && novaThread.length > 0 && (
                 <button className="dh-nova-clear" onClick={() => clearDealNova(deal.id)} title="Clear conversation"><Icon name="x" size={14} /></button>
               )}
+              <button className="dh-nova-clear" onClick={() => setNovaMin((v) => !v)} title={novaMin ? 'Expand Nova' : 'Minimize Nova'} aria-label={novaMin ? 'Expand Nova' : 'Minimize Nova'}>
+                <Icon name={novaMin ? 'expand' : 'minus'} size={14} />
+              </button>
             </div>
+            {!novaMin && (<>
             {!novaThread?.length && <p className="dh-nova-summary">{deal.summary}</p>}
             <div className="dh-nova-chips">
               {[
@@ -493,6 +518,7 @@ export function RecordView() {
               <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={`Ask Nova anything about ${deal.company}…`} />
               <button type="submit" aria-label="Ask Nova" disabled={!ask.trim()}><Icon name="send" size={15} /></button>
             </form>
+            </>)}
           </section>
 
           {/* 360° View — every interaction & engagement signal on this deal */}
