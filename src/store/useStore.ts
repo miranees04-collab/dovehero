@@ -61,6 +61,7 @@ function staleDaysOf(w: string | undefined): number {
 
 export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'owner', 'close', 'ai_next'];
 export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
+export const DEFAULT_RECORD_SECTIONS = ['coach', 'signals', 'account', 'group', 'lineitems', 'docs', 'tags'];
 
 function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   const recs: Record<string, ObjectRecord[]> = {
@@ -153,6 +154,7 @@ export interface AppState {
   savedViews: SavedView[];
   activeView: string | null;
   recordLayout: 'standard' | 'tri';
+  recordSections: string[];
   colW: Record<string, number>;
   colSearch: Record<string, string>;
   colSearchOpen: boolean;
@@ -224,6 +226,9 @@ export interface AppState {
   toggleTableCol: (k: string) => void;
   moveTableCol: (k: string, dir: -1 | 1) => void;
   toggleCardField: (k: string) => void;
+  reorderCardFields: (next: string[]) => void;
+  reorderRecordSections: (next: string[]) => void;
+  resetRecordSections: () => void;
   toggleColCollapse: (k: string) => void;
   setAllCollapsed: (keys: string[], v: boolean) => void;
   setKbCompact: (v: boolean) => void;
@@ -359,6 +364,7 @@ export const useStore = create<AppState>()(
   savedViews: [],
   activeView: null,
   recordLayout: 'standard',
+  recordSections: [...DEFAULT_RECORD_SECTIONS],
   colW: {},
   colSearch: {},
   colSearchOpen: false,
@@ -556,6 +562,9 @@ export const useStore = create<AppState>()(
     set((s) => ({
       cardFields: s.cardFields.includes(k) ? s.cardFields.filter((c) => c !== k) : [...s.cardFields, k],
     })),
+  reorderCardFields: (next) => set({ cardFields: next }),
+  reorderRecordSections: (next) => set({ recordSections: next }),
+  resetRecordSections: () => set({ recordSections: [...DEFAULT_RECORD_SECTIONS] }),
   toggleColCollapse: (k) =>
     set((s) => ({ collapsedCols: { ...s.collapsedCols, [k]: !s.collapsedCols[k] } })),
   setAllCollapsed: (keys, v) =>
@@ -1064,6 +1073,7 @@ export const useStore = create<AppState>()(
         cardFields: s.cardFields,
         savedViews: s.savedViews,
         recordLayout: s.recordLayout,
+        recordSections: s.recordSections,
       }),
     },
   ),

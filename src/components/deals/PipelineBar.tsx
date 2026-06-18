@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Popover, MenuItem, Avatar, Button } from '@/components/ui/primitives';
+import { ReorderList } from '@/components/ui/ReorderList';
 import { OWNERS, OPEN_STAGES, STAGES } from '@/data/constants';
 import type { ReactNode } from 'react';
 import { money, uid } from '@/lib/format';
@@ -46,6 +47,7 @@ export function PipelineBar() {
   const setSwimlane = useStore((s) => s.setSwimlane);
   const cardFields = useStore((s) => s.cardFields);
   const toggleCardField = useStore((s) => s.toggleCardField);
+  const reorderCardFields = useStore((s) => s.reorderCardFields);
   const view = useStore((s) => s.view);
   const pipelines = useStore((s) => s.pipelines);
   const deals = useStore((s) => s.deals);
@@ -216,22 +218,37 @@ export function PipelineBar() {
           <button className="dh-ctl-btn" onClick={() => setAllCollapsed(BOARD_STAGE_KEYS, !allCollapsed)}>{allCollapsed ? 'Expand all' : 'Collapse all'}</button>
           <Popover
             align="end"
-            width={220}
+            width={240}
             trigger={({ toggle }) => (
               <button className="dh-ctl-btn" onClick={toggle}><Icon name="sliders" size={14} /> Card layout</button>
             )}
           >
-            {() => (
-              <div className="dh-card-fields">
-                <div className="dh-menu-head">Show on cards</div>
-                {CARD_FIELD_OPTS.map((f) => (
-                  <label key={f.k} className="dh-cardfield-row">
-                    <input type="checkbox" checked={cardFields.includes(f.k)} onChange={() => toggleCardField(f.k)} />
-                    {f.label}
-                  </label>
-                ))}
-              </div>
-            )}
+            {() => {
+              const enabled = cardFields.filter((k) => CARD_FIELD_OPTS.some((o) => o.k === k));
+              const disabled = CARD_FIELD_OPTS.filter((o) => !cardFields.includes(o.k));
+              const labelOf = (k: string) => CARD_FIELD_OPTS.find((o) => o.k === k)?.label ?? k;
+              return (
+                <div className="dh-card-fields">
+                  <div className="dh-menu-head">Drag to reorder · click to hide</div>
+                  <ReorderList
+                    items={enabled}
+                    onReorder={reorderCardFields}
+                    renderItem={(k) => (
+                      <>
+                        <span style={{ flex: 1, fontSize: 13 }}>{labelOf(k)}</span>
+                        <button className="dh-cf-eye" onClick={() => toggleCardField(k)} title="Hide"><Icon name="eye" size={14} /></button>
+                      </>
+                    )}
+                  />
+                  {disabled.length > 0 && <div className="dh-menu-head">Hidden</div>}
+                  {disabled.map((f) => (
+                    <button key={f.k} className="dh-cf-add" onClick={() => toggleCardField(f.k)}>
+                      <Icon name="plus" size={13} /> {f.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            }}
           </Popover>
         </div>
       )}

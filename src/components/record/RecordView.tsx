@@ -6,6 +6,7 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
+import { ReorderList } from '@/components/ui/ReorderList';
 import { Timeline } from './Timeline';
 import './record.css';
 
@@ -42,6 +43,9 @@ export function RecordView() {
   const sendNova = useStore((s) => s.sendNova);
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
+  const recordSections = useStore((s) => s.recordSections);
+  const reorderRecordSections = useStore((s) => s.reorderRecordSections);
+  const resetRecordSections = useStore((s) => s.resetRecordSections);
   const companies = useStore((s) => s.objectRecords.company ?? []);
   const allDeals = useStore((s) => s.deals);
   const toast = useStore((s) => s.toast);
@@ -82,6 +86,166 @@ export function RecordView() {
     toast('Note added', 'success');
   };
 
+  const SECTION_LABELS: Record<string, string> = {
+    coach: 'Deal coach', signals: 'Buying signals', account: 'Account', group: 'Buying group',
+    lineitems: 'Line items', docs: 'Documents', tags: 'Tags',
+  };
+
+  const renderSection = (id: string) => {
+    switch (id) {
+      case 'coach':
+        return (
+          <section className="dh-rec-card" key="coach">
+            <h4 className="dh-rail-title">Deal coach</h4>
+            <div className="dh-coach">
+              {factors.map((f) => (
+                <div key={f.label} className="dh-coach-row">
+                  <span className={`dh-coach-dot t-${f.tone}`} />
+                  <span className="dh-coach-label">{f.label}</span>
+                  <span className="dh-coach-note">{f.note}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      case 'signals':
+        return (
+          <section className="dh-rec-card" key="signals">
+            <h4 className="dh-rail-title">Buying signals</h4>
+            <div className="dh-signals">
+              {signals.map((s) => (
+                <div key={s.label} className={`dh-signal ${s.ok ? 'ok' : 'no'}`}>
+                  <Icon name={s.ok ? 'check' : 'x'} size={13} /> {s.label}
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      case 'account':
+        return (
+          <section className="dh-rec-card" key="account">
+            <h4 className="dh-rail-title">Account</h4>
+            <div className="dh-account">
+              <span className="dh-account-av"><Icon name="building" size={18} /></span>
+              <div>
+                <b>{deal.company}</b>
+                <small>{deal.industry}{companyRec?.employees ? ` · ${companyRec.employees} employees` : ''}</small>
+              </div>
+            </div>
+            {companyRec?.domain ? <a className="dh-account-domain" href={`https://${String(companyRec.domain)}`} target="_blank" rel="noreferrer"><Icon name="arrowUpRight" size={12} /> {String(companyRec.domain)}</a> : null}
+            <div className="dh-account-tiles">
+              <div><span className="v mono">{companyDeals.length}</span><span className="l">Open deals</span></div>
+              <div><span className="v mono">{money(companyDeals.reduce((s, d) => s + d.value, 0), true)}</span><span className="l">Pipeline</span></div>
+              <div><span className="v mono">{companyWon}</span><span className="l">Won</span></div>
+            </div>
+          </section>
+        );
+      case 'group':
+        return (
+          <section className="dh-rec-card" key="group">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title">Buying group</h4>
+              <AddContact dealId={deal.id} />
+            </div>
+            <div className="dh-contacts">
+              {deal.contacts.map((c) => (
+                <div key={c.n} className="dh-contact">
+                  <Avatar name={c.n} size={30} />
+                  <div className="dh-contact-text"><b>{c.n}</b><small>{c.t}</small></div>
+                  <div className="dh-contact-meta">
+                    <Badge tone={c.r === 'Economic buyer' ? 'violet' : c.r === 'Champion' ? 'green' : 'neutral'}>{c.r}</Badge>
+                    <span className={`dh-signal-strength s-${c.s.toLowerCase()}`}>{c.s}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      case 'lineitems':
+        return (
+          <section className="dh-rec-card" key="lineitems">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title">Line items</h4>
+              <Popover align="end" width={240} trigger={({ toggle }) => <button className="dh-rail-add" onClick={toggle}><Icon name="plus" size={13} /> Add</button>}>
+                {(close) => (
+                  <>
+                    <div className="dh-menu-head">Add product</div>
+                    {CATALOG.map((p) => (
+                      <MenuItem key={p.n} onClick={() => { addDealProduct(deal.id, p); close(); }}>
+                        <span style={{ flex: 1 }}>{p.n}</span><span className="mono" style={{ color: 'var(--faint)' }}>{money(p.v, true)}</span>
+                      </MenuItem>
+                    ))}
+                  </>
+                )}
+              </Popover>
+            </div>
+            <div className="dh-lineitems">
+              {deal.products.length === 0 && <div className="dh-lineitem" style={{ color: 'var(--faint)' }}>No products linked yet.</div>}
+              {deal.products.map((p, i) => (
+                <div key={p.n + i} className="dh-lineitem">
+                  <span>{p.n}</span>
+                  <span className="mono">{money(p.v)}</span>
+                  <button className="dh-lineitem-rm" onClick={() => removeDealProduct(deal.id, i)} aria-label="Remove"><Icon name="x" size={12} /></button>
+                </div>
+              ))}
+              {deal.products.length > 0 && (
+                <div className="dh-lineitem total"><span>Total</span><span className="mono">{money(deal.products.reduce((s, p) => s + p.v, 0))}</span></div>
+              )}
+            </div>
+          </section>
+        );
+      case 'docs':
+        return (
+          <section className="dh-rec-card" key="docs">
+            <h4 className="dh-rail-title">Documents</h4>
+            <div className="dh-docs">
+              {(deal.quotes ?? []).map((q) => (
+                <div key={q.id} className="dh-doc-row">
+                  <Icon name="receipt" size={15} className="di" />
+                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{q.id}</div><div className="dh-doc-row-sub">Quote · {q.status}</div></div>
+                  <span className="dh-doc-row-total mono">{money(q.total, true)}</span>
+                  <button className="dh-doc-mini" title="Convert to invoice" onClick={() => convertQuoteToInvoice(deal.id, q.id)}><Icon name="arrowRight" size={13} /></button>
+                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${q.id}.pdf`)}><Icon name="send" size={13} /></button>
+                </div>
+              ))}
+              {(deal.invoices ?? []).map((inv) => (
+                <div key={inv.id} className="dh-doc-row">
+                  <Icon name="receipt" size={15} className="di" />
+                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{inv.id}</div><div className="dh-doc-row-sub">Invoice · {inv.status}</div></div>
+                  <span className="dh-doc-row-total mono">{money(inv.total, true)}</span>
+                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${inv.id}.pdf`)}><Icon name="send" size={13} /></button>
+                </div>
+              ))}
+              {deal.docs.map((d) => (
+                <button key={d.n} className="dh-doc" onClick={() => sendDoc(deal.id, d.n)}>
+                  <Icon name="fileText" size={15} /><span>{d.n}</span><Icon name="send" size={13} />
+                </button>
+              ))}
+            </div>
+            <div className="dh-doc-actions">
+              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'quote')}><Icon name="receipt" size={14} /> New quote</button>
+              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'invoice')}><Icon name="receipt" size={14} /> New invoice</button>
+            </div>
+          </section>
+        );
+      case 'tags':
+        return deal.tags.length > 0 ? (
+          <section className="dh-rec-card" key="tags">
+            <h4 className="dh-rail-title">Tags</h4>
+            <div className="dh-card-tags" style={{ marginLeft: 0 }}>
+              {deal.tags.map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}
+            </div>
+          </section>
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
+  const mid = Math.ceil(recordSections.length / 2);
+  const leftSections = recordLayout === 'tri' ? recordSections.slice(0, mid) : recordSections;
+  const rightSections = recordLayout === 'tri' ? recordSections.slice(mid) : [];
+
   return (
     <div className="dh-record">
       {/* Header */}
@@ -90,9 +254,22 @@ export function RecordView() {
           <button className="dh-btn v-ghost s-sm" onClick={() => openDeal(null)}>
             <Icon name="arrowLeft" size={15} /> Back to {view === 'table' ? 'Table' : 'Board'}
           </button>
-          <div className="dh-rec-layout-switch">
-            <button className={recordLayout === 'standard' ? 'on' : ''} onClick={() => setRecordLayout('standard')}><Icon name="list" size={13} /> Standard</button>
-            <button className={recordLayout === 'tri' ? 'on' : ''} onClick={() => setRecordLayout('tri')}><Icon name="grid" size={13} /> 3-column</button>
+          <div className="dh-rec-head-tools">
+            <div className="dh-rec-layout-switch">
+              <button className={recordLayout === 'standard' ? 'on' : ''} onClick={() => setRecordLayout('standard')}><Icon name="list" size={13} /> Standard</button>
+              <button className={recordLayout === 'tri' ? 'on' : ''} onClick={() => setRecordLayout('tri')}><Icon name="grid" size={13} /> 3-column</button>
+            </div>
+            <Popover align="end" width={250} trigger={({ toggle }) => <button className="dh-btn v-subtle s-sm" onClick={toggle}><Icon name="sliders" size={14} /> Layout</button>}>
+              {() => (
+                <div style={{ padding: 4 }}>
+                  <div className="dh-menu-head" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    Drag to reorder sections
+                    <button className="dh-pm-toggle" onClick={resetRecordSections}>Reset</button>
+                  </div>
+                  <ReorderList items={recordSections} onReorder={reorderRecordSections} renderItem={(k) => <span style={{ flex: 1, fontSize: 13 }}>{SECTION_LABELS[k] ?? k}</span>} />
+                </div>
+              )}
+            </Popover>
           </div>
         </div>
 
@@ -164,32 +341,8 @@ export function RecordView() {
 
       {/* Body */}
       <div className={`dh-rec-body layout-${recordLayout}`}>
-        {/* Left rail (coach + signals) */}
-        <aside className="dh-rec-railL">
-          <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Deal coach</h4>
-            <div className="dh-coach">
-              {factors.map((f) => (
-                <div key={f.label} className="dh-coach-row">
-                  <span className={`dh-coach-dot t-${f.tone}`} />
-                  <span className="dh-coach-label">{f.label}</span>
-                  <span className="dh-coach-note">{f.note}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Buying signals</h4>
-            <div className="dh-signals">
-              {signals.map((s) => (
-                <div key={s.label} className={`dh-signal ${s.ok ? 'ok' : 'no'}`}>
-                  <Icon name={s.ok ? 'check' : 'x'} size={13} />
-                  {s.label}
-                </div>
-              ))}
-            </div>
-          </section>
-        </aside>
+        {/* Left rail */}
+        <aside className="dh-rec-railL">{leftSections.map(renderSection)}</aside>
 
         {/* Main column */}
         <div className="dh-rec-main">
@@ -306,127 +459,7 @@ export function RecordView() {
         </div>
 
         {/* Right rail */}
-        <aside className="dh-rec-railR">
-          <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Account</h4>
-            <div className="dh-account">
-              <span className="dh-account-av"><Icon name="building" size={18} /></span>
-              <div>
-                <b>{deal.company}</b>
-                <small>{deal.industry}{companyRec?.employees ? ` · ${companyRec.employees} employees` : ''}</small>
-              </div>
-            </div>
-            {companyRec?.domain ? <a className="dh-account-domain" href={`https://${String(companyRec.domain)}`} target="_blank" rel="noreferrer"><Icon name="arrowUpRight" size={12} /> {String(companyRec.domain)}</a> : null}
-            <div className="dh-account-tiles">
-              <div><span className="v mono">{companyDeals.length}</span><span className="l">Open deals</span></div>
-              <div><span className="v mono">{money(companyDeals.reduce((s, d) => s + d.value, 0), true)}</span><span className="l">Pipeline</span></div>
-              <div><span className="v mono">{companyWon}</span><span className="l">Won</span></div>
-            </div>
-          </section>
-
-          <section className="dh-rec-card">
-            <div className="dh-rail-titlerow">
-              <h4 className="dh-rail-title">Buying group</h4>
-              <AddContact dealId={deal.id} />
-            </div>
-            <div className="dh-contacts">
-              {deal.contacts.map((c) => (
-                <div key={c.n} className="dh-contact">
-                  <Avatar name={c.n} size={30} />
-                  <div className="dh-contact-text">
-                    <b>{c.n}</b>
-                    <small>{c.t}</small>
-                  </div>
-                  <div className="dh-contact-meta">
-                    <Badge tone={c.r === 'Economic buyer' ? 'violet' : c.r === 'Champion' ? 'green' : 'neutral'}>{c.r}</Badge>
-                    <span className={`dh-signal-strength s-${c.s.toLowerCase()}`}>{c.s}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="dh-rec-card">
-            <div className="dh-rail-titlerow">
-              <h4 className="dh-rail-title">Line items</h4>
-              <Popover align="end" width={240} trigger={({ toggle }) => <button className="dh-rail-add" onClick={toggle}><Icon name="plus" size={13} /> Add</button>}>
-                {(close) => (
-                  <>
-                    <div className="dh-menu-head">Add product</div>
-                    {CATALOG.map((p) => (
-                      <MenuItem key={p.n} onClick={() => { addDealProduct(deal.id, p); close(); }}>
-                        <span style={{ flex: 1 }}>{p.n}</span><span className="mono" style={{ color: 'var(--faint)' }}>{money(p.v, true)}</span>
-                      </MenuItem>
-                    ))}
-                  </>
-                )}
-              </Popover>
-            </div>
-            <div className="dh-lineitems">
-              {deal.products.length === 0 && <div className="dh-lineitem" style={{ color: 'var(--faint)' }}>No products linked yet.</div>}
-              {deal.products.map((p, i) => (
-                <div key={p.n + i} className="dh-lineitem">
-                  <span>{p.n}</span>
-                  <span className="mono">{money(p.v)}</span>
-                  <button className="dh-lineitem-rm" onClick={() => removeDealProduct(deal.id, i)} aria-label="Remove"><Icon name="x" size={12} /></button>
-                </div>
-              ))}
-              {deal.products.length > 0 && (
-                <div className="dh-lineitem total">
-                  <span>Total</span>
-                  <span className="mono">{money(deal.products.reduce((s, p) => s + p.v, 0))}</span>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Documents</h4>
-            <div className="dh-docs">
-              {(deal.quotes ?? []).map((q) => (
-                <div key={q.id} className="dh-doc-row">
-                  <Icon name="receipt" size={15} className="di" />
-                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{q.id}</div><div className="dh-doc-row-sub">Quote · {q.status}</div></div>
-                  <span className="dh-doc-row-total mono">{money(q.total, true)}</span>
-                  <button className="dh-doc-mini" title="Convert to invoice" onClick={() => convertQuoteToInvoice(deal.id, q.id)}><Icon name="arrowRight" size={13} /></button>
-                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${q.id}.pdf`)}><Icon name="send" size={13} /></button>
-                </div>
-              ))}
-              {(deal.invoices ?? []).map((inv) => (
-                <div key={inv.id} className="dh-doc-row">
-                  <Icon name="receipt" size={15} className="di" />
-                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{inv.id}</div><div className="dh-doc-row-sub">Invoice · {inv.status}</div></div>
-                  <span className="dh-doc-row-total mono">{money(inv.total, true)}</span>
-                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${inv.id}.pdf`)}><Icon name="send" size={13} /></button>
-                </div>
-              ))}
-              {deal.docs.map((d) => (
-                <button key={d.n} className="dh-doc" onClick={() => sendDoc(deal.id, d.n)}>
-                  <Icon name="fileText" size={15} />
-                  <span>{d.n}</span>
-                  <Icon name="send" size={13} />
-                </button>
-              ))}
-            </div>
-            <div className="dh-doc-actions">
-              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'quote')}><Icon name="receipt" size={14} /> New quote</button>
-              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'invoice')}><Icon name="receipt" size={14} /> New invoice</button>
-            </div>
-          </section>
-
-          {deal.tags.length > 0 && (
-            <section className="dh-rec-card">
-              <h4 className="dh-rail-title">Tags</h4>
-              <div className="dh-card-tags" style={{ marginLeft: 0 }}>
-                {deal.tags.map((t) => (
-                  <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>
-                    {t}
-                  </Badge>
-                ))}
-              </div>
-            </section>
-          )}
-        </aside>
+        <aside className="dh-rec-railR">{rightSections.map(renderSection)}</aside>
       </div>
     </div>
   );

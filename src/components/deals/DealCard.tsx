@@ -80,44 +80,48 @@ export function DealCard({
 
       <div className="dh-card-company">{deal.company}</div>
 
-      {showTags && (
-        <div className="dh-card-tags">
-          {dir && <Badge tone={dir === 'in' ? 'green' : 'neutral'}>{dir === 'in' ? '↓ Inbound' : '↑ Outbound'}</Badge>}
-          {deal.tags.slice(0, 2).map((t) => (
-            <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>
-              {t}
-            </Badge>
-          ))}
-          {stale && (
-            <Badge tone="amber">
-              <Icon name="clock" size={11} /> Stale
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {showNova && (
-        <div className={`dh-card-nova ${atRisk ? 'risk' : 'good'}`}>
-          <Icon name="sparkles" size={12} />
-          <span>{nextBestAction(deal)}</span>
-        </div>
-      )}
+      {(() => {
+        // Render body fields in the user-chosen cardFields order.
+        // health renders as the corner ring above; value/win/owner group into a
+        // single footer anchored at the first of them in the order.
+        let footerDone = false;
+        return cardFields.map((k) => {
+          if (k === 'health') return null;
+          if (k === 'tags') {
+            return showTags ? (
+              <div className="dh-card-tags" key="tags">
+                {dir && <Badge tone={dir === 'in' ? 'green' : 'neutral'}>{dir === 'in' ? '↓ Inbound' : '↑ Outbound'}</Badge>}
+                {deal.tags.slice(0, 2).map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}
+                {stale && <Badge tone="amber"><Icon name="clock" size={11} /> Stale</Badge>}
+              </div>
+            ) : null;
+          }
+          if (k === 'nova') {
+            return showNova ? (
+              <div className={`dh-card-nova ${atRisk ? 'risk' : 'good'}`} key="nova">
+                <Icon name="sparkles" size={12} />
+                <span>{nextBestAction(deal)}</span>
+              </div>
+            ) : null;
+          }
+          if (k === 'value' || k === 'win' || k === 'owner') {
+            if (footerDone) return null;
+            footerDone = true;
+            return (
+              <div className="dh-card-foot" key="footer">
+                {has('value') && <span className="dh-card-value mono">{money(deal.value, true)}</span>}
+                <div className="dh-card-foot-right">
+                  {has('win') && <span className="dh-card-win mono" title="Win probability">{deal.win}%</span>}
+                  {has('owner') && <Avatar ownerKey={deal.owner} size={22} />}
+                </div>
+              </div>
+            );
+          }
+          return null;
+        });
+      })()}
 
       <div className="dh-card-close"><Icon name="clock" size={11} /> Close {deal.close}</div>
-
-      {(has('value') || has('win') || has('owner')) && (
-        <div className="dh-card-foot">
-          {has('value') && <span className="dh-card-value mono">{money(deal.value, true)}</span>}
-          <div className="dh-card-foot-right">
-            {has('win') && (
-              <span className="dh-card-win mono" title="Win probability">
-                {deal.win}%
-              </span>
-            )}
-            {has('owner') && <Avatar ownerKey={deal.owner} size={22} />}
-          </div>
-        </div>
-      )}
 
       {has('win') && (
         <div className="dh-card-winbar">
