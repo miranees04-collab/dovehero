@@ -706,6 +706,46 @@
   opacity: 0.5;
   border-color: var(--accent-400);
 }
+.dh-card.selected {
+  border-color: var(--accent-500);
+  box-shadow: 0 0 0 1px var(--accent-500), var(--shadow-sm);
+}
+/* one-click bulk select — top-left, reveals on hover or when selected */
+.dh-card-select {
+  position: absolute;
+  top: 9px; left: 9px;
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  cursor: pointer;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.dh-card:hover .dh-card-select,
+.dh-card.selected .dh-card-select { opacity: 1; }
+.dh-card-select.on { background: var(--accent-600); border-color: var(--accent-600); }
+.dh-card-top { transition: padding-left var(--t-fast) var(--ease); }
+.dh-card:hover .dh-card-top,
+.dh-card.selected .dh-card-top { padding-left: 24px; }
+/* one-click stage advance */
+.dh-card-advance {
+  width: 22px; height: 22px;
+  flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--sub);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-card:hover .dh-card-advance { opacity: 1; }
+.dh-card-advance:hover { border-color: var(--accent-500); color: var(--accent-700); background: var(--accent-soft); }
+[data-theme='dark'] .dh-card-advance:hover { color: var(--accent); }
 .dh-card-top {
   display: flex;
   align-items: flex-start;

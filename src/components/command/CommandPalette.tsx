@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useStore } from '@/store/useStore';
+import { useStore, type ComposerKind } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { PIPELINES } from '@/data/constants';
 import { money } from '@/lib/format';
-import type { Deal } from '@/types';
+import type { Deal, StageKey } from '@/types';
 import './command.css';
+
+const ADVANCE: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
 
 interface ActionItem {
   id: string;
@@ -32,6 +34,18 @@ export function CommandPalette() {
   const toggleTheme = useStore((s) => s.toggleTheme);
   const resetDemo = useStore((s) => s.resetDemo);
   const toast = useStore((s) => s.toast);
+  const openDealId = useStore((s) => s.openDealId);
+  const requestStage = useStore((s) => s.requestStage);
+  const duplicateDeal = useStore((s) => s.duplicateDeal);
+  const openComposer = useStore((s) => s.openComposer);
+  const setRecordEditing = useStore((s) => s.setRecordEditing);
+  const setSwimlane = useStore((s) => s.setSwimlane);
+  const setKbCompact = useStore((s) => s.setKbCompact);
+  const kbCompact = useStore((s) => s.kbCompact);
+  const setFilters = useStore((s) => s.setFilters);
+  const resetFilters = useStore((s) => s.resetFilters);
+  const createDeal = useStore((s) => s.createDeal);
+  const openD = deals.find((d) => d.id === openDealId);
 
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -48,7 +62,37 @@ export function CommandPalette() {
   }, [open]);
 
   const actions = useMemo<ActionItem[]>(() => {
-    const list: ActionItem[] = [
+    const list: ActionItem[] = [];
+
+    // Context actions for the open deal — one click each.
+    if (openD) {
+      const d = openD;
+      const advIdx = ADVANCE.indexOf(d.stage);
+      const next = advIdx >= 0 && advIdx < ADVANCE.length - 1 ? ADVANCE[advIdx + 1] : null;
+      const composeFor = (kind: ComposerKind) => () => {
+        const c = d.contacts[0];
+        const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${d.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+        openComposer({ dealId: d.id, kind, to: kind === 'email' ? email : '+1 (415) 555-0140', subject: kind === 'email' ? `${d.name} — next steps` : '', body: '', outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30', title: kind === 'task' ? String(d.next ?? 'Follow up') : kind === 'meeting' ? `Next steps — ${d.name}` : '' });
+      };
+      if (next) list.push({ id: 'ctx-advance', icon: 'arrowRight', label: `Advance ${d.name} to ${next}`, hint: 'This deal', run: () => requestStage(d.id, next) });
+      list.push({ id: 'ctx-won', icon: 'check', label: `Mark ${d.name} as Won`, hint: 'This deal', run: () => requestStage(d.id, 'Won') });
+      list.push({ id: 'ctx-lost', icon: 'x', label: `Mark ${d.name} as Lost`, hint: 'This deal', run: () => requestStage(d.id, 'Lost') });
+      list.push({ id: 'ctx-email', icon: 'mail', label: 'Compose email', hint: 'This deal', run: composeFor('email') });
+      list.push({ id: 'ctx-note', icon: 'note', label: 'Add note', hint: 'This deal', run: composeFor('note') });
+      list.push({ id: 'ctx-call', icon: 'phone', label: 'Log call', hint: 'This deal', run: composeFor('call') });
+      list.push({ id: 'ctx-task', icon: 'check', label: 'Create task', hint: 'This deal', run: composeFor('task') });
+      list.push({ id: 'ctx-customize', icon: 'grid', label: 'Customize this screen', hint: 'This deal', run: () => setRecordEditing(true) });
+      list.push({ id: 'ctx-dupe', icon: 'layers', label: `Duplicate ${d.name}`, hint: 'This deal', run: () => duplicateDeal(d.id) });
+    }
+
+    list.push(
+      {
+        id: 'new-deal-create',
+        icon: 'plus',
+        label: 'Create a new deal',
+        hint: 'Deals',
+        run: () => { const id = createDeal({ company: 'New company', name: 'New deal' }); setNav('deals'); openDeal(id); toast('Deal created — fill in the details', 'success'); },
+      },
       {
         id: 'go-board',
         icon: 'grid',
@@ -97,10 +141,60 @@ export function CommandPalette() {
         run: () => setNova(true),
       },
       {
-        id: 'new-deal',
-        icon: 'plus',
-        label: 'New deal',
-        run: () => toast('Use the New deal button to add a deal'),
+        id: 'go-activity',
+        icon: 'activity',
+        label: 'Go to 360° Activity',
+        hint: 'Deals',
+        run: () => { setNav('deals'); setView('activity'); },
+      },
+      {
+        id: 'swim-owner',
+        icon: 'users',
+        label: 'Swimlanes by owner',
+        hint: 'Board',
+        run: () => { setNav('deals'); setView('board'); setSwimlane('owner'); },
+      },
+      {
+        id: 'swim-priority',
+        icon: 'flag',
+        label: 'Swimlanes by priority',
+        hint: 'Board',
+        run: () => { setNav('deals'); setView('board'); setSwimlane('priority'); },
+      },
+      {
+        id: 'swim-none',
+        icon: 'grid',
+        label: 'Clear swimlanes',
+        hint: 'Board',
+        run: () => setSwimlane('none'),
+      },
+      {
+        id: 'toggle-compact',
+        icon: 'list',
+        label: kbCompact ? 'Comfortable cards' : 'Compact cards',
+        hint: 'Board',
+        run: () => setKbCompact(!kbCompact),
+      },
+      {
+        id: 'filter-replies',
+        icon: 'chat',
+        label: 'Show deals with new replies',
+        hint: 'Filter',
+        run: () => { setNav('deals'); setFilters({ inbox: true }); },
+      },
+      {
+        id: 'filter-risk',
+        icon: 'alert',
+        label: 'Show at-risk deals',
+        hint: 'Filter',
+        run: () => { setNav('deals'); setFilters({ health: 'risk' }); },
+      },
+      {
+        id: 'filter-clear',
+        icon: 'x',
+        label: 'Clear all filters',
+        hint: 'Filter',
+        run: () => resetFilters(),
       },
       {
         id: 'toggle-theme',
@@ -114,9 +208,9 @@ export function CommandPalette() {
         label: 'Reset demo data',
         run: () => resetDemo(),
       },
-    ];
+    );
     return list;
-  }, [setNav, setView, setPipeline, setNova, toggleTheme, resetDemo, toast]);
+  }, [openD, requestStage, openComposer, setRecordEditing, duplicateDeal, createDeal, openDeal, setNav, setView, setPipeline, setNova, setSwimlane, setKbCompact, kbCompact, setFilters, resetFilters, toggleTheme, resetDemo, toast]);
 
   const query = q.trim().toLowerCase();
 

@@ -4,6 +4,7 @@ import { OWNERS, hueOf } from '@/data/constants';
 import type { Deal, StageKey, Priority } from '@/types';
 import { money } from '@/lib/format';
 import { DealCard } from './DealCard';
+import { BulkBar } from './BulkBar';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui/primitives';
 
@@ -48,43 +49,54 @@ export function Board() {
   if (swimlane === 'owner') {
     const owners = Array.from(new Set(deals.map((d) => d.owner)));
     return (
-      <div className="dh-board-scroll">
-        {owners.map((ok) => (
-          <div className="dh-swimlane" key={ok}>
-            <div className="dh-swimlane-head">
-              <Avatar ownerKey={ok} size={22} />
-              <b>{OWNERS[ok]?.name ?? ok}</b>
-              <span className="dh-swimlane-count">{deals.filter((d) => d.owner === ok).length}</span>
+      <>
+        <div className="dh-board-scroll">
+          {owners.map((ok) => (
+            <div className="dh-swimlane" key={ok}>
+              <div className="dh-swimlane-head">
+                <Avatar ownerKey={ok} size={22} />
+                <b>{OWNERS[ok]?.name ?? ok}</b>
+                <span className="dh-swimlane-count">{deals.filter((d) => d.owner === ok).length}</span>
+              </div>
+              {colsFor(deals.filter((d) => d.owner === ok), 'o-' + ok)}
             </div>
-            {colsFor(deals.filter((d) => d.owner === ok), 'o-' + ok)}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        <BulkBar />
+      </>
     );
   }
 
   if (swimlane === 'priority') {
     return (
-      <div className="dh-board-scroll">
-        {PRIO_LANES.map((p) => {
-          const subset = deals.filter((d) => d.priority === p.k);
-          if (!subset.length) return null;
-          return (
-            <div className="dh-swimlane" key={p.k}>
-              <div className="dh-swimlane-head">
-                <span className={`dh-prio ${p.k}`} style={{ marginTop: 0 }} />
-                <b>{p.label}</b>
-                <span className="dh-swimlane-count">{subset.length}</span>
+      <>
+        <div className="dh-board-scroll">
+          {PRIO_LANES.map((p) => {
+            const subset = deals.filter((d) => d.priority === p.k);
+            if (!subset.length) return null;
+            return (
+              <div className="dh-swimlane" key={p.k}>
+                <div className="dh-swimlane-head">
+                  <span className={`dh-prio ${p.k}`} style={{ marginTop: 0 }} />
+                  <b>{p.label}</b>
+                  <span className="dh-swimlane-count">{subset.length}</span>
+                </div>
+                {colsFor(subset, 'p-' + p.k)}
               </div>
-              {colsFor(subset, 'p-' + p.k)}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+        <BulkBar />
+      </>
     );
   }
 
-  return <div className={`dh-board ${kbCompact ? 'compact-cards' : ''}`}>{colsFor(deals)}</div>;
+  return (
+    <>
+      <div className={`dh-board ${kbCompact ? 'compact-cards' : ''}`}>{colsFor(deals)}</div>
+      <BulkBar />
+    </>
+  );
 }
 
 function BoardColumns({

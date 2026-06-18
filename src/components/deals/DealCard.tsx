@@ -33,6 +33,8 @@ export function CommBubble({ deal, onOpen }: { deal: Deal; onOpen?: () => void }
   );
 }
 
+const ADVANCE_ORDER: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+
 export function DealCard({
   deal,
   dragging,
@@ -46,6 +48,10 @@ export function DealCard({
 }) {
   const openDeal = useStore((s) => s.openDeal);
   const cardFields = useStore((s) => s.cardFields);
+  const requestStage = useStore((s) => s.requestStage);
+  const bulk = useStore((s) => s.bulk);
+  const toggleBulk = useStore((s) => s.toggleBulk);
+  const selected = bulk.includes(deal.id);
   const has = (k: string) => cardFields.includes(k);
   const hc = healthColor(deal.health);
   const stale = staleDays(deal.acts?.[0]?.w) >= 14 && deal.stage !== 'Won';
@@ -53,10 +59,12 @@ export function DealCard({
   const dir = lastCommDir(deal);
   const showNova = has('nova') && (atRisk || deal.win >= 80);
   const showTags = has('tags') && (deal.tags.length > 0 || stale || !!dir);
+  const advIdx = ADVANCE_ORDER.indexOf(deal.stage);
+  const nextStage = advIdx >= 0 && advIdx < ADVANCE_ORDER.length - 1 ? ADVANCE_ORDER[advIdx + 1] : null;
 
   return (
     <article
-      className={`dh-card ${dragging ? 'dragging' : ''}`}
+      className={`dh-card ${dragging ? 'dragging' : ''} ${selected ? 'selected' : ''}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -70,10 +78,28 @@ export function DealCard({
         }
       }}
     >
+      <button
+        className={`dh-card-select ${selected ? 'on' : ''}`}
+        onClick={(e) => { e.stopPropagation(); toggleBulk(deal.id); }}
+        title={selected ? 'Deselect' : 'Select'}
+        aria-label="Select deal"
+      >
+        {selected && <Icon name="check" size={11} color="#fff" />}
+      </button>
       <div className="dh-card-top">
         <span className={`dh-prio ${deal.priority}`} title={`${deal.priority} priority`} />
         <h3 className="dh-card-title">{deal.name}</h3>
         <CommBubble deal={deal} onOpen={() => openDeal(deal.id)} />
+        {nextStage && (
+          <button
+            className="dh-card-advance"
+            onClick={(e) => { e.stopPropagation(); requestStage(deal.id, nextStage); }}
+            title={`Advance to ${nextStage}`}
+            aria-label={`Advance to ${nextStage}`}
+          >
+            <Icon name="arrowRight" size={13} />
+          </button>
+        )}
         {has('health') && <Ring value={deal.health} size={26} color={hc} label={String(deal.health)} />}
         <CardMenu deal={deal} />
       </div>
