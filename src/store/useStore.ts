@@ -155,6 +155,8 @@ export interface AppState {
   activeView: string | null;
   recordLayout: 'standard' | 'tri';
   recordSections: string[];
+  recordHeadMin: boolean;
+  recordNovaMin: boolean;
   colW: Record<string, number>;
   colSearch: Record<string, string>;
   colSearchOpen: boolean;
@@ -196,6 +198,8 @@ export interface AppState {
   recolorPipeline: (k: string) => void;
   setAdvFilter: (rules: FilterState['adv']) => void;
   setRecordLayout: (l: 'standard' | 'tri') => void;
+  setRecordHeadMin: (v: boolean) => void;
+  setRecordNovaMin: (v: boolean) => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
   saveAutomation: (a: Automation) => void;
@@ -373,6 +377,8 @@ export const useStore = create<AppState>()(
   activeView: null,
   recordLayout: 'standard',
   recordSections: [...DEFAULT_RECORD_SECTIONS],
+  recordHeadMin: false,
+  recordNovaMin: false,
   colW: {},
   colSearch: {},
   colSearchOpen: false,
@@ -443,6 +449,8 @@ export const useStore = create<AppState>()(
     }),
   setAdvFilter: (adv) => set((s) => ({ filters: { ...s.filters, adv } })),
   setRecordLayout: (recordLayout) => set({ recordLayout }),
+  setRecordHeadMin: (recordHeadMin) => set({ recordHeadMin }),
+  setRecordNovaMin: (recordNovaMin) => set({ recordNovaMin }),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
   setAutoEdit: (autoEdit) => set({ autoEdit }),
@@ -1159,6 +1167,8 @@ export const useStore = create<AppState>()(
         savedViews: s.savedViews,
         recordLayout: s.recordLayout,
         recordSections: s.recordSections,
+        recordHeadMin: s.recordHeadMin,
+        recordNovaMin: s.recordNovaMin,
       }),
     },
   ),

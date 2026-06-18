@@ -58,11 +58,13 @@ export function RecordView() {
   const allDeals = useStore((s) => s.deals);
   const toast = useStore((s) => s.toast);
   const invoiceFromAsset = useStore((s) => s.invoiceFromAsset);
+  const novaMin = useStore((s) => s.recordNovaMin);
+  const setNovaMin = useStore((s) => s.setRecordNovaMin);
+  const headMin = useStore((s) => s.recordHeadMin);
+  const setHeadMin = useStore((s) => s.setRecordHeadMin);
   const [note, setNote] = useState('');
   const [ask, setAsk] = useState('');
   const [preview, setPreview] = useState<DerivedAsset | null>(null);
-  const [novaMin, setNovaMin] = useState(false);
-  const [headMin, setHeadMin] = useState(false);
 
   if (!deal) return null;
   const companyRec = companies.find((c) => c.name === deal.company);
@@ -349,7 +351,7 @@ export function RecordView() {
                 </div>
               )}
             </Popover>
-            <button className="dh-rec-headtog" onClick={() => setHeadMin((v) => !v)} title={headMin ? 'Expand details' : 'Minimize details'} aria-label={headMin ? 'Expand details' : 'Minimize details'}>
+            <button className="dh-rec-headtog" onClick={() => setHeadMin(!headMin)} title={headMin ? 'Expand details' : 'Minimize details'} aria-label={headMin ? 'Expand details' : 'Minimize details'}>
               <Icon name={headMin ? 'expand' : 'minus'} size={15} />
             </button>
           </div>
@@ -460,7 +462,7 @@ export function RecordView() {
               {!novaMin && novaThread && novaThread.length > 0 && (
                 <button className="dh-nova-clear" onClick={() => clearDealNova(deal.id)} title="Clear conversation"><Icon name="x" size={14} /></button>
               )}
-              <button className="dh-nova-clear" onClick={() => setNovaMin((v) => !v)} title={novaMin ? 'Expand Nova' : 'Minimize Nova'} aria-label={novaMin ? 'Expand Nova' : 'Minimize Nova'}>
+              <button className="dh-nova-clear" onClick={() => setNovaMin(!novaMin)} title={novaMin ? 'Expand Nova' : 'Minimize Nova'} aria-label={novaMin ? 'Expand Nova' : 'Minimize Nova'}>
                 <Icon name={novaMin ? 'expand' : 'minus'} size={14} />
               </button>
             </div>
