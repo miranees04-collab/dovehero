@@ -56,6 +56,10 @@ export function PipelineBar() {
   const setKbCompact = useStore((s) => s.setKbCompact);
   const setAllCollapsed = useStore((s) => s.setAllCollapsed);
   const collapsedCols = useStore((s) => s.collapsedCols);
+  const boardEditing = useStore((s) => s.boardEditing);
+  const setBoardEditing = useStore((s) => s.setBoardEditing);
+  const saveBoardView = useStore((s) => s.saveBoardView);
+  const [boardViewName, setBoardViewName] = useState('');
   const allCollapsed = BOARD_STAGE_KEYS.every((k) => collapsedCols[k]);
 
   const all = useFilteredDeals().filter((d) => d.pipeline === pipeline);
@@ -216,6 +220,21 @@ export function PipelineBar() {
           </Popover>
           <button className={`dh-ctl-btn ${kbCompact ? 'active' : ''}`} onClick={() => setKbCompact(!kbCompact)}>Compact</button>
           <button className="dh-ctl-btn" onClick={() => setAllCollapsed(BOARD_STAGE_KEYS, !allCollapsed)}>{allCollapsed ? 'Expand all' : 'Collapse all'}</button>
+          <button className={`dh-ctl-btn ${boardEditing ? 'active' : ''}`} onClick={() => setBoardEditing(!boardEditing)}><Icon name="grid" size={14} /> {boardEditing ? 'Done' : 'Customize'}</button>
+          <Popover
+            align="end"
+            width={240}
+            trigger={({ toggle }) => <button className="dh-ctl-btn" onClick={toggle} title="Save board view"><Icon name="star" size={14} /> Save view</button>}
+          >
+            {(close) => (
+              <div className="dh-saveview">
+                <div className="dh-menu-head">Save this board view</div>
+                <input className="dh-input" placeholder="Name this view…" value={boardViewName} onChange={(e) => setBoardViewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && boardViewName.trim()) { saveBoardView(boardViewName.trim()); setBoardViewName(''); close(); } }} autoFocus />
+                <button className="dh-btn v-primary s-sm" style={{ width: '100%', marginTop: 8 }} disabled={!boardViewName.trim()} onClick={() => { saveBoardView(boardViewName.trim()); setBoardViewName(''); close(); }}><Icon name="check" size={14} /> Save view</button>
+                <p className="dh-saveview-note">Captures pipeline, swimlanes, compact and filters.</p>
+              </div>
+            )}
+          </Popover>
           <Popover
             align="end"
             width={240}

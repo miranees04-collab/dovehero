@@ -77,6 +77,12 @@ export const DEFAULT_RECORD_COLS: RecordCols = {
 };
 const cloneCols = (c: RecordCols): RecordCols => ({ standard: c.standard.map((x) => [...x]), tri: c.tri.map((x) => [...x]) });
 
+export interface BoardStageCfg { k: StageKey; label?: string; wip?: number | null; hidden?: boolean }
+export const DEFAULT_BOARD_STAGES: BoardStageCfg[] = [
+  { k: 'Lead' }, { k: 'Qualified' }, { k: 'Proposal' }, { k: 'Negotiation' }, { k: 'Won' },
+];
+export interface BoardView { name: string; pipeline: string; swimlane: Swimlane; kbCompact: boolean; filters: FilterState }
+
 function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   const recs: Record<string, ObjectRecord[]> = {
     company: [],
@@ -172,6 +178,9 @@ export interface AppState {
   recordCols: RecordCols;
   recordHidden: string[];
   recordEditing: boolean;
+  boardStages: BoardStageCfg[];
+  boardEditing: boolean;
+  boardViews: BoardView[];
   recordHeadMin: boolean;
   recordNovaMin: boolean;
   colW: Record<string, number>;
@@ -222,6 +231,15 @@ export interface AppState {
   nudgeRecordSection: (key: string, dir: 'up' | 'down' | 'left' | 'right') => void;
   toggleRecordSectionHidden: (key: string) => void;
   resetRecordCols: () => void;
+  setBoardEditing: (v: boolean) => void;
+  moveBoardStage: (k: StageKey, dir: -1 | 1) => void;
+  toggleBoardStageHidden: (k: StageKey) => void;
+  setBoardStageWip: (k: StageKey, wip: number | null) => void;
+  setBoardStageLabel: (k: StageKey, label: string) => void;
+  resetBoardStages: () => void;
+  saveBoardView: (name: string) => void;
+  applyBoardView: (name: string) => void;
+  deleteBoardView: (name: string) => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
   saveAutomation: (a: Automation) => void;
@@ -402,6 +420,9 @@ export const useStore = create<AppState>()(
   recordCols: cloneCols(DEFAULT_RECORD_COLS),
   recordHidden: [],
   recordEditing: false,
+  boardStages: DEFAULT_BOARD_STAGES.map((s) => ({ ...s })),
+  boardEditing: false,
+  boardViews: [],
   recordHeadMin: false,
   recordNovaMin: false,
   colW: {},
@@ -503,6 +524,37 @@ export const useStore = create<AppState>()(
   toggleRecordSectionHidden: (key) =>
     set((s) => ({ recordHidden: s.recordHidden.includes(key) ? s.recordHidden.filter((k) => k !== key) : [...s.recordHidden, key] })),
   resetRecordCols: () => set({ recordCols: cloneCols(DEFAULT_RECORD_COLS), recordHidden: [] }),
+
+  setBoardEditing: (boardEditing) => set({ boardEditing }),
+  moveBoardStage: (k, dir) =>
+    set((s) => {
+      const arr = [...s.boardStages];
+      const i = arr.findIndex((x) => x.k === k);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return {};
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { boardStages: arr };
+    }),
+  toggleBoardStageHidden: (k) =>
+    set((s) => ({ boardStages: s.boardStages.map((x) => (x.k === k ? { ...x, hidden: !x.hidden } : x)) })),
+  setBoardStageWip: (k, wip) =>
+    set((s) => ({ boardStages: s.boardStages.map((x) => (x.k === k ? { ...x, wip: wip && wip > 0 ? wip : null } : x)) })),
+  setBoardStageLabel: (k, label) =>
+    set((s) => ({ boardStages: s.boardStages.map((x) => (x.k === k ? { ...x, label: label.trim() || undefined } : x)) })),
+  resetBoardStages: () => set({ boardStages: DEFAULT_BOARD_STAGES.map((x) => ({ ...x })) }),
+  saveBoardView: (name) =>
+    set((s) => {
+      const v: BoardView = { name, pipeline: s.pipeline, swimlane: s.swimlane, kbCompact: s.kbCompact, filters: JSON.parse(JSON.stringify(s.filters)) };
+      get().toast(`Board view “${name}” saved`, 'success');
+      return { boardViews: [...s.boardViews.filter((x) => x.name !== name), v] };
+    }),
+  applyBoardView: (name) =>
+    set((s) => {
+      const v = s.boardViews.find((x) => x.name === name);
+      if (!v) return {};
+      return { pipeline: v.pipeline, swimlane: v.swimlane, kbCompact: v.kbCompact, filters: JSON.parse(JSON.stringify(v.filters)) };
+    }),
+  deleteBoardView: (name) => set((s) => ({ boardViews: s.boardViews.filter((x) => x.name !== name) })),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
   setAutoEdit: (autoEdit) => set({ autoEdit }),
@@ -1196,7 +1248,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1209,6 +1261,10 @@ export const useStore = create<AppState>()(
         if (s && version < 3) {
           s.recordCols = cloneCols(DEFAULT_RECORD_COLS);
           s.recordHidden = [];
+        }
+        if (s && version < 4) {
+          s.boardStages = DEFAULT_BOARD_STAGES.map((x) => ({ ...x }));
+          s.boardViews = [];
         }
         return s as AppState;
       },
@@ -1228,6 +1284,8 @@ export const useStore = create<AppState>()(
         recordHidden: s.recordHidden,
         recordHeadMin: s.recordHeadMin,
         recordNovaMin: s.recordNovaMin,
+        boardStages: s.boardStages,
+        boardViews: s.boardViews,
       }),
     },
   ),

@@ -38,11 +38,13 @@ const ADVANCE_ORDER: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation
 export function DealCard({
   deal,
   dragging,
+  focused,
   onDragStart,
   onDragEnd,
 }: {
   deal: Deal;
   dragging: boolean;
+  focused?: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
@@ -64,7 +66,8 @@ export function DealCard({
 
   return (
     <article
-      className={`dh-card ${dragging ? 'dragging' : ''} ${selected ? 'selected' : ''}`}
+      className={`dh-card ${dragging ? 'dragging' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`}
+      data-deal-card={deal.id}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
