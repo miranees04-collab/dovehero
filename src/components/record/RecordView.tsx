@@ -39,6 +39,7 @@ export function RecordView() {
   const setRecordLayout = useStore((s) => s.setRecordLayout);
   const toast = useStore((s) => s.toast);
   const [note, setNote] = useState('');
+  const [ask, setAsk] = useState('');
 
   if (!deal) return null;
   const hc = healthColor(deal.health);
@@ -177,18 +178,29 @@ export function RecordView() {
 
         {/* Main column */}
         <div className="dh-rec-main">
-          {/* Nova brief */}
+          {/* Nova deal intelligence */}
           <section className="dh-rec-card dh-nova-brief">
             <div className="dh-nova-brief-head">
               <span className="dh-nova-mark sm">
                 <Icon name="sparkles" size={13} color="#fff" />
               </span>
-              <b>Nova brief</b>
-              <Button variant="ghost" size="sm" onClick={() => sendNova(`Tell me about ${deal.company}`)}>
-                Ask about this deal
-              </Button>
+              <div className="dh-nova-brief-titles">
+                <b>Nova — deal intelligence</b>
+                <small>Grounded in this deal · {deal.acts.length} activities · {deal.contacts.length} contacts</small>
+              </div>
             </div>
             <p className="dh-nova-summary">{deal.summary}</p>
+            <div className="dh-nova-chips">
+              {[
+                ['Summarize', `Summarize ${deal.company}`],
+                ['Risks', `What's at risk on ${deal.company}?`],
+                ['Draft follow-up', `Draft a follow-up for ${deal.company}`],
+                ['Buying group', `Who's in the buying group at ${deal.company}?`],
+                ['Next action', `What's my next best action on ${deal.company}?`],
+              ].map(([label, prompt]) => (
+                <button key={label} className="dh-nova-actchip" onClick={() => sendNova(prompt)}>{label}</button>
+              ))}
+            </div>
             <div className="dh-nba">
               <Icon name="zap" size={14} />
               <div>
@@ -205,7 +217,26 @@ export function RecordView() {
                 ))}
               </div>
             )}
+            <form
+              className="dh-nova-askbox"
+              onSubmit={(e) => { e.preventDefault(); const v = ask.trim(); if (v) { sendNova(v); setAsk(''); } }}
+            >
+              <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={`Ask Nova anything about ${deal.company}…`} />
+              <button type="submit" aria-label="Ask Nova" disabled={!ask.trim()}><Icon name="send" size={15} /></button>
+            </form>
           </section>
+
+          {/* 360 metrics */}
+          <div className="dh-rec-metrics-row">
+            {[
+              ['Interactions', String(deal.acts.length)],
+              ['Last touch', deal.acts[0]?.w ?? '—'],
+              ['Contacts', String(deal.contacts.length)],
+              ['Open tasks', String(deal.acts.filter((a) => a.type === 'task' && !a.done).length)],
+            ].map(([l, v]) => (
+              <div key={l} className="dh-rec-metric-tile"><span className="v mono">{v}</span><span className="l">{l}</span></div>
+            ))}
+          </div>
 
           {/* Quick actions */}
           <div className="dh-rec-actions">

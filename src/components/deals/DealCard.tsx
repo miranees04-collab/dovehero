@@ -2,10 +2,17 @@ import { useStore } from '@/store/useStore';
 import type { Deal, StageKey, Priority } from '@/types';
 import { money, staleDays } from '@/lib/format';
 import { healthColor, OWNERS, STAGES } from '@/data/constants';
-import { Avatar, Badge, Popover } from '@/components/ui/primitives';
+import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
 import { inboundCount, lastInbound } from '@/lib/comms';
+
+function lastCommDir(deal: Deal): 'in' | 'out' | null {
+  const a = deal.acts.find((x) => x.type === 'email' || x.type === 'whatsapp' || x.type === 'sms');
+  if (!a) return null;
+  if (a.thread && a.thread.length) return a.thread[a.thread.length - 1].dir;
+  return a.dir ?? 'out';
+}
 
 const STAGE_KEYS: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 
@@ -43,8 +50,9 @@ export function DealCard({
   const hc = healthColor(deal.health);
   const stale = staleDays(deal.acts?.[0]?.w) >= 14 && deal.stage !== 'Won';
   const atRisk = deal.health < 45;
+  const dir = lastCommDir(deal);
   const showNova = has('nova') && (atRisk || deal.win >= 80);
-  const showTags = has('tags') && (deal.tags.length > 0 || stale);
+  const showTags = has('tags') && (deal.tags.length > 0 || stale || !!dir);
 
   return (
     <article
@@ -66,12 +74,7 @@ export function DealCard({
         <span className={`dh-prio ${deal.priority}`} title={`${deal.priority} priority`} />
         <h3 className="dh-card-title">{deal.name}</h3>
         <CommBubble deal={deal} onOpen={() => openDeal(deal.id)} />
-        {has('health') && (
-          <span className="dh-card-health" style={{ color: hc }} title={`Health ${deal.health}`}>
-            <span className="dh-card-health-dot" style={{ background: hc }} />
-            {deal.health}
-          </span>
-        )}
+        {has('health') && <Ring value={deal.health} size={26} color={hc} label={String(deal.health)} />}
         <CardMenu deal={deal} />
       </div>
 
@@ -79,6 +82,7 @@ export function DealCard({
 
       {showTags && (
         <div className="dh-card-tags">
+          {dir && <Badge tone={dir === 'in' ? 'green' : 'neutral'}>{dir === 'in' ? '↓ Inbound' : '↑ Outbound'}</Badge>}
           {deal.tags.slice(0, 2).map((t) => (
             <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>
               {t}
@@ -98,6 +102,8 @@ export function DealCard({
           <span>{nextBestAction(deal)}</span>
         </div>
       )}
+
+      <div className="dh-card-close"><Icon name="clock" size={11} /> Close {deal.close}</div>
 
       {(has('value') || has('win') || has('owner')) && (
         <div className="dh-card-foot">

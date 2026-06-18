@@ -242,12 +242,70 @@
   height: 24px;
   border-radius: 7px;
 }
+.dh-nova-brief-titles { flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+.dh-nova-brief-titles small { font-size: 11px; color: var(--faint); }
 .dh-nova-summary {
   font-size: 13.5px;
   line-height: 1.55;
   color: var(--ink-2);
   margin: 0 0 12px;
 }
+.dh-nova-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.dh-nova-actchip {
+  padding: 6px 11px;
+  border: 1px solid var(--accent-200);
+  background: var(--accent-soft);
+  color: var(--accent-700);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+[data-theme='dark'] .dh-nova-actchip { border-color: rgba(129,140,248,.3); color: var(--accent); }
+.dh-nova-actchip:hover { background: var(--accent-100); border-color: var(--accent-400); }
+[data-theme='dark'] .dh-nova-actchip:hover { background: rgba(129,140,248,.18); }
+.dh-nova-askbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.dh-nova-askbox input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--ink);
+}
+.dh-nova-askbox button {
+  width: 32px; height: 32px; border-radius: var(--r-sm); border: none;
+  background: var(--accent-600); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.dh-nova-askbox button:disabled { opacity: 0.4; cursor: not-allowed; }
+.dh-rec-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.dh-rec-metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+.dh-rec-metric-tile .v { font-size: 20px; font-weight: 700; color: var(--ink); }
+.dh-rec-metric-tile .l { font-size: 11px; color: var(--faint); }
+@media (max-width: 560px) { .dh-rec-metrics-row { grid-template-columns: repeat(2, 1fr); } }
 .dh-nba {
   display: flex;
   align-items: flex-start;

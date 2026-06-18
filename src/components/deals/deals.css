@@ -802,11 +802,19 @@
 [data-theme='dark'] .dh-card-nova.good {
   color: #34d399;
 }
+.dh-card-close {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 9px 0 0 15px;
+  font-size: 11px;
+  color: var(--faint);
+}
 .dh-card-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 11px 0 0 15px;
+  margin: 9px 0 0 15px;
 }
 .dh-card-value {
   font-size: 14px;
