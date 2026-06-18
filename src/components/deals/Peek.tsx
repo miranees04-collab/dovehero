@@ -2,9 +2,14 @@ import { useStore, type ComposerKind } from '@/store/useStore';
 import { Drawer } from '@/components/ui/Modal';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { Avatar, Badge, Button } from '@/components/ui/primitives';
-import { OWNERS, healthColor, healthBand, hueOf, ACTIVITY_META } from '@/data/constants';
+import { OWNERS, STAGES, healthColor, hueOf, ACTIVITY_META } from '@/data/constants';
 import { money, initials } from '@/lib/format';
 import { nextBestAction } from '@/lib/nova';
+import { InlineEdit } from '@/components/ui/InlineEdit';
+
+const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
+const PRIO_OPTS = [{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }];
+const STAGE_OPTS = STAGES.map((s) => ({ value: s.k, label: s.k }));
 
 const QUICK: { k: ComposerKind; label: string; icon: string }[] = [
   { k: 'note', label: 'Note', icon: 'note' },
@@ -23,6 +28,8 @@ export function Peek() {
   const setNav = useStore((s) => s.setNav);
   const openComposer = useStore((s) => s.openComposer);
   const deleteDeal = useStore((s) => s.deleteDeal);
+  const updateDeal = useStore((s) => s.updateDeal);
+  const requestStage = useStore((s) => s.requestStage);
 
   if (!peekId || !deal) return null;
   const hc = healthColor(deal.health);
@@ -54,8 +61,10 @@ export function Peek() {
 
       <div className="dh-panel-body" style={{ padding: 0 }}>
         <div className="dh-peek-titlewrap">
-          <h2>{deal.name}</h2>
-          <div className="dh-peek-co">{deal.company} · {deal.industry} · <span className="mono">{deal.id}</span></div>
+          <h2><InlineEdit value={deal.name} onCommit={(v) => v.trim() && updateDeal(deal.id, { name: v.trim() })} /></h2>
+          <div className="dh-peek-co">
+            <InlineEdit value={deal.company} onCommit={(v) => v.trim() && updateDeal(deal.id, { company: v.trim() })} /> · <InlineEdit value={deal.industry} onCommit={(v) => v.trim() && updateDeal(deal.id, { industry: v.trim() })} /> · <span className="mono">{deal.id}</span>
+          </div>
         </div>
 
         {/* Quick activity shortcuts — create activities right from the preview */}
@@ -71,16 +80,16 @@ export function Peek() {
         <section className="dh-peek-sec">
           <div className="dh-peek-sec-t"><Icon name="sliders" size={12} /> Deal properties</div>
           <div className="dh-peek-stats">
-            <div><span className="l">Amount</span><span className="v mono">{deal.value ? money(deal.value) : '—'}</span></div>
+            <div><span className="l">Amount</span><span className="v mono"><InlineEdit value={deal.value} type="number" display={deal.value ? money(deal.value) : '—'} onCommit={(v) => updateDeal(deal.id, { value: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} /></span></div>
             <div><span className="l">Win</span><span className="v mono" style={{ color: 'var(--violet)' }}>{deal.win}%</span></div>
-            <div><span className="l">Health</span><span className="v" style={{ color: hc }}>{deal.health}</span></div>
-            <div><span className="l">Priority</span><span className="v" style={{ textTransform: 'capitalize' }}>{deal.priority}</span></div>
+            <div><span className="l">Health</span><span className="v" style={{ color: hc }}><InlineEdit value={deal.health} type="number" onCommit={(v) => updateDeal(deal.id, { health: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} /></span></div>
+            <div><span className="l">Priority</span><span className="v" style={{ textTransform: 'capitalize' }}><InlineEdit value={deal.priority} display={deal.priority} options={PRIO_OPTS} onCommit={(v) => updateDeal(deal.id, { priority: v as typeof deal.priority })} /></span></div>
           </div>
           <div className="dh-peek-rows">
-            <div><span className="pk">Owner</span><span className="pv"><Avatar ownerKey={deal.owner} size={18} /> {OWNERS[deal.owner]?.name}</span></div>
-            <div><span className="pk">Close date</span><span className="pv">{deal.close}</span></div>
+            <div><span className="pk">Stage</span><span className="pv"><InlineEdit value={deal.stage} display={deal.stage} options={STAGE_OPTS} onCommit={(v) => requestStage(deal.id, v as typeof deal.stage)} /></span></div>
+            <div><span className="pk">Owner</span><span className="pv"><Avatar ownerKey={deal.owner} size={18} /> <InlineEdit value={deal.owner} display={OWNERS[deal.owner]?.name} options={OWNER_OPTS} onCommit={(v) => updateDeal(deal.id, { owner: v })} /></span></div>
+            <div><span className="pk">Close date</span><span className="pv"><InlineEdit value={deal.close} onCommit={(v) => updateDeal(deal.id, { close: v })} /></span></div>
             <div><span className="pk">Created</span><span className="pv">{deal.created}</span></div>
-            <div><span className="pk">Health</span><span className="pv" style={{ color: hc }}>{healthBand(deal.health)}</span></div>
           </div>
           {deal.tags.length > 0 && (
             <div className="dh-peek-tags">{deal.tags.map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}</div>

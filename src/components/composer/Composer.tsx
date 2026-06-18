@@ -1,4 +1,4 @@
-import { useStore, type ComposerKind } from '@/store/useStore';
+import { useStore, type ComposerKind, type ComposerState } from '@/store/useStore';
 import { Button, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import type { Priority, Deal } from '@/types';
@@ -39,25 +39,45 @@ const NOVA_DRAFTS = [
   "Hi {name},\n\nQuick check-in on next steps for {deal}. I want to keep momentum toward your timeline — is there anything you need from me to move forward this week?\n\nThanks,\nAmara",
 ];
 
+/** Renders every open compose window as a docked stack (Gmail-style),
+ *  plus a centered modal + scrim for any maximized window. */
 export function Composer() {
-  const composer = useStore((s) => s.composer);
+  const composers = useStore((s) => s.composers);
+  if (!composers.length) return null;
+  const maxed = composers.find((c) => c.maximized && !c.minimized);
+  const docked = composers.filter((c) => !(c.maximized && !c.minimized));
+  return (
+    <>
+      {docked.length > 0 && (
+        <div className="dh-cdock">
+          {docked.map((c) => <ComposeWindow key={c.wid} c={c} />)}
+        </div>
+      )}
+      {maxed && (
+        <>
+          <div className="dh-cwin-scrim" onClick={() => useStore.getState().updateComposer(maxed.wid, { maximized: false })} />
+          <ComposeWindow c={maxed} />
+        </>
+      )}
+    </>
+  );
+}
+
+function ComposeWindow({ c }: { c: ComposerState }) {
+  const update = useStore((s) => s.updateComposer);
   const close = useStore((s) => s.closeComposer);
   const send = useStore((s) => s.sendComposer);
-  const openComposer = useStore((s) => s.openComposer);
-  const deal = useStore((s) => s.deals.find((d) => d.id === composer?.dealId));
-
-  if (!composer) return null;
-  const c = composer;
+  const deal = useStore((s) => s.deals.find((d) => d.id === c.dealId));
   const m = META[c.kind];
   const isChat = c.kind === 'whatsapp' || c.kind === 'sms';
-  const update = (patch: Partial<typeof composer>) => openComposer({ ...composer, ...patch });
+  const set = (patch: Partial<ComposerState>) => update(c.wid, patch);
 
   if (c.minimized) {
     return (
-      <button className="dh-compose-dock" onClick={() => update({ minimized: false })}>
+      <button className="dh-cwin min" style={{ ['--ac' as string]: m.color }} onClick={() => set({ minimized: false })}>
         <span className="dh-comp-chan-icon" style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}><Icon name={m.icon} size={14} /></span>
-        <span className="dh-compose-dock-title">{c.kind === 'email' ? (c.subject || 'New email') : m.title}</span>
-        <span className="dh-compose-dock-x" onClick={(e) => { e.stopPropagation(); close(); }}><Icon name="x" size={14} /></span>
+        <span className="dh-cwin-min-title">{c.kind === 'email' ? (c.subject || 'New email') : m.title}</span>
+        <span className="dh-cwin-min-x" onClick={(e) => { e.stopPropagation(); close(c.wid); }}><Icon name="x" size={14} /></span>
       </button>
     );
   }
@@ -66,176 +86,179 @@ export function Composer() {
     const name = deal?.contacts[0]?.n?.split(' ')[0] ?? 'there';
     const text = NOVA_DRAFTS[Math.floor(Math.random() * NOVA_DRAFTS.length)]
       .replace(/{name}/g, name).replace(/{deal}/g, deal?.name ?? 'your deal').replace(/{close}/g, deal?.close ?? 'end of month');
-    update({ body: text });
+    set({ body: text });
   };
 
   return (
-    <aside className="dh-composer-panel" style={{ ['--ac' as string]: m.color }}>
-      <div className="dh-composer-head">
+    <aside className={`dh-cwin ${c.maximized ? 'max' : ''}`} style={{ ['--ac' as string]: m.color }}>
+      <div className="dh-cwin-head" onDoubleClick={() => set({ maximized: !c.maximized })}>
         <span className="dh-comp-chan-icon" style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}>
           <Icon name={m.icon} size={15} />
         </span>
-        <div className="dh-composer-head-titles">
+        <div className="dh-cwin-titles">
           <b>{m.title}</b>
           {deal && <small>{deal.name} · {deal.company}</small>}
         </div>
-        <div className="dh-composer-head-ctrls">
-          <button onClick={() => update({ minimized: true })} title="Minimize to dock" aria-label="Minimize"><Icon name="minus" size={16} /></button>
-          <button onClick={close} title="Discard" aria-label="Close"><Icon name="x" size={16} /></button>
+        <div className="dh-cwin-ctrls">
+          <button onClick={() => set({ minimized: true })} title="Minimize" aria-label="Minimize"><Icon name="minus" size={16} /></button>
+          <button onClick={() => set({ maximized: !c.maximized })} title={c.maximized ? 'Restore' : 'Maximize'} aria-label="Maximize"><Icon name="expand" size={14} /></button>
+          <button onClick={() => close(c.wid)} title="Discard" aria-label="Close"><Icon name="x" size={16} /></button>
         </div>
       </div>
-      <div className="dh-composer-body">
-      {!isChat && (
-        <div className="dh-comp-tabs">
-          {TABS.map((t) => (
-            <button key={t.k} className={`dh-comp-tab ${c.kind === t.k ? 'on' : ''}`} onClick={() => update({ kind: t.k })}>
-              <Icon name={t.icon} size={15} /> {t.label}
-            </button>
-          ))}
-        </div>
-      )}
 
-      {c.kind === 'note' && (
-        <>
-          <textarea className="dh-textarea" style={{ minHeight: 110 }} placeholder={`Write a note about ${deal?.name ?? 'this deal'}…`} value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} autoFocus />
-          <label className="dh-comp-toggle">
-            <span>Pin to top of timeline</span>
-            <input type="checkbox" checked={!!c.pin} onChange={(e) => update({ pin: e.target.checked })} />
-          </label>
-          <label className="dh-comp-toggle">
-            <span>Add a reminder / follow-up</span>
-            <input type="checkbox" checked={!!c.reminder} onChange={(e) => update({ reminder: e.target.checked })} />
-          </label>
-          {c.reminder && (
-            <input className="dh-input" style={{ marginTop: 8 }} placeholder="Follow-up — e.g. Send recap Friday" value={c.reminderTitle ?? ''} onChange={(e) => update({ reminderTitle: e.target.value })} />
-          )}
-        </>
-      )}
-
-      {c.kind === 'call' && (
-        <>
-          <div className="dh-field"><label>Outcome</label>
-            <div className="dh-comp-seg">
-              {(['Connected', 'Voicemail', 'No answer', 'Busy'] as const).map((o) => (
-                <button key={o} className={c.outcome === o ? 'on' : ''} onClick={() => update({ outcome: o })}>{o}</button>
-              ))}
-            </div>
+      <div className="dh-cwin-body">
+        {!isChat && (
+          <div className="dh-comp-tabs">
+            {TABS.map((t) => (
+              <button key={t.k} className={`dh-comp-tab ${c.kind === t.k ? 'on' : ''}`} onClick={() => set({ kind: t.k })}>
+                <Icon name={t.icon} size={15} /> {t.label}
+              </button>
+            ))}
           </div>
-          <textarea className="dh-textarea" placeholder="What was discussed, next steps…" value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} />
-          <label className="dh-comp-toggle"><span>Add a follow-up task</span>
-            <input type="checkbox" checked={!!c.followup} onChange={(e) => update({ followup: e.target.checked })} />
-          </label>
-        </>
-      )}
+        )}
 
-      {c.kind === 'task' && (
-        <>
-          <div className="dh-field"><label>Task</label>
-            <input className="dh-input" value={c.title ?? ''} onChange={(e) => update({ title: e.target.value })} placeholder="What needs doing?" autoFocus />
-          </div>
-          <div className="dh-field-row">
-            <div className="dh-field"><label>Due</label>
-              <input className="dh-input" value={c.due ?? 'Tomorrow'} onChange={(e) => update({ due: e.target.value })} />
-            </div>
-            <div className="dh-field"><label>Priority</label>
+        {c.kind === 'note' && (
+          <>
+            <textarea className="dh-textarea" style={{ minHeight: 110 }} placeholder={`Write a note about ${deal?.name ?? 'this deal'}…`} value={c.body ?? ''} onChange={(e) => set({ body: e.target.value })} autoFocus />
+            <label className="dh-comp-toggle">
+              <span>Pin to top of timeline</span>
+              <input type="checkbox" checked={!!c.pin} onChange={(e) => set({ pin: e.target.checked })} />
+            </label>
+            <label className="dh-comp-toggle">
+              <span>Add a reminder / follow-up</span>
+              <input type="checkbox" checked={!!c.reminder} onChange={(e) => set({ reminder: e.target.checked })} />
+            </label>
+            {c.reminder && (
+              <input className="dh-input" style={{ marginTop: 8 }} placeholder="Follow-up — e.g. Send recap Friday" value={c.reminderTitle ?? ''} onChange={(e) => set({ reminderTitle: e.target.value })} />
+            )}
+          </>
+        )}
+
+        {c.kind === 'call' && (
+          <>
+            <div className="dh-field"><label>Outcome</label>
               <div className="dh-comp-seg">
-                {(['low', 'med', 'high'] as Priority[]).map((p) => (
-                  <button key={p} className={(c.prio ?? 'med') === p ? 'on' : ''} onClick={() => update({ prio: p })}>{p === 'low' ? 'Low' : p === 'med' ? 'Med' : 'High'}</button>
+                {(['Connected', 'Voicemail', 'No answer', 'Busy'] as const).map((o) => (
+                  <button key={o} className={c.outcome === o ? 'on' : ''} onClick={() => set({ outcome: o })}>{o}</button>
                 ))}
               </div>
             </div>
-          </div>
-        </>
-      )}
+            <textarea className="dh-textarea" placeholder="What was discussed, next steps…" value={c.body ?? ''} onChange={(e) => set({ body: e.target.value })} />
+            <label className="dh-comp-toggle"><span>Add a follow-up task</span>
+              <input type="checkbox" checked={!!c.followup} onChange={(e) => set({ followup: e.target.checked })} />
+            </label>
+          </>
+        )}
 
-      {c.kind === 'meeting' && (
-        <>
-          <div className="dh-field"><label>Title</label>
-            <input className="dh-input" value={c.title ?? ''} onChange={(e) => update({ title: e.target.value })} placeholder="Meeting title" autoFocus />
-          </div>
-          <div className="dh-field-row">
-            <div className="dh-field"><label>When</label>
-              <input className="dh-input" value={c.when ?? ''} onChange={(e) => update({ when: e.target.value })} placeholder="e.g. Thu · 11:00" />
+        {c.kind === 'task' && (
+          <>
+            <div className="dh-field"><label>Task</label>
+              <input className="dh-input" value={c.title ?? ''} onChange={(e) => set({ title: e.target.value })} placeholder="What needs doing?" autoFocus />
             </div>
-            <div className="dh-field"><label>Duration</label>
-              <div className="dh-comp-seg">
-                {['15', '30', '45', '60'].map((o) => (
-                  <button key={o} className={(c.dur ?? '30') === o ? 'on' : ''} onClick={() => update({ dur: o })}>{o}m</button>
-                ))}
+            <div className="dh-field-row">
+              <div className="dh-field"><label>Due</label>
+                <input className="dh-input" value={c.due ?? 'Tomorrow'} onChange={(e) => set({ due: e.target.value })} />
               </div>
-            </div>
-          </div>
-          <div className="dh-field"><label>Agenda / location</label>
-            <input className="dh-input" value={c.loc ?? ''} onChange={(e) => update({ loc: e.target.value })} placeholder="Agenda or video link" />
-          </div>
-        </>
-      )}
-
-      {c.kind === 'email' && (
-        <>
-          <div className="dh-field" style={{ marginBottom: 8 }}>
-            <label>To {!c.showCc && <button className="dh-cc-toggle" onClick={() => update({ showCc: true })}>Cc/Bcc</button>}</label>
-            <input className="dh-input" value={c.to ?? ''} onChange={(e) => update({ to: e.target.value })} />
-          </div>
-          {c.showCc && (
-            <div className="dh-field-row" style={{ marginBottom: 8 }}>
-              <div className="dh-field"><label>Cc</label><input className="dh-input" value={c.cc ?? ''} onChange={(e) => update({ cc: e.target.value })} placeholder="cc@…" /></div>
-              <div className="dh-field"><label>Bcc</label><input className="dh-input" value={c.bcc ?? ''} onChange={(e) => update({ bcc: e.target.value })} placeholder="bcc@…" /></div>
-            </div>
-          )}
-          <div className="dh-field"><label>Subject</label>
-            <input className="dh-input" value={c.subject ?? ''} onChange={(e) => update({ subject: e.target.value })} />
-          </div>
-          <div className="dh-field"><label>Message</label>
-            <textarea className="dh-textarea" style={{ minHeight: 130 }} placeholder="Write your email…  or let Nova draft it." value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} />
-          </div>
-          {(c.attachments?.length ?? 0) > 0 && (
-            <div className="dh-attach-row">
-              {c.attachments!.map((a) => (
-                <span key={a} className="dh-attach-chip"><Icon name="paperclip" size={12} /> {a} <button onClick={() => update({ attachments: c.attachments!.filter((x) => x !== a) })}><Icon name="x" size={11} /></button></span>
-              ))}
-            </div>
-          )}
-          <div className="dh-comp-toolrow">
-            <button className="dh-comp-tool" onClick={() => update({ attachments: [...(c.attachments ?? []), pickAttachment(deal?.docs?.length ?? 0)] })}><Icon name="paperclip" size={14} /> Attach</button>
-            <Popover align="start" trigger={({ toggle }) => <button className="dh-comp-tool" onClick={toggle}><Icon name="fileText" size={14} /> Templates</button>}>
-              {(close) => (
-                <>
-                  <div className="dh-menu-head">Email templates</div>
-                  {EMAIL_TEMPLATES.map((t) => (
-                    <MenuItem key={t.name} onClick={() => { update({ subject: t.subject, body: fillTemplate(t.body, deal) }); close(); }}>{t.name}</MenuItem>
+              <div className="dh-field"><label>Priority</label>
+                <div className="dh-comp-seg">
+                  {(['low', 'med', 'high'] as Priority[]).map((p) => (
+                    <button key={p} className={(c.prio ?? 'med') === p ? 'on' : ''} onClick={() => set({ prio: p })}>{p === 'low' ? 'Low' : p === 'med' ? 'Med' : 'High'}</button>
                   ))}
-                </>
-              )}
-            </Popover>
-          </div>
-        </>
-      )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
-      {isChat && (
-        <>
-          <div className="dh-field"><label>To</label>
-            <input className="dh-input" value={c.to ?? ''} onChange={(e) => update({ to: e.target.value })} />
-          </div>
-          <div className="dh-field"><label>Message</label>
-            <textarea className="dh-textarea" style={{ minHeight: 120 }} placeholder={`Write your ${c.kind === 'whatsapp' ? 'WhatsApp' : 'SMS'}…`} value={c.body ?? ''} onChange={(e) => update({ body: e.target.value })} autoFocus />
-          </div>
-        </>
-      )}
+        {c.kind === 'meeting' && (
+          <>
+            <div className="dh-field"><label>Title</label>
+              <input className="dh-input" value={c.title ?? ''} onChange={(e) => set({ title: e.target.value })} placeholder="Meeting title" autoFocus />
+            </div>
+            <div className="dh-field-row">
+              <div className="dh-field"><label>When</label>
+                <input className="dh-input" value={c.when ?? ''} onChange={(e) => set({ when: e.target.value })} placeholder="e.g. Thu · 11:00" />
+              </div>
+              <div className="dh-field"><label>Duration</label>
+                <div className="dh-comp-seg">
+                  {['15', '30', '45', '60'].map((o) => (
+                    <button key={o} className={(c.dur ?? '30') === o ? 'on' : ''} onClick={() => set({ dur: o })}>{o}m</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="dh-field"><label>Agenda / location</label>
+              <input className="dh-input" value={c.loc ?? ''} onChange={(e) => set({ loc: e.target.value })} placeholder="Agenda or video link" />
+            </div>
+          </>
+        )}
 
-      <p className="dh-comp-note">
-        <Icon name="zap" size={12} /> Demo mode — everything is logged to the deal timeline; nothing is actually sent.
-      </p>
+        {c.kind === 'email' && (
+          <>
+            <div className="dh-field" style={{ marginBottom: 8 }}>
+              <label>To {!c.showCc && <button className="dh-cc-toggle" onClick={() => set({ showCc: true })}>Cc/Bcc</button>}</label>
+              <input className="dh-input" value={c.to ?? ''} onChange={(e) => set({ to: e.target.value })} />
+            </div>
+            {c.showCc && (
+              <div className="dh-field-row" style={{ marginBottom: 8 }}>
+                <div className="dh-field"><label>Cc</label><input className="dh-input" value={c.cc ?? ''} onChange={(e) => set({ cc: e.target.value })} placeholder="cc@…" /></div>
+                <div className="dh-field"><label>Bcc</label><input className="dh-input" value={c.bcc ?? ''} onChange={(e) => set({ bcc: e.target.value })} placeholder="bcc@…" /></div>
+              </div>
+            )}
+            <div className="dh-field"><label>Subject</label>
+              <input className="dh-input" value={c.subject ?? ''} onChange={(e) => set({ subject: e.target.value })} />
+            </div>
+            <div className="dh-field"><label>Message</label>
+              <textarea className="dh-textarea" style={{ minHeight: 130 }} placeholder="Write your email…  or let Nova draft it." value={c.body ?? ''} onChange={(e) => set({ body: e.target.value })} />
+            </div>
+            {(c.attachments?.length ?? 0) > 0 && (
+              <div className="dh-attach-row">
+                {c.attachments!.map((a) => (
+                  <span key={a} className="dh-attach-chip"><Icon name="paperclip" size={12} /> {a} <button onClick={() => set({ attachments: c.attachments!.filter((x) => x !== a) })}><Icon name="x" size={11} /></button></span>
+                ))}
+              </div>
+            )}
+            <div className="dh-comp-toolrow">
+              <button className="dh-comp-tool" onClick={() => set({ attachments: [...(c.attachments ?? []), pickAttachment(deal?.docs?.length ?? 0)] })}><Icon name="paperclip" size={14} /> Attach</button>
+              <Popover align="start" trigger={({ toggle }) => <button className="dh-comp-tool" onClick={toggle}><Icon name="fileText" size={14} /> Templates</button>}>
+                {(closeP) => (
+                  <>
+                    <div className="dh-menu-head">Email templates</div>
+                    {EMAIL_TEMPLATES.map((t) => (
+                      <MenuItem key={t.name} onClick={() => { set({ subject: t.subject.replace(/{deal}/g, deal?.name ?? ''), body: fillTemplate(t.body, deal) }); closeP(); }}>{t.name}</MenuItem>
+                    ))}
+                  </>
+                )}
+              </Popover>
+            </div>
+          </>
+        )}
+
+        {isChat && (
+          <>
+            <div className="dh-field"><label>To</label>
+              <input className="dh-input" value={c.to ?? ''} onChange={(e) => set({ to: e.target.value })} />
+            </div>
+            <div className="dh-field"><label>Message</label>
+              <textarea className="dh-textarea" style={{ minHeight: 120 }} placeholder={`Write your ${c.kind === 'whatsapp' ? 'WhatsApp' : 'SMS'}…`} value={c.body ?? ''} onChange={(e) => set({ body: e.target.value })} autoFocus />
+            </div>
+          </>
+        )}
+
+        <p className="dh-comp-note">
+          <Icon name="zap" size={12} /> Demo mode — everything is logged to the deal timeline; nothing is actually sent.
+        </p>
       </div>
-      <div className="dh-composer-foot">
+
+      <div className="dh-cwin-foot">
         {(c.kind === 'email' || isChat) && (
           <Button variant="ai" onClick={draftWithNova}>
             <Icon name="sparkles" size={15} /> Draft with Nova
           </Button>
         )}
         <div style={{ flex: 1 }} />
-        <Button variant="ghost" onClick={close}>Cancel</Button>
-        <Button variant="primary" onClick={send}>
+        <Button variant="ghost" onClick={() => close(c.wid)}>Cancel</Button>
+        <Button variant="primary" onClick={() => send(c.wid)}>
           <Icon name="check" size={15} /> {m.cta}
         </Button>
       </div>

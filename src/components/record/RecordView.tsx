@@ -7,8 +7,13 @@ import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
 import { ReorderList } from '@/components/ui/ReorderList';
+import { InlineEdit } from '@/components/ui/InlineEdit';
+import { Modal } from '@/components/ui/Modal';
+import { assocFor, assetStatusColor, type DerivedAsset } from '@/lib/assoc';
 import { Timeline } from './Timeline';
 import './record.css';
+
+const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
 
 const STEPPER: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
 
@@ -32,10 +37,10 @@ export function RecordView() {
   const openDeal = useStore((s) => s.openDeal);
   const view = useStore((s) => s.view);
   const requestStage = useStore((s) => s.requestStage);
+  const updateDeal = useStore((s) => s.updateDeal);
   const logActivity = useStore((s) => s.logActivity);
   const openComposer = useStore((s) => s.openComposer);
   const openDocBuilder = useStore((s) => s.openDocBuilder);
-  const convertQuoteToInvoice = useStore((s) => s.convertQuoteToInvoice);
   const sendDoc = useStore((s) => s.sendDoc);
   const addDealProduct = useStore((s) => s.addDealProduct);
   const removeDealProduct = useStore((s) => s.removeDealProduct);
@@ -43,6 +48,7 @@ export function RecordView() {
   const askDealNova = useStore((s) => s.askDealNova);
   const clearDealNova = useStore((s) => s.clearDealNova);
   const novaThread = useStore((s) => (dealId ? s.dealNova[dealId] : undefined));
+  const novaStreaming = useStore((s) => s.dealNovaStreaming === dealId);
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
   const recordSections = useStore((s) => s.recordSections);
@@ -51,8 +57,10 @@ export function RecordView() {
   const companies = useStore((s) => s.objectRecords.company ?? []);
   const allDeals = useStore((s) => s.deals);
   const toast = useStore((s) => s.toast);
+  const invoiceFromAsset = useStore((s) => s.invoiceFromAsset);
   const [note, setNote] = useState('');
   const [ask, setAsk] = useState('');
+  const [preview, setPreview] = useState<DerivedAsset | null>(null);
 
   if (!deal) return null;
   const companyRec = companies.find((c) => c.name === deal.company);
@@ -88,9 +96,52 @@ export function RecordView() {
     toast('Note added', 'success');
   };
 
+  const assoc = assocFor(deal);
+  const assetLabel = (a: DerivedAsset) => a.kind.charAt(0).toUpperCase() + a.kind.slice(1);
+  // Send now: attach the file and log an outbound email on the timeline.
+  const sendAsset = (a: DerivedAsset) => sendDoc(deal.id, a.file);
+  // Draft / WhatsApp: open a compose window prefilled so it can be edited first.
+  const draftAsset = (a: DerivedAsset, channel: 'email' | 'whatsapp') => {
+    const c = deal.contacts[0];
+    const first = c?.n.split(' ')[0] ?? 'there';
+    const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+    openComposer({
+      dealId: deal.id, kind: channel,
+      to: channel === 'email' ? email : '+1 (415) 555-0140',
+      subject: `${assetLabel(a)} — ${deal.name}`,
+      body: `Hi ${first}, sharing the ${assetLabel(a).toLowerCase()} for ${deal.name}. Happy to walk through anything.`,
+      attachments: channel === 'email' ? [a.file] : undefined,
+      outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30',
+    });
+  };
+
+  const AssetActions = ({ a }: { a: DerivedAsset }) => (
+    <span className="dh-asset-acts">
+      <button onClick={() => setPreview(a)} title="View / preview"><Icon name="eye" size={13} /> View</button>
+      <button className="send" onClick={() => sendAsset(a)} title="Send now via email"><Icon name="send" size={13} /> Send</button>
+      <button onClick={() => draftAsset(a, 'email')} title="Draft a cover email"><Icon name="mail" size={13} /> Draft</button>
+      <button onClick={() => draftAsset(a, 'whatsapp')} title="Send via WhatsApp"><Icon name="whatsapp" size={13} /></button>
+    </span>
+  );
+  const AssetRow = ({ a, color }: { a: DerivedAsset; color: string }) => (
+    <div className="dh-asset-row">
+      <span className="dh-asset-ic" style={{ color }}><Icon name={a.kind === 'invoice' ? 'receipt' : a.kind === 'contract' ? 'file' : 'fileText'} size={16} /></span>
+      <div className="dh-asset-main">
+        <div className="dh-asset-id">{a.id}</div>
+        <div className="dh-asset-sub">{a.sub}</div>
+      </div>
+      <span className="dh-asset-badge" style={{ color: assetStatusColor(a.status), background: `color-mix(in srgb, ${assetStatusColor(a.status)} 14%, transparent)` }}>{a.status}</span>
+      {a.kind === 'quote' && (
+        <button className="dh-asset-mini" title="Create invoice from this quote" onClick={() => invoiceFromAsset(deal.id, a.total, a.id)}><Icon name="receipt" size={14} /></button>
+      )}
+      <AssetActions a={a} />
+    </div>
+  );
+
   const SECTION_LABELS: Record<string, string> = {
     coach: 'Deal coach', signals: 'Buying signals', account: 'Account', group: 'Buying group',
-    lineitems: 'Line items', docs: 'Documents', tags: 'Tags',
+    lineitems: 'Line items', quotes: 'Quotes', contracts: 'Contracts', invoices: 'Invoices',
+    attachments: 'Attachments', docs: 'Documents', tags: 'Tags',
   };
 
   const renderSection = (id: string) => {
@@ -196,37 +247,61 @@ export function RecordView() {
             </div>
           </section>
         );
-      case 'docs':
+      case 'quotes':
         return (
-          <section className="dh-rec-card" key="docs">
-            <h4 className="dh-rail-title">Documents</h4>
-            <div className="dh-docs">
-              {(deal.quotes ?? []).map((q) => (
-                <div key={q.id} className="dh-doc-row">
-                  <Icon name="receipt" size={15} className="di" />
-                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{q.id}</div><div className="dh-doc-row-sub">Quote · {q.status}</div></div>
-                  <span className="dh-doc-row-total mono">{money(q.total, true)}</span>
-                  <button className="dh-doc-mini" title="Convert to invoice" onClick={() => convertQuoteToInvoice(deal.id, q.id)}><Icon name="arrowRight" size={13} /></button>
-                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${q.id}.pdf`)}><Icon name="send" size={13} /></button>
-                </div>
-              ))}
-              {(deal.invoices ?? []).map((inv) => (
-                <div key={inv.id} className="dh-doc-row">
-                  <Icon name="receipt" size={15} className="di" />
-                  <div className="dh-doc-row-main"><div className="dh-doc-row-id">{inv.id}</div><div className="dh-doc-row-sub">Invoice · {inv.status}</div></div>
-                  <span className="dh-doc-row-total mono">{money(inv.total, true)}</span>
-                  <button className="dh-doc-mini" title="Send" onClick={() => sendDoc(deal.id, `${inv.id}.pdf`)}><Icon name="send" size={13} /></button>
-                </div>
-              ))}
-              {deal.docs.map((d) => (
-                <button key={d.n} className="dh-doc" onClick={() => sendDoc(deal.id, d.n)}>
-                  <Icon name="fileText" size={15} /><span>{d.n}</span><Icon name="send" size={13} />
-                </button>
-              ))}
+          <section className="dh-rec-card" key="quotes">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title"><Icon name="file" size={14} color="var(--violet)" /> Quotes</h4>
+              <span className="dh-rail-count">{assoc.quotes.length}</span>
             </div>
-            <div className="dh-doc-actions">
-              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'quote')}><Icon name="receipt" size={14} /> New quote</button>
-              <button className="dh-doc-gen" onClick={() => openDocBuilder(deal.id, 'invoice')}><Icon name="receipt" size={14} /> New invoice</button>
+            <div className="dh-asset-list">
+              {assoc.quotes.map((q) => <AssetRow key={q.id} a={q} color="var(--violet)" />)}
+            </div>
+            <button className="dh-asset-add" onClick={() => openDocBuilder(deal.id, 'quote')}><Icon name="plus" size={13} /> New quote</button>
+          </section>
+        );
+      case 'contracts':
+        return (
+          <section className="dh-rec-card" key="contracts">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title"><Icon name="file" size={14} color="var(--amber)" /> Contracts</h4>
+              <span className="dh-rail-count">1</span>
+            </div>
+            <div className="dh-asset-list"><AssetRow a={assoc.contract} color="var(--amber)" /></div>
+          </section>
+        );
+      case 'invoices':
+        return (
+          <section className="dh-rec-card" key="invoices">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title"><Icon name="receipt" size={14} color="var(--green)" /> Invoices</h4>
+              <span className="dh-rail-count">{assoc.invoices.length}</span>
+            </div>
+            <div className="dh-asset-list">
+              {assoc.invoices.length === 0 && <div className="dh-asset-empty">No invoices yet — create one below, or close the deal.</div>}
+              {assoc.invoices.map((inv) => <AssetRow key={inv.id} a={inv} color="var(--green)" />)}
+            </div>
+            <button className="dh-asset-add" onClick={() => openDocBuilder(deal.id, 'invoice')}><Icon name="plus" size={13} /> New invoice</button>
+          </section>
+        );
+      case 'attachments':
+        return (
+          <section className="dh-rec-card" key="attachments">
+            <div className="dh-rail-titlerow">
+              <h4 className="dh-rail-title"><Icon name="fileText" size={14} /> Attachments</h4>
+              <span className="dh-rail-count">{assoc.files.length}</span>
+            </div>
+            <div className="dh-asset-list">
+              {assoc.files.length === 0 && <div className="dh-asset-empty">No attachments yet.</div>}
+              {assoc.files.map((f) => (
+                <div key={f.n} className="dh-asset-row">
+                  <span className="dh-asset-ic" style={{ color: f.k === 'pdf' ? 'var(--red)' : 'var(--blue)' }}><Icon name="fileText" size={16} /></span>
+                  <div className="dh-asset-main"><div className="dh-asset-id">{f.n}</div><div className="dh-asset-sub">{(f.k || 'pdf').toUpperCase()}</div></div>
+                  <span className="dh-asset-acts">
+                    <button className="send" onClick={() => sendDoc(deal.id, f.n)} title="Send via email"><Icon name="send" size={13} /> Send</button>
+                  </span>
+                </div>
+              ))}
             </div>
           </section>
         );
@@ -279,11 +354,11 @@ export function RecordView() {
           <div className="dh-rec-title">
             <span className={`dh-prio ${deal.priority}`} />
             <div>
-              <h1>{deal.name}</h1>
+              <h1><InlineEdit value={deal.name} onCommit={(v) => v.trim() && updateDeal(deal.id, { name: v.trim() })} /></h1>
               <div className="dh-rec-sub">
-                <Icon name="building" size={13} /> {deal.company}
+                <Icon name="building" size={13} /> <InlineEdit value={deal.company} onCommit={(v) => v.trim() && updateDeal(deal.id, { company: v.trim() })} />
                 <span className="dot-sep" />
-                {deal.industry}
+                <InlineEdit value={deal.industry} onCommit={(v) => v.trim() && updateDeal(deal.id, { industry: v.trim() })} />
                 <span className="dot-sep" />
                 <span className="mono">{deal.id}</span>
               </div>
@@ -293,7 +368,9 @@ export function RecordView() {
           <div className="dh-rec-metrics">
             <div className="dh-rec-metric">
               <span className="l">Value</span>
-              <span className="v mono">{money(deal.value)}</span>
+              <span className="v mono">
+                <InlineEdit value={deal.value} type="number" display={money(deal.value)} onCommit={(v) => updateDeal(deal.id, { value: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} />
+              </span>
             </div>
             <div className="dh-rec-metric">
               <span className="l">Win</span>
@@ -309,7 +386,8 @@ export function RecordView() {
             <div className="dh-rec-metric">
               <span className="l">Owner</span>
               <span className="dh-rec-owner">
-                <Avatar ownerKey={deal.owner} size={24} /> {OWNERS[deal.owner]?.name}
+                <Avatar ownerKey={deal.owner} size={24} />
+                <InlineEdit value={deal.owner} display={OWNERS[deal.owner]?.name} options={OWNER_OPTS} onCommit={(v) => updateDeal(deal.id, { owner: v })} />
               </span>
             </div>
           </div>
@@ -376,12 +454,18 @@ export function RecordView() {
             </div>
             {novaThread && novaThread.length > 0 && (
               <div className="dh-nova-thread">
-                {novaThread.map((m, i) => (
-                  <div key={i} className={`dh-nova-msg ${m.role}`}>
-                    <span className="dh-nova-who">{m.role === 'nova' ? <Icon name="sparkles" size={13} /> : 'You'}</span>
-                    <div className="dh-nova-bubble">{m.text}</div>
-                  </div>
-                ))}
+                {novaThread.map((m, i) => {
+                  const isLast = i === novaThread.length - 1;
+                  return (
+                    <div key={i} className={`dh-nova-msg ${m.role}`}>
+                      <span className="dh-nova-who">{m.role === 'nova' ? <Icon name="sparkles" size={13} /> : 'You'}</span>
+                      <div className="dh-nova-bubble">
+                        {m.text}
+                        {m.role === 'nova' && isLast && novaStreaming && <span className="dh-nova-caret" />}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {!novaThread?.length && (
@@ -428,17 +512,16 @@ export function RecordView() {
             ))}
           </div>
 
-          {/* Quick actions */}
+          {/* Quick-log activity buttons — the full prototype set */}
           <div className="dh-rec-actions">
+            <button onClick={() => open('note')}><Icon name="note" size={16} /> Note</button>
             <button onClick={() => open('email')}><Icon name="mail" size={16} /> Email</button>
             <button onClick={() => open('call')}><Icon name="phone" size={16} /> Log call</button>
             <button onClick={() => open('meeting')}><Icon name="calendar" size={16} /> Meeting</button>
-            <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
             <button onClick={() => open('whatsapp')}><Icon name="whatsapp" size={16} /> WhatsApp</button>
-            <button onClick={() => open('sms')}><Icon name="sms" size={16} /> SMS</button>
             <Popover
               align="start"
-              trigger={({ toggle }) => <button onClick={toggle}><Icon name="megaphone" size={16} /> Enroll</button>}
+              trigger={({ toggle }) => <button onClick={toggle}><Icon name="megaphone" size={16} /> Marketing</button>}
             >
               {(close) => (
                 <>
@@ -446,6 +529,20 @@ export function RecordView() {
                   {SEQUENCES.map((s) => (
                     <MenuItem key={s.k} icon={<Icon name="megaphone" size={15} />} onClick={() => { enrollSequence(deal.id, s.k); close(); }}>{s.name}</MenuItem>
                   ))}
+                </>
+              )}
+            </Popover>
+            <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
+            <Popover
+              align="start"
+              trigger={({ toggle }) => <button onClick={toggle}><Icon name="file" size={16} /> File</button>}
+            >
+              {(close) => (
+                <>
+                  <div className="dh-menu-head">Add a document</div>
+                  <MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'quote'); close(); }}>Generate quote</MenuItem>
+                  <MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'invoice'); close(); }}>Generate invoice</MenuItem>
+                  <MenuItem icon={<Icon name="paperclip" size={15} />} onClick={() => { open('email'); close(); }}>Attach &amp; email a file</MenuItem>
                 </>
               )}
             </Popover>
@@ -480,6 +577,41 @@ export function RecordView() {
         {/* Right rail */}
         <aside className="dh-rec-railR">{rightSections.map(renderSection)}</aside>
       </div>
+
+      {preview && (
+        <Modal
+          open
+          onClose={() => setPreview(null)}
+          width={560}
+          title={<><Icon name={preview.kind === 'invoice' ? 'receipt' : 'fileText'} size={16} /> {preview.file}</>}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setPreview(null)}>Close</Button>
+              <Button variant="primary" onClick={() => { sendAsset(preview); setPreview(null); }}><Icon name="send" size={14} /> Send via email</Button>
+            </>
+          }
+        >
+          <div className="dh-asset-preview">
+            <div className="dh-asset-preview-head">
+              <div>
+                <div className="dh-asset-preview-kind">{assetLabel(preview)}</div>
+                <h3>{preview.id}</h3>
+                <div className="dh-asset-preview-sub">{deal.name} · {deal.company}</div>
+              </div>
+              <span className="dh-asset-badge" style={{ color: assetStatusColor(preview.status), background: `color-mix(in srgb, ${assetStatusColor(preview.status)} 14%, transparent)` }}>{preview.status}</span>
+            </div>
+            <table className="dh-asset-preview-tbl">
+              <thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+              <tbody>
+                {assoc.li.map((it) => (
+                  <tr key={it.id}><td>{it.name}</td><td>{it.qty}</td><td className="mono">{money(it.unit, true)}</td><td className="mono" style={{ textAlign: 'right' }}>{money(it.total, true)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="dh-asset-preview-total"><span>Total</span><span className="mono">{money(preview.total)}</span></div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

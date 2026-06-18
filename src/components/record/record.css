@@ -387,7 +387,43 @@
   color: var(--ink);
 }
 [data-theme='dark'] .dh-nova-msg.nova .dh-nova-bubble { border-color: rgba(129,140,248,.28); }
+.dh-nova-caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent-600);
+  border-radius: 1px;
+  animation: novaBlink 0.9s steps(1) infinite;
+}
+@keyframes novaBlink { 50% { opacity: 0; } }
 .dh-nova-msg.user .dh-nova-bubble { background: var(--surface-3, var(--surface-2)); }
+
+/* Inline click-to-edit fields (prototype editfield) */
+.dh-inline-edit {
+  cursor: text;
+  border-radius: 4px;
+  padding: 0 3px;
+  margin: 0 -3px;
+  transition: background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  position: relative;
+}
+.dh-inline-edit:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -1px 0 var(--accent-400);
+}
+.dh-inline-input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--accent-500);
+  border-radius: var(--r-sm);
+  padding: 2px 6px;
+  outline: none;
+  max-width: 200px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 /* 360° View header inside the record */
 .dh-360 { display: flex; flex-direction: column; gap: 14px; }
@@ -813,3 +849,54 @@
     width: 100%;
   }
 }
+
+/* Associations — Quotes / Contracts / Invoices / Attachments cards */
+.dh-rail-title { display: inline-flex; align-items: center; gap: 6px; }
+.dh-rail-count {
+  font-size: 11px; font-weight: 700; color: var(--sub);
+  background: var(--surface-2); border-radius: var(--r-pill); padding: 1px 8px;
+}
+.dh-asset-list { display: flex; flex-direction: column; gap: 8px; }
+.dh-asset-row {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2);
+}
+.dh-asset-ic { flex: none; display: grid; place-items: center; }
+.dh-asset-main { flex: 1; min-width: 90px; }
+.dh-asset-id { font-size: 13px; font-weight: 650; color: var(--ink); }
+.dh-asset-sub { font-size: 11.5px; color: var(--sub); }
+.dh-asset-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: var(--r-pill); white-space: nowrap; }
+.dh-asset-mini {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-sm);
+  color: var(--sub); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-asset-mini:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+.dh-asset-acts { display: flex; gap: 4px; width: 100%; }
+.dh-asset-acts button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border: 1px solid var(--border-2); background: var(--surface);
+  border-radius: var(--r-sm); color: var(--ink-2); font-size: 11.5px; font-weight: 550; cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-asset-acts button:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+.dh-asset-acts button.send { color: #fff; background: var(--accent-600); border-color: var(--accent-600); }
+.dh-asset-acts button.send:hover { background: var(--accent-700); color: #fff; }
+.dh-asset-empty { font-size: 12.5px; color: var(--faint); padding: 6px 2px; }
+.dh-asset-add {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  padding: 7px 11px; border: 1px dashed var(--border-strong); background: none;
+  border-radius: var(--r-sm); color: var(--sub); font-size: 12.5px; font-weight: 550; cursor: pointer; width: 100%;
+  justify-content: center; transition: all var(--t-fast) var(--ease);
+}
+.dh-asset-add:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+
+/* Asset preview modal */
+.dh-asset-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.dh-asset-preview-kind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.dh-asset-preview-head h3 { margin: 2px 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+.dh-asset-preview-sub { font-size: 12.5px; color: var(--sub); }
+.dh-asset-preview-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dh-asset-preview-tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.dh-asset-preview-tbl td { padding: 9px 8px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+.dh-asset-preview-total { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; font-size: 15px; font-weight: 700; color: var(--ink); }

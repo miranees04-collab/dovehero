@@ -61,7 +61,7 @@ function staleDaysOf(w: string | undefined): number {
 
 export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'owner', 'close', 'ai_next'];
 export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
-export const DEFAULT_RECORD_SECTIONS = ['coach', 'signals', 'account', 'group', 'lineitems', 'docs', 'tags'];
+export const DEFAULT_RECORD_SECTIONS = ['coach', 'signals', 'account', 'group', 'lineitems', 'quotes', 'contracts', 'invoices', 'attachments', 'tags'];
 
 function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   const recs: Record<string, ObjectRecord[]> = {
@@ -167,8 +167,9 @@ export interface AppState {
   novaMessages: NovaMessage[];
   novaThinking: boolean;
   dealNova: Record<string, { role: 'user' | 'nova'; text: string }[]>;
+  dealNovaStreaming: string | null;
   notifOpen: boolean;
-  composer: ComposerState | null;
+  composers: ComposerState[];
   toasts: Toast[];
   mobileNavOpen: boolean;
   tasksOpen: boolean;
@@ -253,6 +254,7 @@ export interface AppState {
   bulkEnroll: (seqKey: string) => void;
   togglePinNote: (dealId: string, actId: string) => void;
   convertQuoteToInvoice: (dealId: string, quoteId: string) => void;
+  invoiceFromAsset: (dealId: string, total: number, fromLabel: string) => void;
   sendDoc: (dealId: string, docName: string) => void;
   addDealProduct: (dealId: string, item: { n: string; v: number }) => void;
   removeDealProduct: (dealId: string, index: number) => void;
@@ -286,9 +288,10 @@ export interface AppState {
   undo: () => void;
   redo: () => void;
 
-  openComposer: (c: ComposerState) => void;
-  closeComposer: () => void;
-  sendComposer: () => void;
+  openComposer: (c: Omit<ComposerState, 'wid'> & { wid?: string }) => void;
+  updateComposer: (wid: string, patch: Partial<ComposerState>) => void;
+  closeComposer: (wid: string) => void;
+  sendComposer: (wid: string) => void;
 
   addObjectRecord: (objKey: string, rec: ObjectRecord) => void;
   updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
@@ -302,14 +305,16 @@ export interface AppState {
 export type ComposerKind = 'note' | 'call' | 'task' | 'meeting' | 'email' | 'whatsapp' | 'sms';
 
 export interface ComposerState {
+  wid: string;
   dealId: string;
   kind: ComposerKind;
+  minimized?: boolean;
+  maximized?: boolean;
   to?: string;
   cc?: string;
   bcc?: string;
   showCc?: boolean;
   attachments?: string[];
-  minimized?: boolean;
   subject?: string;
   body?: string;
   // call
@@ -390,8 +395,9 @@ export const useStore = create<AppState>()(
   ],
   novaThinking: false,
   dealNova: {},
+  dealNovaStreaming: null,
   notifOpen: false,
-  composer: null,
+  composers: [],
   toasts: [],
   mobileNavOpen: false,
   tasksOpen: false,
@@ -746,6 +752,20 @@ export const useStore = create<AppState>()(
     }));
     get().toast(`Invoice ${id} created from ${quoteId}`, 'success');
   },
+  invoiceFromAsset: (dealId, total, fromLabel) => {
+    const d = get().deals.find((x) => x.id === dealId);
+    if (!d) return;
+    const num = d.id.replace(/\D/g, '') || '000';
+    const seq = (d.invoices?.length ?? 0) + 1;
+    const id = 'INV-' + num + '-' + (seq < 10 ? '0' + seq : seq);
+    const inv = { id, kind: 'invoice' as const, total, status: 'Sent', items: [], discount: 0, tax: 0, created: 'now' };
+    set((s) => ({
+      deals: s.deals.map((x) =>
+        x.id === dealId ? { ...x, invoices: [...(x.invoices ?? []), inv], docs: [{ n: `${id}.pdf`, k: 'pdf' as const }, ...x.docs] } : x,
+      ),
+    }));
+    get().toast(`Invoice ${id} created from ${fromLabel}`, 'success');
+  },
   sendDoc: (dealId, docName) => {
     get().addActivity(dealId, { type: 'email', who: 'You', w: 'now', subj: `Sent ${docName}`, dir: 'out', status: 'sent', attach: [docName], thread: [{ dir: 'out', who: 'You', w: 'now', text: `Please find ${docName} attached.` }] });
     get().toast(`${docName} sent`, 'success');
@@ -947,13 +967,31 @@ export const useStore = create<AppState>()(
     if (!q) return;
     const d = get().deals.find((x) => x.id === dealId);
     if (!d) return;
-    const reply = answerForDeal(d, q);
+    const full = answerForDeal(d, q);
+    // Push the question + an empty Nova bubble, then stream the answer in.
     set((s) => ({
       dealNova: {
         ...s.dealNova,
-        [dealId]: [...(s.dealNova[dealId] ?? []), { role: 'user', text: q }, { role: 'nova', text: reply }],
+        [dealId]: [...(s.dealNova[dealId] ?? []), { role: 'user', text: q }, { role: 'nova', text: '' }],
       },
+      dealNovaStreaming: dealId,
     }));
+    const step = Math.max(2, Math.round(full.length / 70));
+    let i = 0;
+    const tick = () => {
+      i += step;
+      const slice = full.slice(0, i);
+      const done = i >= full.length;
+      set((s) => {
+        const arr = (s.dealNova[dealId] ?? []).slice();
+        for (let j = arr.length - 1; j >= 0; j--) {
+          if (arr[j].role === 'nova') { arr[j] = { role: 'nova', text: done ? full : slice }; break; }
+        }
+        return { dealNova: { ...s.dealNova, [dealId]: arr }, dealNovaStreaming: done ? null : dealId };
+      });
+      if (!done) window.setTimeout(tick, 18);
+    };
+    window.setTimeout(tick, 80);
   },
   clearDealNova: (dealId) =>
     set((s) => {
@@ -962,10 +1000,24 @@ export const useStore = create<AppState>()(
       return { dealNova: next };
     }),
 
-  openComposer: (composer) => set({ composer }),
-  closeComposer: () => set({ composer: null }),
-  sendComposer: () => {
-    const c = get().composer;
+  openComposer: (c) => {
+    set((s) => {
+      // Focus an existing window for the same deal+kind instead of duplicating.
+      const existing = s.composers.find((x) => x.dealId === c.dealId && x.kind === c.kind);
+      if (existing) {
+        return { composers: s.composers.map((x) => (x.wid === existing.wid ? { ...x, minimized: false } : x)) };
+      }
+      const wid = c.wid ?? uid('cw');
+      const next = [...s.composers, { ...c, wid, minimized: false } as ComposerState];
+      // Cap at 3 docked windows; drop the oldest.
+      return { composers: next.slice(-3) };
+    });
+  },
+  updateComposer: (wid, patch) =>
+    set((s) => ({ composers: s.composers.map((c) => (c.wid === wid ? { ...c, ...patch } : c)) })),
+  closeComposer: (wid) => set((s) => ({ composers: s.composers.filter((c) => c.wid !== wid) })),
+  sendComposer: (wid) => {
+    const c = get().composers.find((x) => x.wid === wid);
     if (!c) return;
     const dealId = c.dealId;
     const me = OWNERS[ME].name;
@@ -1042,7 +1094,7 @@ export const useStore = create<AppState>()(
         get().toast(`${c.kind === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent`, 'success');
         break;
     }
-    set({ composer: null });
+    set((s) => ({ composers: s.composers.filter((x) => x.wid !== wid) }));
   },
 
   addObjectRecord: (objKey, rec) =>
@@ -1084,8 +1136,17 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      // v2 split the single "docs" record section into quotes/contracts/
+      // invoices/attachments — reset stored layouts so the new cards appear.
+      migrate: (persisted, version) => {
+        const s = persisted as Partial<AppState> | undefined;
+        if (s && version < 2) {
+          s.recordSections = [...DEFAULT_RECORD_SECTIONS];
+        }
+        return s as AppState;
+      },
       // Persist data + a couple of preferences; skip transient UI state.
       partialize: (s) => ({
         deals: s.deals,
