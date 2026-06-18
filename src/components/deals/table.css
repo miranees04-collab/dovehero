@@ -302,6 +302,67 @@
 .dh-sort-desc {
   transform: rotate(180deg);
 }
+.dh-sort-idx {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-600);
+  border-radius: 999px;
+  width: 13px;
+  height: 13px;
+  display: inline-grid;
+  place-items: center;
+}
+.dh-table thead th { position: relative; }
+.dh-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+.dh-resize-handle:hover { background: linear-gradient(90deg, transparent, var(--accent-400)); }
+.dh-search-row th { padding: 6px 10px !important; background: var(--surface-2); position: sticky; top: 38px; z-index: 2; }
+.dh-colsearch {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+.dh-colsearch:focus { border-color: var(--accent-400); box-shadow: 0 0 0 2px var(--accent-soft); }
+.dh-editable { cursor: text; border-radius: 4px; padding: 1px 2px; }
+.dh-editable:hover { box-shadow: inset 0 0 0 1px var(--border-2); }
+.dh-cell-edit {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--accent-400);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dh-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.dh-group-head svg { color: var(--faint); }
 .dh-table tbody tr {
   cursor: pointer;
   border-bottom: 1px solid var(--border);

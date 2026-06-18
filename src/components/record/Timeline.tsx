@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useStore } from '@/store/useStore';
-import type { Activity, Deal } from '@/types';
-import { ACTIVITY_META } from '@/data/constants';
+import type { Activity, Deal, ActivityType } from '@/types';
+import { ACTIVITY_META, TYPE_ORDER } from '@/data/constants';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/primitives';
 import { initials } from '@/lib/format';
@@ -14,28 +15,46 @@ const PROVIDERS: Record<string, { label: string; color: string }> = {
 };
 
 export function Timeline({ deal }: { deal: Deal }) {
-  // Group: pinned notes, upcoming tasks, history
-  const acts = deal.acts;
+  const [filter, setFilter] = useState<ActivityType | 'all'>('all');
+  const acts = filter === 'all' ? deal.acts : deal.acts.filter((a) => a.type === filter);
+  const counts: Partial<Record<ActivityType, number>> = {};
+  deal.acts.forEach((a) => { counts[a.type] = (counts[a.type] ?? 0) + 1; });
+
   const pinned = acts.filter((a) => a.type === 'note' && a.pin);
   const upcoming = acts.filter((a) => a.type === 'task' && !a.done);
   const history = acts.filter((a) => !(a.type === 'note' && a.pin) && !(a.type === 'task' && !a.done));
 
   return (
-    <div className="dh-timeline-list">
-      {pinned.length > 0 && (
-        <Group icon="star" color="var(--violet)" label={`Pinned · ${pinned.length}`}>
-          {pinned.map((a) => <Card key={a.id} act={a} deal={deal} />)}
-        </Group>
-      )}
-      {upcoming.length > 0 && (
-        <Group icon="clock" color="var(--amber)" label={`Upcoming · ${upcoming.length}`}>
-          {upcoming.map((a) => <Card key={a.id} act={a} deal={deal} />)}
-        </Group>
-      )}
-      <Group icon="activity" color="var(--faint)" label="History">
-        {history.map((a) => <Card key={a.id} act={a} deal={deal} />)}
-      </Group>
-    </div>
+    <>
+      <div className="dh-feedtabs">
+        <button className={`dh-feedtab ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
+          <Icon name="activity" size={12} /> All <b>{deal.acts.length}</b>
+        </button>
+        {TYPE_ORDER.filter((k) => counts[k]).map((k) => (
+          <button key={k} className={`dh-feedtab ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)} style={filter === k ? { ['--fc' as string]: ACTIVITY_META[k].color } : undefined}>
+            <Icon name={ACTIVITY_ICONS[k] ?? 'note'} size={12} /> {ACTIVITY_META[k].label} <b>{counts[k]}</b>
+          </button>
+        ))}
+      </div>
+      <div className="dh-timeline-list">
+        {pinned.length > 0 && (
+          <Group icon="star" color="var(--violet)" label={`Pinned · ${pinned.length}`}>
+            {pinned.map((a) => <Card key={a.id} act={a} deal={deal} />)}
+          </Group>
+        )}
+        {upcoming.length > 0 && (
+          <Group icon="clock" color="var(--amber)" label={`Upcoming · ${upcoming.length}`}>
+            {upcoming.map((a) => <Card key={a.id} act={a} deal={deal} />)}
+          </Group>
+        )}
+        {history.length > 0 && (
+          <Group icon="activity" color="var(--faint)" label="History">
+            {history.map((a) => <Card key={a.id} act={a} deal={deal} />)}
+          </Group>
+        )}
+        {!acts.length && <div className="dh-feed-empty">No {filter === 'all' ? 'activity' : ACTIVITY_META[filter].label.toLowerCase()} yet.</div>}
+      </div>
+    </>
   );
 }
 

@@ -11,6 +11,7 @@ export function HubPanel() {
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
   const role = useStore((s) => s.role);
+  const setRole = useStore((s) => s.setRole);
   const resetDemo = useStore((s) => s.resetDemo);
   const deals = useStore((s) => s.deals);
   const objects = useStore((s) => s.objects);
@@ -48,6 +49,22 @@ export function HubPanel() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="dh-hub-section">
+          <div className="dh-hub-label">Role</div>
+          <div className="dh-hub-theme">
+            {(['admin', 'rep'] as const).map((r) => (
+              <button key={r} className={`dh-hub-theme-opt ${role === r ? 'on' : ''}`} onClick={() => setRole(r)}>
+                <span className="dh-hub-swatch" style={{ background: 'var(--accent-soft)', color: 'var(--accent-600)' }}>
+                  <Icon name={r === 'admin' ? 'sliders' : 'users'} size={15} />
+                </span>
+                {r === 'admin' ? 'Admin' : 'Sales rep'}
+                {role === r && <Icon name="check" size={14} className="dh-hub-check" />}
+              </button>
+            ))}
+          </div>
+          <p className="dh-hub-note" style={{ marginTop: 0 }}>Reps can't create custom objects/fields or edit automations.</p>
         </div>
 
         <div className="dh-hub-section">

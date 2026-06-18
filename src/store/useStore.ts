@@ -153,6 +153,9 @@ export interface AppState {
   savedViews: SavedView[];
   activeView: string | null;
   recordLayout: 'standard' | 'tri';
+  colW: Record<string, number>;
+  colSearch: Record<string, string>;
+  colSearchOpen: boolean;
 
   // ui
   theme: ThemeMode;
@@ -209,6 +212,11 @@ export interface AppState {
   setFilters: (f: Partial<FilterState>) => void;
   resetFilters: () => void;
   toggleSort: (k: string) => void;
+  addSort: (k: string) => void;
+  setColW: (k: string, w: number) => void;
+  setColSearch: (k: string, q: string) => void;
+  toggleColSearch: () => void;
+  setRole: (r: 'admin' | 'rep') => void;
   setSwimlane: (s: Swimlane) => void;
 
   setDensity: (d: Density) => void;
@@ -267,7 +275,7 @@ export interface AppState {
   addObjectRecord: (objKey: string, rec: ObjectRecord) => void;
   updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
 
-  toast: (text: string, tone?: Toast['tone']) => void;
+  toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
 
   resetDemo: () => void;
@@ -336,6 +344,9 @@ export const useStore = create<AppState>()(
   savedViews: [],
   activeView: null,
   recordLayout: 'standard',
+  colW: {},
+  colSearch: {},
+  colSearchOpen: false,
 
   theme: initialTheme(),
   role: 'admin',
@@ -490,9 +501,22 @@ export const useStore = create<AppState>()(
   toggleSort: (k) =>
     set((s) => {
       const cur = s.sort[0];
-      if (cur && cur.k === k) return { sort: [{ k, dir: cur.dir === 1 ? -1 : 1 }] };
+      if (cur && cur.k === k && s.sort.length === 1) return { sort: [{ k, dir: cur.dir === 1 ? -1 : 1 }] };
       return { sort: [{ k, dir: -1 }] };
     }),
+  addSort: (k) =>
+    set((s) => {
+      const i = s.sort.findIndex((r) => r.k === k);
+      if (i < 0) return { sort: [...s.sort, { k, dir: -1 }] };
+      const next = s.sort.slice();
+      if (next[i].dir === -1) next[i] = { k, dir: 1 };
+      else next.splice(i, 1); // third shift-click removes from sort
+      return { sort: next.length ? next : [{ k: 'value', dir: -1 }] };
+    }),
+  setColW: (k, w) => set((s) => ({ colW: { ...s.colW, [k]: Math.max(70, Math.round(w)) } })),
+  setColSearch: (k, q) => set((s) => ({ colSearch: { ...s.colSearch, [k]: q } })),
+  toggleColSearch: () => set((s) => ({ colSearchOpen: !s.colSearchOpen })),
+  setRole: (role) => set({ role }),
   setSwimlane: (swimlane) => set({ swimlane }),
 
   setDensity: (density) => set({ density, activeView: null }),
@@ -698,7 +722,7 @@ export const useStore = create<AppState>()(
       past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
       future: [],
     }));
-    get().toast('Deal deleted', 'warn');
+    get().toast('Deal deleted', 'warn', true);
   },
   setDealPriority: (id, p) => {
     get().updateDeal(id, { priority: p });
@@ -789,7 +813,7 @@ export const useStore = create<AppState>()(
       past: [...s.past, s.deals].slice(-HISTORY_LIMIT),
       future: [],
     }));
-    get().toast(`Deleted ${ids.length} deals`, 'warn');
+    get().toast(`Deleted ${ids.length} deals`, 'warn', true);
   },
 
   undo: () =>
@@ -914,10 +938,10 @@ export const useStore = create<AppState>()(
       },
     })),
 
-  toast: (text, tone = 'default') => {
+  toast: (text, tone = 'default', undoable = false) => {
     const id = uid('t');
-    set((s) => ({ toasts: [...s.toasts, { id, text, tone }] }));
-    window.setTimeout(() => get().dismissToast(id), 3200);
+    set((s) => ({ toasts: [...s.toasts, { id, text, tone, undoable }] }));
+    window.setTimeout(() => get().dismissToast(id), undoable ? 5000 : 3200);
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 

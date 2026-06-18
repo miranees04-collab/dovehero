@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode, type ReactElement } from 'react';
 import { useStore, useFilteredDeals } from '@/store/useStore';
 import type { Deal, GroupBy } from '@/types';
 import { OWNERS, hueOf, healthColor, healthBand, STAGES } from '@/data/constants';
@@ -50,6 +50,23 @@ function sortVal(d: Deal, k: string): number | string {
   }
 }
 
+function cellText(d: Deal, k: string): string {
+  switch (k) {
+    case 'name': return d.name + ' ' + d.company;
+    case 'stage': return d.stage;
+    case 'owner': return OWNERS[d.owner]?.name ?? d.owner;
+    case 'priority': return d.priority;
+    case 'industry': return d.industry;
+    case 'tags': return d.tags.join(' ');
+    case 'value': return String(d.value);
+    case 'win': return String(d.win);
+    case 'health': return String(d.health);
+    case 'close': return d.close;
+    case 'created': return d.created;
+    default: return '';
+  }
+}
+
 const groupOptions: { k: GroupBy; label: string }[] = [
   { k: 'none', label: 'No grouping' },
   { k: 'stage', label: 'Stage' },
@@ -83,20 +100,36 @@ export function DealTable() {
   const saveView = useStore((s) => s.saveView);
   const bulk = useStore((s) => s.bulk);
   const toggleBulk = useStore((s) => s.toggleBulk);
+  const addSort = useStore((s) => s.addSort);
+  const colW = useStore((s) => s.colW);
+  const setColW = useStore((s) => s.setColW);
+  const colSearch = useStore((s) => s.colSearch);
+  const setColSearch = useStore((s) => s.setColSearch);
+  const colSearchOpen = useStore((s) => s.colSearchOpen);
+  const toggleColSearch = useStore((s) => s.toggleColSearch);
+  const updateDeal = useStore((s) => s.updateDeal);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const rows = useMemo(() => {
-    const list = base.filter((d) => d.pipeline === pipeline);
-    const s = sort[0];
-    if (!s) return list;
+    let list = base.filter((d) => d.pipeline === pipeline);
+    // per-column search
+    const active = Object.entries(colSearch).filter(([, q]) => q.trim());
+    if (active.length) {
+      list = list.filter((d) => active.every(([k, q]) => String(cellText(d, k)).toLowerCase().includes(q.trim().toLowerCase())));
+    }
+    if (!sort.length) return list;
     return list.slice().sort((a, b) => {
-      const va = sortVal(a, s.k);
-      const vb = sortVal(b, s.k);
-      if (typeof va === 'string' || typeof vb === 'string') return s.dir * String(va).localeCompare(String(vb));
-      return s.dir * ((va as number) - (vb as number));
+      for (const s of sort) {
+        const va = sortVal(a, s.k);
+        const vb = sortVal(b, s.k);
+        const cmp = typeof va === 'string' || typeof vb === 'string' ? String(va).localeCompare(String(vb)) : (va as number) - (vb as number);
+        if (cmp !== 0) return s.dir * cmp;
+      }
+      return 0;
     });
-  }, [base, pipeline, sort]);
+  }, [base, pipeline, sort, colSearch]);
 
   const grouped = useMemo(() => {
     if (group === 'none') return [{ key: '', rows }];
@@ -259,6 +292,11 @@ export function DealTable() {
             )}
           </Popover>
 
+          <button className={`dh-filter-btn ${colSearchOpen ? 'active' : ''}`} onClick={toggleColSearch} title="Search within columns">
+            <Icon name="search" size={15} />
+            <span className="hide-sm">Search columns</span>
+          </button>
+
           <button className="dh-filter-btn" onClick={exportCsv}>
             <Icon name="download" size={15} />
             <span className="hide-sm">Export</span>
@@ -286,26 +324,61 @@ export function DealTable() {
                 />
               </th>
               {cols.map((c) => {
-                const active = sort[0]?.k === c.k;
+                const si = sort.findIndex((s) => s.k === c.k);
+                const active = si >= 0;
+                const w = colW[c.k] ?? c.width;
                 return (
                   <th
                     key={c.k}
-                    style={{ width: c.width, textAlign: c.align }}
+                    style={{ width: w, textAlign: c.align }}
                     className={`${active ? 'sorted' : ''} ${c.sortable ? 'sortable' : ''}`}
-                    onClick={c.sortable ? () => toggleSort(c.k) : undefined}
+                    onClick={c.sortable ? (e) => (e.shiftKey ? addSort(c.k) : toggleSort(c.k)) : undefined}
+                    title={c.sortable ? 'Click to sort · ⇧-click to add a sort' : undefined}
                   >
                     <span className="dh-th">
                       {c.label}
-                      {active && <Icon name="arrowUp" size={12} className={sort[0].dir === 1 ? 'dh-sort-asc' : 'dh-sort-desc'} />}
+                      {active && <Icon name="arrowUp" size={12} className={sort[si].dir === 1 ? 'dh-sort-asc' : 'dh-sort-desc'} />}
+                      {active && sort.length > 1 && <span className="dh-sort-idx">{si + 1}</span>}
                     </span>
+                    <ResizeHandle onResize={(dx, startW) => setColW(c.k, (startW || w || 140) + dx)} startWidth={w as number} />
                   </th>
                 );
               })}
             </tr>
+            {colSearchOpen && (
+              <tr className="dh-search-row">
+                <th className="dh-th-check" />
+                {cols.map((c) => (
+                  <th key={c.k}>
+                    {c.k !== 'ai_next' && c.k !== 'ai_risk' && (
+                      <input
+                        className="dh-colsearch"
+                        placeholder="Filter…"
+                        value={colSearch[c.k] ?? ''}
+                        onChange={(e) => setColSearch(c.k, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
           <tbody>
             {grouped.map((g) => (
-              <GroupBlock key={g.key || 'all'} groupKey={g.key} rows={g.rows} cols={cols} group={group} openDeal={openDeal} bulk={bulk} toggleBulk={toggleBulk} />
+              <GroupBlock
+                key={g.key || 'all'}
+                groupKey={g.key}
+                rows={g.rows}
+                cols={cols}
+                group={group}
+                openDeal={openDeal}
+                bulk={bulk}
+                toggleBulk={toggleBulk}
+                updateDeal={updateDeal}
+                collapsed={!!collapsedGroups[g.key]}
+                onToggleCollapse={() => setCollapsedGroups((m) => ({ ...m, [g.key]: !m[g.key] }))}
+              />
             ))}
           </tbody>
         </table>
@@ -361,8 +434,27 @@ function BulkBar() {
   );
 }
 
+function ResizeHandle({ onResize }: { onResize: (dx: number, startW: number) => void; startWidth: number }) {
+  return (
+    <span
+      className="dh-resize-handle"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startW = (e.currentTarget.parentElement as HTMLElement)?.offsetWidth ?? 140;
+        const move = (ev: MouseEvent) => onResize(ev.clientX - startX, startW);
+        const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+      }}
+    />
+  );
+}
+
 function GroupBlock({
-  groupKey, rows, cols, group, openDeal, bulk, toggleBulk,
+  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, updateDeal, collapsed, onToggleCollapse,
 }: {
   groupKey: string;
   rows: Deal[];
@@ -371,6 +463,9 @@ function GroupBlock({
   openDeal: (id: string) => void;
   bulk: string[];
   toggleBulk: (id: string) => void;
+  updateDeal: (id: string, patch: Partial<Deal>) => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const total = rows.reduce((s, d) => s + d.value, 0);
   return (
@@ -378,22 +473,23 @@ function GroupBlock({
       {group !== 'none' && (
         <tr className="dh-group-row">
           <td colSpan={cols.length + 1}>
-            <div className="dh-group-head">
+            <button className="dh-group-head" onClick={onToggleCollapse}>
+              <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={13} />
               <span className="dh-group-name">{groupKey}</span>
               <span className="dh-group-count">{rows.length}</span>
               <span className="dh-group-total mono">{money(total, true)}</span>
-            </div>
+            </button>
           </td>
         </tr>
       )}
-      {rows.map((d) => (
+      {!collapsed && rows.map((d) => (
         <tr key={d.id} onClick={() => openDeal(d.id)} className={bulk.includes(d.id) ? 'selected' : ''}>
           <td className="dh-td-check" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={bulk.includes(d.id)} onChange={() => toggleBulk(d.id)} aria-label={`Select ${d.name}`} />
           </td>
           {cols.map((c) => (
             <td key={c.k} style={{ textAlign: c.align }} className={c.k === 'value' ? 'mono' : ''}>
-              <Cell deal={d} col={c.k} />
+              <Cell deal={d} col={c.k} updateDeal={updateDeal} />
             </td>
           ))}
         </tr>
@@ -402,7 +498,49 @@ function GroupBlock({
   );
 }
 
-function Cell({ deal: d, col }: { deal: Deal; col: string }) {
+const EDITABLE: Record<string, 'number' | 'text'> = { value: 'number', win: 'number', health: 'number', close: 'text', name: 'text' };
+
+function EditableCell({ deal: d, col, updateDeal, children }: { deal: Deal; col: string; updateDeal: (id: string, patch: Partial<Deal>) => void; children: ReactNode }) {
+  const [editing, setEditing] = useState(false);
+  const type = EDITABLE[col];
+  if (!type) return <>{children}</>;
+  const cur = col === 'name' ? d.name : col === 'close' ? d.close : String((d as unknown as Record<string, number>)[col]);
+  if (!editing) {
+    return (
+      <span className="dh-editable" onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} title="Double-click to edit">
+        {children}
+      </span>
+    );
+  }
+  return (
+    <input
+      className="dh-cell-edit"
+      autoFocus
+      type={type === 'number' ? 'number' : 'text'}
+      defaultValue={cur}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => { commit(e.target.value); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditing(false); }}
+    />
+  );
+  function commit(v: string) {
+    setEditing(false);
+    if (type === 'number') {
+      const n = parseInt(v.replace(/[^0-9]/g, ''), 10) || 0;
+      updateDeal(d.id, { [col]: col === 'win' || col === 'health' ? Math.min(100, n) : n } as Partial<Deal>);
+    } else {
+      updateDeal(d.id, { [col]: v } as Partial<Deal>);
+    }
+  }
+}
+
+function Cell({ deal: d, col, updateDeal }: { deal: Deal; col: string; updateDeal: (id: string, patch: Partial<Deal>) => void }) {
+  const inner = renderCell(d, col);
+  if (EDITABLE[col]) return <EditableCell deal={d} col={col} updateDeal={updateDeal}>{inner}</EditableCell>;
+  return inner;
+}
+
+function renderCell(d: Deal, col: string): ReactElement {
   switch (col) {
     case 'name':
       return (

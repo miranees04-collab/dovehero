@@ -235,4 +235,5 @@ export interface Toast {
   id: string;
   text: string;
   tone?: 'default' | 'success' | 'warn';
+  undoable?: boolean;
 }

@@ -46,6 +46,7 @@ export function AutomationsPanel() {
   const toggleAutomation = useStore((s) => s.toggleAutomation);
   const deleteAutomation = useStore((s) => s.deleteAutomation);
   const runAutomations = useStore((s) => s.runAutomations);
+  const admin = useStore((s) => s.role === 'admin');
 
   return (
     <Drawer open={open} onClose={() => setAuto(false)} width={440} className="dh-panel">
@@ -55,10 +56,12 @@ export function AutomationsPanel() {
       </div>
       <div className="dh-auto-bar">
         <Button variant="subtle" size="sm" onClick={runAutomations}><Icon name="zap" size={14} /> Run now</Button>
-        <Button variant="primary" size="sm" onClick={() => setAutoEdit({ id: uid('au'), name: '', enabled: true, on: { t: 'stage', v: 'Negotiation' }, cond: { f: 'none', v: '' }, act: { t: 'task', v: '' } })}>
-          <Icon name="plus" size={14} /> New rule
-        </Button>
-        <span className="dh-auto-hint">Rules run on stage change & creation.</span>
+        {admin && (
+          <Button variant="primary" size="sm" onClick={() => setAutoEdit({ id: uid('au'), name: '', enabled: true, on: { t: 'stage', v: 'Negotiation' }, cond: { f: 'none', v: '' }, act: { t: 'task', v: '' } })}>
+            <Icon name="plus" size={14} /> New rule
+          </Button>
+        )}
+        <span className="dh-auto-hint">{admin ? 'Rules run on stage change & creation.' : 'Read-only — switch to Admin in Customize to edit.'}</span>
       </div>
 
       {edit && <RuleBuilder rule={edit} />}
@@ -73,9 +76,9 @@ export function AutomationsPanel() {
                 <div className="dh-auto-name">{r.name || 'Untitled rule'}</div>
                 <div className="dh-auto-desc">{trigDesc(r)} → <b>{actDesc(r)}</b></div>
               </div>
-              <button className={`dh-auto-tog ${r.enabled ? 'on' : ''}`} onClick={() => toggleAutomation(r.id)} aria-label="Toggle"><span /></button>
-              <button className="dh-auto-ic" onClick={() => setAutoEdit({ ...r })} aria-label="Edit"><Icon name="sliders" size={14} /></button>
-              <button className="dh-auto-ic" onClick={() => deleteAutomation(r.id)} aria-label="Delete"><Icon name="trash" size={13} /></button>
+              <button className={`dh-auto-tog ${r.enabled ? 'on' : ''}`} onClick={() => toggleAutomation(r.id)} aria-label="Toggle" disabled={!admin}><span /></button>
+              {admin && <button className="dh-auto-ic" onClick={() => setAutoEdit({ ...r })} aria-label="Edit"><Icon name="sliders" size={14} /></button>}
+              {admin && <button className="dh-auto-ic" onClick={() => deleteAutomation(r.id)} aria-label="Delete"><Icon name="trash" size={13} /></button>}
             </div>
           ))
         )}

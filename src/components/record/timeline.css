@@ -1,3 +1,31 @@
+.dh-feedtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.dh-feedtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  color: var(--sub);
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-feedtab b { color: var(--faint); font-family: var(--font-mono); }
+.dh-feedtab:hover { border-color: var(--border-strong); color: var(--ink); }
+.dh-feedtab.on {
+  border-color: var(--fc, var(--accent-500));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--fc, var(--accent-500)) 10%, transparent);
+}
+.dh-feed-empty { padding: 24px 0; text-align: center; color: var(--faint); font-size: 13px; }
 .dh-tl-group {
   margin-bottom: 6px;
 }
