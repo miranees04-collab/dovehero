@@ -3,9 +3,9 @@ import { useStore, useFilteredDeals } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Popover, MenuItem, Avatar, Button } from '@/components/ui/primitives';
 import { OWNERS, OPEN_STAGES } from '@/data/constants';
-import { money } from '@/lib/format';
+import { money, uid } from '@/lib/format';
+import { inboundCount } from '@/lib/comms';
 import type { Priority, AdvRule } from '@/types';
-import { uid } from '@/lib/format';
 import './deals.css';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
@@ -20,7 +20,6 @@ const CARD_FIELD_OPTS = [
 
 export function PipelineBar() {
   const pipeline = useStore((s) => s.pipeline);
-  const setPipeline = useStore((s) => s.setPipeline);
   const filters = useStore((s) => s.filters);
   const setFilters = useStore((s) => s.setFilters);
   const resetFilters = useStore((s) => s.resetFilters);
@@ -37,50 +36,65 @@ export function PipelineBar() {
   const open = all.filter((d) => OPEN_STAGES.includes(d.stage as never));
   const total = open.reduce((s, d) => s + d.value, 0);
   const weighted = Math.round(open.reduce((s, d) => s + (d.value * d.win) / 100, 0));
+  const inboundTotal = deals.filter((d) => d.pipeline === pipeline).reduce((s, d) => s + inboundCount(d), 0);
 
   const activeFilters =
-    filters.owners.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length;
+    filters.owners.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length + (filters.inbox ? 1 : 0);
 
   const toggleArr = <T,>(arr: T[], v: T): T[] => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
+  const curPipe = pipelines.find((p) => p.k === pipeline) ?? pipelines[0];
+
   return (
+    <>
     <div className="dh-pipebar">
-      <div className="dh-pipe-tabs" role="tablist">
-        {pipelines.map((p) => {
-          const n = deals.filter((d) => d.pipeline === p.k && OPEN_STAGES.includes(d.stage as never)).length;
-          return (
-            <button
-              key={p.k}
-              role="tab"
-              aria-selected={pipeline === p.k}
-              className={`dh-pipe-tab ${pipeline === p.k ? 'on' : ''}`}
-              onClick={() => setPipeline(p.k)}
-            >
-              <span className="dh-pipe-dot" style={{ background: p.hue }} />
-              {p.name}
-              <span className="dh-pipe-count">{n}</span>
+      <div className="dh-pipe-left">
+        <span className="dh-pipe-label"><Icon name="layers" size={14} color="var(--violet)" /> Pipeline</span>
+        <Popover
+          width={300}
+          trigger={({ open: o, toggle }) => (
+            <button className={`dh-pipe-drop ${o ? 'open' : ''}`} onClick={toggle}>
+              <span className="dh-pipe-dot" style={{ background: curPipe.hue }} />
+              <b>{curPipe.name}</b>
+              <span className="dh-pipe-count">{open.length}</span>
+              <Icon name="chevronDown" size={14} />
             </button>
-          );
-        })}
-        <PipelineManage />
+          )}
+        >
+          {(close) => <PipelineMenu close={close} />}
+        </Popover>
       </div>
 
-      <div className="dh-pipe-stats">
-        <div className="dh-pipe-stat">
+      <div className="dh-pipe-kpis">
+        <div className="dh-pipe-kpi">
+          <span className="l">Open deals</span>
           <span className="v mono">{open.length}</span>
-          <span className="l">open</span>
         </div>
-        <div className="dh-pipe-stat">
-          <span className="v mono">{money(total, true)}</span>
-          <span className="l">pipeline</span>
+        <div className="dh-pipe-kpi">
+          <span className="l">Pipeline value</span>
+          <span className="v mono">{money(total)}</span>
         </div>
-        <div className="dh-pipe-stat">
-          <span className="v mono">{money(weighted, true)}</span>
-          <span className="l">weighted</span>
+        <div className="dh-pipe-kpi">
+          <span className="l">Weighted</span>
+          <span className="v mono" style={{ color: 'var(--violet)' }}>{money(weighted)}</span>
         </div>
       </div>
+    </div>
 
+    <div className="dh-controlbar">
+      <span className="dh-pipe-label"><Icon name="filter" size={13} /> Filter</span>
       <div className="dh-pipe-actions">
+        {inboundTotal > 0 && (
+          <button
+            className={`dh-inbox-btn ${filters.inbox ? 'on' : ''}`}
+            onClick={() => setFilters({ inbox: !filters.inbox })}
+            title="Show only deals with new client replies"
+          >
+            <Icon name="chat" size={15} />
+            <span className="hide-sm">New replies</span>
+            <span className="dh-inbox-count">{inboundTotal}</span>
+          </button>
+        )}
         {view === 'board' && (
           <Popover
             align="end"
@@ -205,6 +219,7 @@ export function PipelineBar() {
         </Popover>
       </div>
     </div>
+    </>
   );
 }
 
@@ -236,44 +251,51 @@ function AdvRuleRow({ rule, onChange, onRemove }: { rule: AdvRule; onChange: (r:
   );
 }
 
-function PipelineManage() {
+function PipelineMenu({ close }: { close: () => void }) {
   const pipelines = useStore((s) => s.pipelines);
   const deals = useStore((s) => s.deals);
+  const current = useStore((s) => s.pipeline);
+  const setPipeline = useStore((s) => s.setPipeline);
   const addPipeline = useStore((s) => s.addPipeline);
   const renamePipeline = useStore((s) => s.renamePipeline);
   const deletePipeline = useStore((s) => s.deletePipeline);
   const recolorPipeline = useStore((s) => s.recolorPipeline);
+  const [manage, setManage] = useState(false);
   const [name, setName] = useState('');
   return (
-    <Popover
-      width={300}
-      trigger={({ toggle }) => (
-        <button className="dh-pipe-tab dh-pipe-add" onClick={toggle} title="Manage pipelines">
-          <Icon name="plus" size={14} />
-        </button>
-      )}
-    >
-      {() => (
-        <div className="dh-pipemanage">
-          <div className="dh-menu-head">Manage pipelines</div>
-          {pipelines.map((p) => {
-            const n = deals.filter((d) => d.pipeline === p.k).length;
-            return (
-              <div key={p.k} className="dh-pm-row">
-                <button className="dh-pm-dot" style={{ background: p.hue }} onClick={() => recolorPipeline(p.k)} title="Recolor" />
-                <input className="dh-pm-name" value={p.name} onChange={(e) => renamePipeline(p.k, e.target.value)} />
-                <span className="dh-pm-ct">{n}</span>
-                <button className="dh-pm-del" disabled={pipelines.length <= 1} onClick={() => deletePipeline(p.k)} aria-label="Delete"><Icon name="trash" size={13} /></button>
-              </div>
-            );
-          })}
-          <div className="dh-pm-new">
-            <input className="dh-input" placeholder="New pipeline name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) { addPipeline(name); setName(''); } }} />
-            <Button variant="primary" size="sm" disabled={!name.trim()} onClick={() => { addPipeline(name); setName(''); }}><Icon name="plus" size={13} /></Button>
-          </div>
-          <p className="dh-pm-note">Deleting a pipeline moves its deals to the first one.</p>
+    <div className="dh-pipemanage">
+      <div className="dh-menu-head" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        {manage ? 'Manage pipelines' : 'Pipelines'}
+        <button className="dh-pm-toggle" onClick={() => setManage((m) => !m)}>{manage ? 'Done' : 'Manage'}</button>
+      </div>
+      {pipelines.map((p) => {
+        const n = deals.filter((d) => d.pipeline === p.k).length;
+        if (manage) {
+          return (
+            <div key={p.k} className="dh-pm-row">
+              <button className="dh-pm-dot" style={{ background: p.hue }} onClick={() => recolorPipeline(p.k)} title="Recolor" />
+              <input className="dh-pm-name" value={p.name} onChange={(e) => renamePipeline(p.k, e.target.value)} />
+              <span className="dh-pm-ct">{n}</span>
+              <button className="dh-pm-del" disabled={pipelines.length <= 1} onClick={() => deletePipeline(p.k)} aria-label="Delete"><Icon name="trash" size={13} /></button>
+            </div>
+          );
+        }
+        return (
+          <button key={p.k} className={`dh-pm-sel ${current === p.k ? 'on' : ''}`} onClick={() => { setPipeline(p.k); close(); }}>
+            <span className="dh-pm-ck">{current === p.k && <Icon name="check" size={14} color="var(--accent-600)" />}</span>
+            <span className="dh-pm-dot static" style={{ background: p.hue }} />
+            <span className="dh-pm-sel-n">{p.name}</span>
+            <span className="dh-pm-ct">{n}</span>
+          </button>
+        );
+      })}
+      {manage && (
+        <div className="dh-pm-new">
+          <input className="dh-input" placeholder="New pipeline name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) { addPipeline(name); setName(''); } }} />
+          <Button variant="primary" size="sm" disabled={!name.trim()} onClick={() => { addPipeline(name); setName(''); }}><Icon name="plus" size={13} /></Button>
         </div>
       )}
-    </Popover>
+      {manage && <p className="dh-pm-note">Deleting a pipeline moves its deals to the first one.</p>}
+    </div>
   );
 }

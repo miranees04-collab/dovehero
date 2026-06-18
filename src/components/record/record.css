@@ -142,16 +142,74 @@
 }
 
 /* ---------- Body ---------- */
+.dh-rec-headrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dh-rec-layout-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.dh-rec-layout-switch button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-rec-layout-switch button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
 .dh-rec-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 340px;
   gap: 20px;
   overflow-y: auto;
   padding: 20px 22px;
   align-items: start;
 }
+.dh-rec-body.layout-standard {
+  grid-template-columns: 1fr 330px;
+  grid-template-areas: 'main railR' 'main railL';
+}
+.dh-rec-body.layout-tri {
+  grid-template-columns: 300px 1fr 300px;
+  grid-template-areas: 'railL main railR';
+}
+.dh-rec-main { grid-area: main; }
+.dh-rec-railL { grid-area: railL; }
+.dh-rec-railR { grid-area: railR; }
+.dh-rec-railL, .dh-rec-railR {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+}
+.dh-account { display: flex; align-items: center; gap: 11px; }
+.dh-account-av {
+  width: 40px; height: 40px; border-radius: 11px;
+  background: var(--accent-soft); color: var(--accent-700);
+  display: grid; place-items: center; flex: none;
+}
+[data-theme='dark'] .dh-account-av { color: var(--accent); }
+.dh-account b { display: block; font-size: 14px; font-weight: 650; color: var(--ink); }
+.dh-account small { font-size: 12px; color: var(--faint); }
 .dh-rec-main {
   display: flex;
   flex-direction: column;
@@ -563,10 +621,13 @@
 }
 
 @media (max-width: 980px) {
-  .dh-rec-body {
+  .dh-rec-body.layout-standard,
+  .dh-rec-body.layout-tri {
     grid-template-columns: 1fr;
+    grid-template-areas: 'main' 'railL' 'railR';
   }
-  .dh-rec-rail {
+  .dh-rec-railL,
+  .dh-rec-railR {
     position: static;
   }
   .dh-rec-metrics {

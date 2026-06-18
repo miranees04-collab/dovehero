@@ -5,8 +5,26 @@ import { healthColor, OWNERS, STAGES } from '@/data/constants';
 import { Avatar, Badge, Popover } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
+import { inboundCount, lastInbound } from '@/lib/comms';
 
 const STAGE_KEYS: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
+
+export function CommBubble({ deal, onOpen }: { deal: Deal; onOpen?: () => void }) {
+  const n = inboundCount(deal);
+  if (!n) return null;
+  const last = lastInbound(deal);
+  const who = (last?.who ?? 'Client').split(' ')[0];
+  return (
+    <button
+      className="dh-commbubble"
+      title={`${n} new repl${n > 1 ? 'ies' : 'y'} from ${who}`}
+      onClick={(e) => { e.stopPropagation(); onOpen?.(); }}
+    >
+      <Icon name="chat" size={11} />
+      <span>{n}</span>
+    </button>
+  );
+}
 
 export function DealCard({
   deal,
@@ -47,6 +65,7 @@ export function DealCard({
       <div className="dh-card-top">
         <span className={`dh-prio ${deal.priority}`} title={`${deal.priority} priority`} />
         <h3 className="dh-card-title">{deal.name}</h3>
+        <CommBubble deal={deal} onOpen={() => openDeal(deal.id)} />
         {has('health') && (
           <span className="dh-card-health" style={{ color: hc }} title={`Health ${deal.health}`}>
             <span className="dh-card-health-dot" style={{ background: hc }} />

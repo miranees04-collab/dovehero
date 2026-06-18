@@ -6,6 +6,7 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
+import { CommBubble } from './DealCard';
 import './table.css';
 
 interface ColMeta {
@@ -408,7 +409,7 @@ function Cell({ deal: d, col }: { deal: Deal; col: string }) {
         <div className="dh-td-deal">
           <span className={`dh-prio ${d.priority}`} />
           <div>
-            <div className="dh-td-name">{d.name}</div>
+            <div className="dh-td-name">{d.name} <CommBubble deal={d} /></div>
             <div className="dh-td-company">{d.company}</div>
           </div>
         </div>

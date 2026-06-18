@@ -35,6 +35,8 @@ export function RecordView() {
   const openComposer = useStore((s) => s.openComposer);
   const openDocBuilder = useStore((s) => s.openDocBuilder);
   const sendNova = useStore((s) => s.sendNova);
+  const recordLayout = useStore((s) => s.recordLayout);
+  const setRecordLayout = useStore((s) => s.setRecordLayout);
   const toast = useStore((s) => s.toast);
   const [note, setNote] = useState('');
 
@@ -73,9 +75,15 @@ export function RecordView() {
     <div className="dh-record">
       {/* Header */}
       <div className="dh-rec-head">
-        <button className="dh-btn v-ghost s-sm" onClick={() => openDeal(null)}>
-          <Icon name="arrowLeft" size={15} /> Back to {view === 'table' ? 'Table' : 'Board'}
-        </button>
+        <div className="dh-rec-headrow">
+          <button className="dh-btn v-ghost s-sm" onClick={() => openDeal(null)}>
+            <Icon name="arrowLeft" size={15} /> Back to {view === 'table' ? 'Table' : 'Board'}
+          </button>
+          <div className="dh-rec-layout-switch">
+            <button className={recordLayout === 'standard' ? 'on' : ''} onClick={() => setRecordLayout('standard')}><Icon name="list" size={13} /> Standard</button>
+            <button className={recordLayout === 'tri' ? 'on' : ''} onClick={() => setRecordLayout('tri')}><Icon name="grid" size={13} /> 3-column</button>
+          </div>
+        </div>
 
         <div className="dh-rec-headmain">
           <div className="dh-rec-title">
@@ -139,7 +147,34 @@ export function RecordView() {
       </div>
 
       {/* Body */}
-      <div className="dh-rec-body">
+      <div className={`dh-rec-body layout-${recordLayout}`}>
+        {/* Left rail (coach + signals) */}
+        <aside className="dh-rec-railL">
+          <section className="dh-rec-card">
+            <h4 className="dh-rail-title">Deal coach</h4>
+            <div className="dh-coach">
+              {factors.map((f) => (
+                <div key={f.label} className="dh-coach-row">
+                  <span className={`dh-coach-dot t-${f.tone}`} />
+                  <span className="dh-coach-label">{f.label}</span>
+                  <span className="dh-coach-note">{f.note}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="dh-rec-card">
+            <h4 className="dh-rail-title">Buying signals</h4>
+            <div className="dh-signals">
+              {signals.map((s) => (
+                <div key={s.label} className={`dh-signal ${s.ok ? 'ok' : 'no'}`}>
+                  <Icon name={s.ok ? 'check' : 'x'} size={13} />
+                  {s.label}
+                </div>
+              ))}
+            </div>
+          </section>
+        </aside>
+
         {/* Main column */}
         <div className="dh-rec-main">
           {/* Nova brief */}
@@ -211,30 +246,16 @@ export function RecordView() {
           </section>
         </div>
 
-        {/* Side rail */}
-        <aside className="dh-rec-rail">
+        {/* Right rail */}
+        <aside className="dh-rec-railR">
           <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Deal coach</h4>
-            <div className="dh-coach">
-              {factors.map((f) => (
-                <div key={f.label} className="dh-coach-row">
-                  <span className={`dh-coach-dot t-${f.tone}`} />
-                  <span className="dh-coach-label">{f.label}</span>
-                  <span className="dh-coach-note">{f.note}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="dh-rec-card">
-            <h4 className="dh-rail-title">Buying signals</h4>
-            <div className="dh-signals">
-              {signals.map((s) => (
-                <div key={s.label} className={`dh-signal ${s.ok ? 'ok' : 'no'}`}>
-                  <Icon name={s.ok ? 'check' : 'x'} size={13} />
-                  {s.label}
-                </div>
-              ))}
+            <h4 className="dh-rail-title">Account</h4>
+            <div className="dh-account">
+              <span className="dh-account-av"><Icon name="building" size={18} /></span>
+              <div>
+                <b>{deal.company}</b>
+                <small>{deal.industry}</small>
+              </div>
             </div>
           </section>
 

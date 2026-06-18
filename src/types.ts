@@ -209,6 +209,7 @@ export interface FilterState {
   tags: string[];
   minValue: number | null;
   health: 'any' | 'healthy' | 'risk';
+  inbox: boolean;
   adv: AdvRule[];
 }
 

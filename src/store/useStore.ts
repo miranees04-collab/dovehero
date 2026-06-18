@@ -29,6 +29,7 @@ import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES } from '@/data/constants';
 import { askNova } from '@/lib/nova';
 import { uid } from '@/lib/format';
+import { inboundCount } from '@/lib/comms';
 
 const emptyFilters: FilterState = {
   owners: [],
@@ -36,6 +37,7 @@ const emptyFilters: FilterState = {
   tags: [],
   minValue: null,
   health: 'any',
+  inbox: false,
   adv: [],
 };
 
@@ -148,6 +150,7 @@ export interface AppState {
   collapsedCols: Record<string, boolean>;
   savedViews: SavedView[];
   activeView: string | null;
+  recordLayout: 'standard' | 'tri';
 
   // ui
   theme: ThemeMode;
@@ -183,6 +186,7 @@ export interface AppState {
   deletePipeline: (k: string) => void;
   recolorPipeline: (k: string) => void;
   setAdvFilter: (rules: FilterState['adv']) => void;
+  setRecordLayout: (l: 'standard' | 'tri') => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
   saveAutomation: (a: Automation) => void;
@@ -326,6 +330,7 @@ export const useStore = create<AppState>()(
   collapsedCols: {},
   savedViews: [],
   activeView: null,
+  recordLayout: 'standard',
 
   theme: initialTheme(),
   role: 'admin',
@@ -390,6 +395,7 @@ export const useStore = create<AppState>()(
       return { pipelines: s.pipelines.map((p) => (p.k === k ? { ...p, hue: next } : p)) };
     }),
   setAdvFilter: (adv) => set((s) => ({ filters: { ...s.filters, adv } })),
+  setRecordLayout: (recordLayout) => set({ recordLayout }),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
   setAutoEdit: (autoEdit) => set({ autoEdit }),
@@ -935,6 +941,7 @@ export const useStore = create<AppState>()(
         density: s.density,
         cardFields: s.cardFields,
         savedViews: s.savedViews,
+        recordLayout: s.recordLayout,
       }),
     },
   ),
@@ -954,6 +961,7 @@ export function filterDeals(deals: Deal[], q: string, f: FilterState): Deal[] {
     if (f.minValue != null && d.value < f.minValue) return false;
     if (f.health === 'healthy' && d.health < 70) return false;
     if (f.health === 'risk' && d.health >= 45) return false;
+    if (f.inbox && inboundCount(d) === 0) return false;
     for (const r of f.adv) {
       if (!r.value) continue;
       const num = parseFloat(r.value.replace(/[^0-9.\-]/g, '')) || 0;
