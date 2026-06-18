@@ -1125,6 +1125,14 @@
 }
 
 .dh-card.focused { outline: 2px solid var(--accent-500); outline-offset: 1px; }
+/* aging indicator — left edge stripe colored by days since last activity */
+.dh-card-age {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  transition: background var(--t) var(--ease);
+}
 
 .dh-keys-hint {
   position: fixed; right: 16px; bottom: 14px; z-index: 50;

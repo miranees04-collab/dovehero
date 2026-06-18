@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode, type ReactElement } from 'react';
-import { useStore, useFilteredDeals } from '@/store/useStore';
+import { useMemo, useState, useEffect, useRef, type ReactNode, type ReactElement } from 'react';
+import { useStore, useFilteredDeals, type ComposerKind } from '@/store/useStore';
 import type { Deal, GroupBy } from '@/types';
 import { OWNERS, hueOf, healthColor, healthBand } from '@/data/constants';
 import { money, staleDays } from '@/lib/format';
@@ -109,9 +109,13 @@ export function DealTable() {
   const colSearchOpen = useStore((s) => s.colSearchOpen);
   const toggleColSearch = useStore((s) => s.toggleColSearch);
   const updateDeal = useStore((s) => s.updateDeal);
+  const openComposer = useStore((s) => s.openComposer);
+  const requestStage = useStore((s) => s.requestStage);
+  const setPeek = useStore((s) => s.setPeek);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     let list = base.filter((d) => d.pipeline === pipeline);
@@ -144,6 +148,53 @@ export function DealTable() {
   }, [rows, group]);
 
   const cols = tableCols.map(colMeta);
+
+  // ---- keyboard shortcuts (table only) ----
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const focusRef = useRef(focusId);
+  focusRef.current = focusId;
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const st = useStore.getState();
+      if (st.view !== 'table' || st.nav !== 'deals' || st.openDealId || st.paletteOpen || st.composers.length) return;
+      const el = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName) || el?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const list = rowsRef.current;
+      if (!list.length) return;
+      const idx = list.findIndex((d) => d.id === focusRef.current);
+      const focusAt = (i: number) => {
+        const d = list[Math.max(0, Math.min(i, list.length - 1))];
+        if (d) { setFocusId(d.id); requestAnimationFrame(() => document.querySelector(`[data-row="${d.id}"]`)?.scrollIntoView({ block: 'nearest' })); }
+      };
+      const d = idx >= 0 ? list[idx] : null;
+      const compose = (kind: ComposerKind) => {
+        if (!d) return;
+        const c = d.contacts[0];
+        const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${d.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+        openComposer({ dealId: d.id, kind, to: kind === 'email' ? email : '+1 (415) 555-0140', subject: kind === 'email' ? `${d.name} — next steps` : '', body: '', outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30', title: kind === 'task' ? String(d.next ?? 'Follow up') : '' });
+      };
+      if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); focusAt(idx < 0 ? 0 : idx + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); focusAt(idx < 0 ? 0 : idx - 1); }
+      else if (!d) return;
+      else if (e.key === 'e') { e.preventDefault(); compose('email'); }
+      else if (e.key === 'n') { e.preventDefault(); compose('note'); }
+      else if (e.key === 'c') { e.preventDefault(); compose('call'); }
+      else if (e.key === 't') { e.preventDefault(); compose('task'); }
+      else if (e.key === 'a') {
+        e.preventDefault();
+        const order: Deal['stage'][] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+        const i = order.indexOf(d.stage);
+        if (i >= 0 && i < order.length - 1) requestStage(d.id, order[i + 1]);
+      }
+      else if (e.key === 'o' || e.key === 'Enter') { e.preventDefault(); openDeal(d.id); }
+      else if (e.key === 'p') { e.preventDefault(); setPeek(d.id); }
+      else if (e.key === 'x') { e.preventDefault(); toggleBulk(d.id); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [openComposer, requestStage, openDeal, toggleBulk, setPeek]);
 
   const exportCsv = () => {
     const header = ['ID', 'Deal', 'Company', 'Stage', 'Value', 'Win%', 'Health', 'Owner', 'Close'];
@@ -379,6 +430,7 @@ export function DealTable() {
                 bulk={bulk}
                 toggleBulk={toggleBulk}
                 updateDeal={updateDeal}
+                focusId={focusId}
                 collapsed={!!collapsedGroups[g.key]}
                 onToggleCollapse={() => setCollapsedGroups((m) => ({ ...m, [g.key]: !m[g.key] }))}
               />
@@ -429,7 +481,7 @@ function ResizeHandle({ onResize }: { onResize: (dx: number, startW: number) => 
 }
 
 function GroupBlock({
-  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, updateDeal, collapsed, onToggleCollapse,
+  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, updateDeal, focusId, collapsed, onToggleCollapse,
 }: {
   groupKey: string;
   rows: Deal[];
@@ -439,6 +491,7 @@ function GroupBlock({
   bulk: string[];
   toggleBulk: (id: string) => void;
   updateDeal: (id: string, patch: Partial<Deal>) => void;
+  focusId: string | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
@@ -458,7 +511,7 @@ function GroupBlock({
         </tr>
       )}
       {!collapsed && rows.map((d) => (
-        <tr key={d.id} onClick={() => openDeal(d.id)} className={bulk.includes(d.id) ? 'selected' : ''}>
+        <tr key={d.id} data-row={d.id} onClick={() => openDeal(d.id)} className={`${bulk.includes(d.id) ? 'selected' : ''} ${focusId === d.id ? 'focused' : ''}`}>
           <td className="dh-td-check" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={bulk.includes(d.id)} onChange={() => toggleBulk(d.id)} aria-label={`Select ${d.name}`} />
           </td>

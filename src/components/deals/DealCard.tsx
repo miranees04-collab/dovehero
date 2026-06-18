@@ -63,6 +63,9 @@ export function DealCard({
   const showTags = has('tags') && (deal.tags.length > 0 || stale || !!dir);
   const advIdx = ADVANCE_ORDER.indexOf(deal.stage);
   const nextStage = advIdx >= 0 && advIdx < ADVANCE_ORDER.length - 1 ? ADVANCE_ORDER[advIdx + 1] : null;
+  const idle = staleDays(deal.acts?.[0]?.w);
+  const closed = deal.stage === 'Won' || deal.stage === 'Lost';
+  const ageColor = closed ? 'transparent' : idle >= 14 ? 'var(--red)' : idle >= 7 ? 'var(--amber)' : 'var(--green)';
 
   return (
     <article
@@ -81,6 +84,7 @@ export function DealCard({
         }
       }}
     >
+      <span className="dh-card-age" style={{ background: ageColor }} title={closed ? deal.stage : `${idle}d since last activity`} />
       <button
         className={`dh-card-select ${selected ? 'on' : ''}`}
         onClick={(e) => { e.stopPropagation(); toggleBulk(deal.id); }}

@@ -211,6 +211,12 @@
 .dh-table tbody tr.selected {
   background: var(--accent-soft);
 }
+.dh-table tbody tr.focused {
+  box-shadow: inset 2px 0 0 var(--accent-500);
+  background: var(--surface-hover);
+}
+.dh-table tbody tr.focused .dh-row-acts .dh-card-acts,
+.dh-table tbody tr.focused .dh-row-peek { opacity: 1; }
 .dh-bulkbar {
   position: absolute;
   bottom: 20px;

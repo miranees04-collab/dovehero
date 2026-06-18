@@ -157,6 +157,7 @@ export interface AppState {
   pipeline: PipelineKey | string;
   openDealId: string | null;
   openObjectId: string | null;
+  recentDeals: string[];
 
   // table / board controls
   q: string;
@@ -401,6 +402,7 @@ export const useStore = create<AppState>()(
   pipeline: 'sales',
   openDealId: null,
   openObjectId: null,
+  recentDeals: [],
 
   q: '',
   filters: { ...emptyFilters },
@@ -636,7 +638,10 @@ export const useStore = create<AppState>()(
   setNav: (nav) => set({ nav, openDealId: null, openObjectId: null, mobileNavOpen: false }),
   setView: (view) => set({ view, openDealId: null }),
   setPipeline: (pipeline) => set({ pipeline }),
-  openDeal: (openDealId) => set({ openDealId }),
+  openDeal: (openDealId) =>
+    set((s) => (openDealId
+      ? { openDealId, recentDeals: [openDealId, ...s.recentDeals.filter((id) => id !== openDealId)].slice(0, 8) }
+      : { openDealId })),
   openObject: (openObjectId) => set({ openObjectId }),
   setQuery: (q) => set({ q }),
   setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),

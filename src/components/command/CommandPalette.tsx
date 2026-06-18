@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore, type ComposerKind } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
-import { PIPELINES } from '@/data/constants';
+import { PIPELINES, OWNERS } from '@/data/constants';
 import { money } from '@/lib/format';
 import type { Deal, StageKey } from '@/types';
 import './command.css';
 
 const ADVANCE: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+const OBJECTS: { k: string; label: string; icon: string }[] = [
+  { k: 'company', label: 'Companies', icon: 'building' },
+  { k: 'contact', label: 'Contacts', icon: 'users' },
+  { k: 'product', label: 'Products', icon: 'box' },
+  { k: 'lead', label: 'Leads', icon: 'target' },
+  { k: 'ticket', label: 'Tickets', icon: 'flag' },
+  { k: 'invoice', label: 'Invoices', icon: 'receipt' },
+];
 
 interface ActionItem {
   id: string;
@@ -45,6 +53,7 @@ export function CommandPalette() {
   const setFilters = useStore((s) => s.setFilters);
   const resetFilters = useStore((s) => s.resetFilters);
   const createDeal = useStore((s) => s.createDeal);
+  const recentDeals = useStore((s) => s.recentDeals);
   const openD = deals.find((d) => d.id === openDealId);
 
   const [q, setQ] = useState('');
@@ -196,6 +205,20 @@ export function CommandPalette() {
         hint: 'Filter',
         run: () => resetFilters(),
       },
+      ...Object.values(OWNERS).map<ActionItem>((o) => ({
+        id: 'owner-' + o.key,
+        icon: 'users',
+        label: `Show ${o.name}'s deals`,
+        hint: 'Owner',
+        run: () => { setNav('deals'); resetFilters(); setFilters({ owners: [o.key] }); },
+      })),
+      ...OBJECTS.map<ActionItem>((o) => ({
+        id: 'obj-' + o.k,
+        icon: o.icon,
+        label: `Go to ${o.label}`,
+        hint: 'Records',
+        run: () => setNav(o.k),
+      })),
       {
         id: 'toggle-theme',
         icon: 'sun',
@@ -237,10 +260,20 @@ export function CommandPalette() {
       }));
   }, [deals, query, setNav, openDeal]);
 
-  // Flat list of all selectable runners, in render order.
+  const recentItems = useMemo<DealItem[]>(() => {
+    if (query) return [];
+    return recentDeals
+      .filter((id) => id !== openDealId)
+      .map((id) => deals.find((d) => d.id === id))
+      .filter((d): d is Deal => !!d)
+      .slice(0, 5)
+      .map((deal) => ({ deal, run: () => { setNav('deals'); openDeal(deal.id); } }));
+  }, [recentDeals, deals, query, openDealId, setNav, openDeal]);
+
+  // Flat list of all selectable runners, in render order: Recent, Actions, Deals.
   const flat = useMemo<Array<() => void>>(
-    () => [...filteredActions.map((a) => a.run), ...dealItems.map((d) => d.run)],
-    [filteredActions, dealItems],
+    () => [...recentItems.map((d) => d.run), ...filteredActions.map((a) => a.run), ...dealItems.map((d) => d.run)],
+    [recentItems, filteredActions, dealItems],
   );
 
   // Keep selection in range as results change.
@@ -321,6 +354,25 @@ export function CommandPalette() {
               <Icon name="search" size={20} />
               <span>No results for “{q.trim()}”</span>
             </div>
+          )}
+
+          {recentItems.length > 0 && (
+            <>
+              <div className="dh-cmd-group">Recent</div>
+              {recentItems.map(({ deal, run }) => {
+                const { selected, onClick } = rowProps(run);
+                return (
+                  <Row key={'recent-' + deal.id} selected={selected} onClick={onClick}>
+                    <span className="dh-cmd-ico"><Icon name="clock" size={16} /></span>
+                    <span className="dh-cmd-deal">
+                      <span className="dh-cmd-label">{deal.name}</span>
+                      <span className="dh-cmd-sub">{deal.company} · {deal.stage}</span>
+                    </span>
+                    <span className="dh-cmd-value">{money(deal.value, true)}</span>
+                  </Row>
+                );
+              })}
+            </>
           )}
 
           {filteredActions.length > 0 && (
