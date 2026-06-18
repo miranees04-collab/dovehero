@@ -6,7 +6,6 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
-import { ReorderList } from '@/components/ui/ReorderList';
 import { InlineEdit } from '@/components/ui/InlineEdit';
 import { Modal } from '@/components/ui/Modal';
 import { assocFor, assetStatusColor, type DerivedAsset } from '@/lib/assoc';
@@ -14,6 +13,27 @@ import { Timeline } from './Timeline';
 import './record.css';
 
 const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
+
+const SECTION_META: Record<string, { label: string; icon: string }> = {
+  nova: { label: 'Nova — deal intelligence', icon: 'sparkles' },
+  pulse: { label: '360° View', icon: 'target' },
+  properties: { label: 'Deal properties', icon: 'sliders' },
+  coach: { label: 'Deal coach', icon: 'target' },
+  signals: { label: 'Buying signals', icon: 'check' },
+  account: { label: 'Account', icon: 'building' },
+  group: { label: 'Buying group', icon: 'users' },
+  lineitems: { label: 'Line items', icon: 'box' },
+  quotes: { label: 'Quotes', icon: 'file' },
+  contracts: { label: 'Contracts', icon: 'file' },
+  invoices: { label: 'Invoices', icon: 'receipt' },
+  attachments: { label: 'Attachments', icon: 'fileText' },
+  tags: { label: 'Tags', icon: 'flag' },
+};
+const ALL_SECTIONS = Object.keys(SECTION_META);
+const COL_NAMES: Record<string, string[]> = {
+  standard: ['Main column', 'Side column'],
+  tri: ['Left column', 'Center column', 'Right column'],
+};
 
 const STEPPER: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
 
@@ -51,9 +71,14 @@ export function RecordView() {
   const novaStreaming = useStore((s) => s.dealNovaStreaming === dealId);
   const recordLayout = useStore((s) => s.recordLayout);
   const setRecordLayout = useStore((s) => s.setRecordLayout);
-  const recordSections = useStore((s) => s.recordSections);
-  const reorderRecordSections = useStore((s) => s.reorderRecordSections);
-  const resetRecordSections = useStore((s) => s.resetRecordSections);
+  const recordCols = useStore((s) => s.recordCols);
+  const recordHidden = useStore((s) => s.recordHidden);
+  const recordEditing = useStore((s) => s.recordEditing);
+  const setRecordEditing = useStore((s) => s.setRecordEditing);
+  const moveRecordSection = useStore((s) => s.moveRecordSection);
+  const nudgeRecordSection = useStore((s) => s.nudgeRecordSection);
+  const toggleRecordSectionHidden = useStore((s) => s.toggleRecordSectionHidden);
+  const resetRecordCols = useStore((s) => s.resetRecordCols);
   const companies = useStore((s) => s.objectRecords.company ?? []);
   const allDeals = useStore((s) => s.deals);
   const toast = useStore((s) => s.toast);
@@ -142,14 +167,120 @@ export function RecordView() {
     </div>
   );
 
-  const SECTION_LABELS: Record<string, string> = {
-    coach: 'Deal coach', signals: 'Buying signals', account: 'Account', group: 'Buying group',
-    lineitems: 'Line items', quotes: 'Quotes', contracts: 'Contracts', invoices: 'Invoices',
-    attachments: 'Attachments', docs: 'Documents', tags: 'Tags',
-  };
-
   const renderSection = (id: string) => {
     switch (id) {
+      case 'nova':
+        return (
+          <section className={`dh-rec-card dh-nova-brief ${novaMin ? 'min' : ''}`} key="nova">
+            <div className="dh-nova-brief-head">
+              <span className="dh-nova-mark sm"><Icon name="sparkles" size={13} color="#fff" /></span>
+              <div className="dh-nova-brief-titles">
+                <b>Nova — deal intelligence</b>
+                <small>{novaMin ? `${deal.summary.slice(0, 80)}…` : `Grounded in this deal · ${deal.acts.length} activities · ${deal.contacts.length} contacts`}</small>
+              </div>
+              {!novaMin && novaThread && novaThread.length > 0 && (
+                <button className="dh-nova-clear" onClick={() => clearDealNova(deal.id)} title="Clear conversation"><Icon name="x" size={14} /></button>
+              )}
+              <button className="dh-nova-clear" onClick={() => setNovaMin(!novaMin)} title={novaMin ? 'Expand Nova' : 'Minimize Nova'} aria-label={novaMin ? 'Expand Nova' : 'Minimize Nova'}>
+                <Icon name={novaMin ? 'expand' : 'minus'} size={14} />
+              </button>
+            </div>
+            {!novaMin && (<>
+              {!novaThread?.length && <p className="dh-nova-summary">{deal.summary}</p>}
+              <div className="dh-nova-chips">
+                {[
+                  ['Summarize', `Summarize ${deal.company}`],
+                  ['Risks', `What's at risk on ${deal.company}?`],
+                  ['Draft follow-up', `Draft a follow-up for ${deal.company}`],
+                  ['Buying group', `Who's in the buying group at ${deal.company}?`],
+                  ['Next action', `What's my next best action on ${deal.company}?`],
+                ].map(([label, prompt]) => (
+                  <button key={label} className="dh-nova-actchip" onClick={() => askDealNova(deal.id, prompt)}>{label}</button>
+                ))}
+              </div>
+              {novaThread && novaThread.length > 0 && (
+                <div className="dh-nova-thread">
+                  {novaThread.map((mm, i) => {
+                    const isLast = i === novaThread.length - 1;
+                    return (
+                      <div key={i} className={`dh-nova-msg ${mm.role}`}>
+                        <span className="dh-nova-who">{mm.role === 'nova' ? <Icon name="sparkles" size={13} /> : 'You'}</span>
+                        <div className="dh-nova-bubble">{mm.text}{mm.role === 'nova' && isLast && novaStreaming && <span className="dh-nova-caret" />}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {!novaThread?.length && (
+                <div className="dh-nba"><Icon name="zap" size={14} /><div><span className="dh-nba-label">Recommended next step</span><span className="dh-nba-text">{nextBestAction(deal)}</span></div></div>
+              )}
+              {!novaThread?.length && risks.length > 0 && (
+                <div className="dh-risks">{risks.map((r) => <Badge key={r} tone="red"><Icon name="alert" size={11} /> {r}</Badge>)}</div>
+              )}
+              <form className="dh-nova-askbox" onSubmit={(e) => { e.preventDefault(); const v = ask.trim(); if (v) { askDealNova(deal.id, v); setAsk(''); } }}>
+                <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={`Ask Nova anything about ${deal.company}…`} />
+                <button type="submit" aria-label="Ask Nova" disabled={!ask.trim()}><Icon name="send" size={15} /></button>
+              </form>
+            </>)}
+          </section>
+        );
+      case 'pulse':
+        return (
+          <section className="dh-rec-card dh-360" key="pulse">
+            <div className="dh-360-head">
+              <div className="dh-360-lead"><Icon name="target" size={15} /> 360° View</div>
+              <div className="dh-360-sub">Every interaction, activity &amp; engagement signal on this deal</div>
+            </div>
+            <div className="dh-rec-metrics-row">
+              {[
+                ['Interactions', String(deal.acts.length)],
+                ['Last touch', deal.acts[0]?.w ?? '—'],
+                ['Contacts', String(deal.contacts.length)],
+                ['Open tasks', String(deal.acts.filter((a) => a.type === 'task' && !a.done).length)],
+              ].map(([l, v]) => (
+                <div key={l} className="dh-rec-metric-tile"><span className="v mono">{v}</span><span className="l">{l}</span></div>
+              ))}
+            </div>
+            <div className="dh-rec-actions">
+              <button onClick={() => open('note')}><Icon name="note" size={16} /> Note</button>
+              <button onClick={() => open('email')}><Icon name="mail" size={16} /> Email</button>
+              <button onClick={() => open('call')}><Icon name="phone" size={16} /> Log call</button>
+              <button onClick={() => open('meeting')}><Icon name="calendar" size={16} /> Meeting</button>
+              <button onClick={() => open('whatsapp')}><Icon name="whatsapp" size={16} /> WhatsApp</button>
+              <Popover align="start" trigger={({ toggle }) => <button onClick={toggle}><Icon name="megaphone" size={16} /> Marketing</button>}>
+                {(close) => (<><div className="dh-menu-head">Enroll in sequence</div>{SEQUENCES.map((s) => <MenuItem key={s.k} icon={<Icon name="megaphone" size={15} />} onClick={() => { enrollSequence(deal.id, s.k); close(); }}>{s.name}</MenuItem>)}</>)}
+              </Popover>
+              <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
+              <Popover align="start" trigger={({ toggle }) => <button onClick={toggle}><Icon name="file" size={16} /> File</button>}>
+                {(close) => (<><div className="dh-menu-head">Add a document</div><MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'quote'); close(); }}>Generate quote</MenuItem><MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'invoice'); close(); }}>Generate invoice</MenuItem><MenuItem icon={<Icon name="paperclip" size={15} />} onClick={() => { open('email'); close(); }}>Attach &amp; email a file</MenuItem></>)}
+              </Popover>
+            </div>
+            <div className="dh-note-box">
+              <textarea className="dh-textarea" placeholder="Add a note, @mention a teammate, or log context…" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') addNote(); }} />
+              <div className="dh-note-foot">
+                <span className="dh-note-hint">⌘↵ to save</span>
+                <Button variant="primary" size="sm" onClick={addNote} disabled={!note.trim()}>Add note</Button>
+              </div>
+            </div>
+            <div className="dh-timeline"><Timeline deal={deal} /></div>
+          </section>
+        );
+      case 'properties':
+        return (
+          <section className="dh-rec-card" key="properties">
+            <h4 className="dh-rail-title"><Icon name="sliders" size={14} /> Deal properties</h4>
+            <div className="dh-peek-rows" style={{ marginTop: 12 }}>
+              <div><span className="pk">Stage</span><span className="pv"><InlineEdit value={deal.stage} display={deal.stage} options={STAGES.map((s) => ({ value: s.k, label: s.k }))} onCommit={(v) => requestStage(deal.id, v as StageKey)} /></span></div>
+              <div><span className="pk">Amount</span><span className="pv mono"><InlineEdit value={deal.value} type="number" display={money(deal.value)} onCommit={(v) => updateDeal(deal.id, { value: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} /></span></div>
+              <div><span className="pk">Win</span><span className="pv mono" style={{ color: 'var(--violet)' }}>{deal.win}%</span></div>
+              <div><span className="pk">Health</span><span className="pv" style={{ color: hc }}><InlineEdit value={deal.health} type="number" onCommit={(v) => updateDeal(deal.id, { health: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} /></span></div>
+              <div><span className="pk">Close date</span><span className="pv"><InlineEdit value={deal.close} onCommit={(v) => updateDeal(deal.id, { close: v })} /></span></div>
+              <div><span className="pk">Priority</span><span className="pv" style={{ textTransform: 'capitalize' }}><InlineEdit value={deal.priority} display={deal.priority} options={[{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }]} onCommit={(v) => updateDeal(deal.id, { priority: v as typeof deal.priority })} /></span></div>
+              <div><span className="pk">Owner</span><span className="pv"><Avatar ownerKey={deal.owner} size={18} /> <InlineEdit value={deal.owner} display={OWNERS[deal.owner]?.name} options={OWNER_OPTS} onCommit={(v) => updateDeal(deal.id, { owner: v })} /></span></div>
+              <div><span className="pk">Industry</span><span className="pv"><InlineEdit value={deal.industry} onCommit={(v) => v.trim() && updateDeal(deal.id, { industry: v.trim() })} /></span></div>
+            </div>
+          </section>
+        );
       case 'coach':
         return (
           <section className="dh-rec-card" key="coach">
@@ -323,9 +454,53 @@ export function RecordView() {
     }
   };
 
-  const mid = Math.ceil(recordSections.length / 2);
-  const leftSections = recordLayout === 'tri' ? recordSections.slice(0, mid) : recordSections;
-  const rightSections = recordLayout === 'tri' ? recordSections.slice(mid) : [];
+  const cols = recordCols[recordLayout];
+  const placed = new Set(cols.flat());
+  const hiddenList = ALL_SECTIONS.filter((k) => recordHidden.includes(k) || !placed.has(k));
+
+  const editChrome = (key: string, ci: number) => {
+    if (!recordEditing) return null;
+    const meta = SECTION_META[key];
+    return (
+      <div className="dh-sec-edit">
+        <span className="dh-sec-edit-grip"><Icon name="grip" size={13} /> {meta?.label ?? key}</span>
+        <span className="dh-sec-edit-ctrls">
+          <button onClick={() => nudgeRecordSection(key, 'up')} title="Move up"><Icon name="arrowUp" size={13} /></button>
+          <button onClick={() => nudgeRecordSection(key, 'down')} title="Move down"><Icon name="chevronDown" size={13} /></button>
+          <button onClick={() => nudgeRecordSection(key, 'left')} disabled={ci === 0} title="Move to previous column"><Icon name="arrowLeft" size={13} /></button>
+          <button onClick={() => nudgeRecordSection(key, 'right')} disabled={ci === cols.length - 1} title="Move to next column"><Icon name="arrowRight" size={13} /></button>
+          <button className="hide" onClick={() => { if (!recordHidden.includes(key)) toggleRecordSectionHidden(key); }} title="Hide section"><Icon name="x" size={14} /></button>
+        </span>
+      </div>
+    );
+  };
+
+  const renderCol = (col: string[], ci: number) => (
+    <div
+      className={`dh-rec-col ${recordEditing ? 'editing' : ''}`}
+      key={ci}
+      onDragOver={recordEditing ? (e) => e.preventDefault() : undefined}
+      onDrop={recordEditing ? (e) => { e.preventDefault(); const k = e.dataTransfer.getData('text/plain'); if (k) moveRecordSection(k, ci, col.length); } : undefined}
+    >
+      {recordEditing && <div className="dh-rec-col-name">{COL_NAMES[recordLayout]?.[ci] ?? `Column ${ci + 1}`}</div>}
+      {col.filter((k) => !recordHidden.includes(k)).map((key, ri) => (
+        <div
+          key={key}
+          className={`dh-rec-secwrap ${recordEditing ? 'editing' : ''}`}
+          draggable={recordEditing}
+          onDragStart={recordEditing ? (e) => { e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+          onDragOver={recordEditing ? (e) => e.preventDefault() : undefined}
+          onDrop={recordEditing ? (e) => { e.preventDefault(); e.stopPropagation(); const k = e.dataTransfer.getData('text/plain'); if (k && k !== key) moveRecordSection(k, ci, ri); } : undefined}
+        >
+          {editChrome(key, ci)}
+          {renderSection(key)}
+        </div>
+      ))}
+      {recordEditing && col.filter((k) => !recordHidden.includes(k)).length === 0 && (
+        <div className="dh-rec-col-empty">Drop a section here</div>
+      )}
+    </div>
+  );
 
   return (
     <div className="dh-record">
@@ -340,17 +515,9 @@ export function RecordView() {
               <button className={recordLayout === 'standard' ? 'on' : ''} onClick={() => setRecordLayout('standard')}><Icon name="list" size={13} /> Standard</button>
               <button className={recordLayout === 'tri' ? 'on' : ''} onClick={() => setRecordLayout('tri')}><Icon name="grid" size={13} /> 3-column</button>
             </div>
-            <Popover align="end" width={250} trigger={({ toggle }) => <button className="dh-btn v-subtle s-sm" onClick={toggle}><Icon name="sliders" size={14} /> Layout</button>}>
-              {() => (
-                <div style={{ padding: 4 }}>
-                  <div className="dh-menu-head" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    Drag to reorder sections
-                    <button className="dh-pm-toggle" onClick={resetRecordSections}>Reset</button>
-                  </div>
-                  <ReorderList items={recordSections} onReorder={reorderRecordSections} renderItem={(k) => <span style={{ flex: 1, fontSize: 13 }}>{SECTION_LABELS[k] ?? k}</span>} />
-                </div>
-              )}
-            </Popover>
+            <button className={`dh-btn ${recordEditing ? 'v-primary' : 'v-subtle'} s-sm`} onClick={() => setRecordEditing(!recordEditing)}>
+              <Icon name={recordEditing ? 'check' : 'grid'} size={14} /> {recordEditing ? 'Done customizing' : 'Customize screen'}
+            </button>
             <button className="dh-rec-headtog" onClick={() => setHeadMin(!headMin)} title={headMin ? 'Expand details' : 'Minimize details'} aria-label={headMin ? 'Expand details' : 'Minimize details'}>
               <Icon name={headMin ? 'expand' : 'minus'} size={15} />
             </button>
@@ -442,168 +609,40 @@ export function RecordView() {
         )}
       </div>
 
-      {/* Body */}
-      <div className={`dh-rec-body layout-${recordLayout}`}>
-        {/* Left rail */}
-        <aside className="dh-rec-railL">{leftSections.map(renderSection)}</aside>
-
-        {/* Main column */}
-        <div className="dh-rec-main">
-          {/* Nova deal intelligence — inline, answers right here on the deal */}
-          <section className={`dh-rec-card dh-nova-brief ${novaMin ? 'min' : ''}`}>
-            <div className="dh-nova-brief-head">
-              <span className="dh-nova-mark sm">
-                <Icon name="sparkles" size={13} color="#fff" />
-              </span>
-              <div className="dh-nova-brief-titles">
-                <b>Nova — deal intelligence</b>
-                <small>{novaMin ? `${deal.summary.slice(0, 80)}…` : `Grounded in this deal · ${deal.acts.length} activities · ${deal.contacts.length} contacts`}</small>
-              </div>
-              {!novaMin && novaThread && novaThread.length > 0 && (
-                <button className="dh-nova-clear" onClick={() => clearDealNova(deal.id)} title="Clear conversation"><Icon name="x" size={14} /></button>
-              )}
-              <button className="dh-nova-clear" onClick={() => setNovaMin(!novaMin)} title={novaMin ? 'Expand Nova' : 'Minimize Nova'} aria-label={novaMin ? 'Expand Nova' : 'Minimize Nova'}>
-                <Icon name={novaMin ? 'expand' : 'minus'} size={14} />
-              </button>
+      {/* Customize toolbar */}
+      {recordEditing && (
+        <div className="dh-rec-editbar">
+          <div className="dh-rec-editbar-left">
+            <Icon name="grid" size={15} />
+            <b>Customize screen</b>
+            <span>Drag cards between columns, reorder, hide, or switch layout.</span>
+          </div>
+          <div className="dh-rec-editbar-right">
+            <div className="dh-rec-layout-switch">
+              <button className={recordLayout === 'standard' ? 'on' : ''} onClick={() => setRecordLayout('standard')}><Icon name="list" size={13} /> 2-column</button>
+              <button className={recordLayout === 'tri' ? 'on' : ''} onClick={() => setRecordLayout('tri')}><Icon name="grid" size={13} /> 3-column</button>
             </div>
-            {!novaMin && (<>
-            {!novaThread?.length && <p className="dh-nova-summary">{deal.summary}</p>}
-            <div className="dh-nova-chips">
-              {[
-                ['Summarize', `Summarize ${deal.company}`],
-                ['Risks', `What's at risk on ${deal.company}?`],
-                ['Draft follow-up', `Draft a follow-up for ${deal.company}`],
-                ['Buying group', `Who's in the buying group at ${deal.company}?`],
-                ['Next action', `What's my next best action on ${deal.company}?`],
-              ].map(([label, prompt]) => (
-                <button key={label} className="dh-nova-actchip" onClick={() => askDealNova(deal.id, prompt)}>{label}</button>
-              ))}
-            </div>
-            {novaThread && novaThread.length > 0 && (
-              <div className="dh-nova-thread">
-                {novaThread.map((m, i) => {
-                  const isLast = i === novaThread.length - 1;
-                  return (
-                    <div key={i} className={`dh-nova-msg ${m.role}`}>
-                      <span className="dh-nova-who">{m.role === 'nova' ? <Icon name="sparkles" size={13} /> : 'You'}</span>
-                      <div className="dh-nova-bubble">
-                        {m.text}
-                        {m.role === 'nova' && isLast && novaStreaming && <span className="dh-nova-caret" />}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            {hiddenList.length > 0 && (
+              <Popover align="end" width={230} trigger={({ toggle }) => <button className="dh-btn v-subtle s-sm" onClick={toggle}><Icon name="plus" size={14} /> Add card ({hiddenList.length})</button>}>
+                {(close) => (
+                  <>
+                    <div className="dh-menu-head">Hidden cards</div>
+                    {hiddenList.map((k) => (
+                      <MenuItem key={k} icon={<Icon name={SECTION_META[k]?.icon ?? 'box'} size={15} />} onClick={() => { if (recordHidden.includes(k)) toggleRecordSectionHidden(k); else moveRecordSection(k, cols.length - 1, 99); close(); }}>{SECTION_META[k]?.label ?? k}</MenuItem>
+                    ))}
+                  </>
+                )}
+              </Popover>
             )}
-            {!novaThread?.length && (
-              <div className="dh-nba">
-                <Icon name="zap" size={14} />
-                <div>
-                  <span className="dh-nba-label">Recommended next step</span>
-                  <span className="dh-nba-text">{nextBestAction(deal)}</span>
-                </div>
-              </div>
-            )}
-            {!novaThread?.length && risks.length > 0 && (
-              <div className="dh-risks">
-                {risks.map((r) => (
-                  <Badge key={r} tone="red">
-                    <Icon name="alert" size={11} /> {r}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <form
-              className="dh-nova-askbox"
-              onSubmit={(e) => { e.preventDefault(); const v = ask.trim(); if (v) { askDealNova(deal.id, v); setAsk(''); } }}
-            >
-              <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={`Ask Nova anything about ${deal.company}…`} />
-              <button type="submit" aria-label="Ask Nova" disabled={!ask.trim()}><Icon name="send" size={15} /></button>
-            </form>
-            </>)}
-          </section>
-
-          {/* 360° View — every interaction & engagement signal on this deal */}
-          <section className="dh-rec-card dh-360">
-          <div className="dh-360-head">
-            <div className="dh-360-lead"><Icon name="target" size={15} /> 360° View</div>
-            <div className="dh-360-sub">Every interaction, activity &amp; engagement signal on this deal</div>
+            <button className="dh-btn v-ghost s-sm" onClick={resetRecordCols}><Icon name="reset" size={14} /> Reset</button>
+            <button className="dh-btn v-primary s-sm" onClick={() => setRecordEditing(false)}><Icon name="check" size={14} /> Done</button>
           </div>
-          <div className="dh-rec-metrics-row">
-            {[
-              ['Interactions', String(deal.acts.length)],
-              ['Last touch', deal.acts[0]?.w ?? '—'],
-              ['Contacts', String(deal.contacts.length)],
-              ['Open tasks', String(deal.acts.filter((a) => a.type === 'task' && !a.done).length)],
-            ].map(([l, v]) => (
-              <div key={l} className="dh-rec-metric-tile"><span className="v mono">{v}</span><span className="l">{l}</span></div>
-            ))}
-          </div>
-
-          {/* Quick-log activity buttons — the full prototype set */}
-          <div className="dh-rec-actions">
-            <button onClick={() => open('note')}><Icon name="note" size={16} /> Note</button>
-            <button onClick={() => open('email')}><Icon name="mail" size={16} /> Email</button>
-            <button onClick={() => open('call')}><Icon name="phone" size={16} /> Log call</button>
-            <button onClick={() => open('meeting')}><Icon name="calendar" size={16} /> Meeting</button>
-            <button onClick={() => open('whatsapp')}><Icon name="whatsapp" size={16} /> WhatsApp</button>
-            <Popover
-              align="start"
-              trigger={({ toggle }) => <button onClick={toggle}><Icon name="megaphone" size={16} /> Marketing</button>}
-            >
-              {(close) => (
-                <>
-                  <div className="dh-menu-head">Enroll in sequence</div>
-                  {SEQUENCES.map((s) => (
-                    <MenuItem key={s.k} icon={<Icon name="megaphone" size={15} />} onClick={() => { enrollSequence(deal.id, s.k); close(); }}>{s.name}</MenuItem>
-                  ))}
-                </>
-              )}
-            </Popover>
-            <button onClick={() => open('task')}><Icon name="check" size={16} /> Task</button>
-            <Popover
-              align="start"
-              trigger={({ toggle }) => <button onClick={toggle}><Icon name="file" size={16} /> File</button>}
-            >
-              {(close) => (
-                <>
-                  <div className="dh-menu-head">Add a document</div>
-                  <MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'quote'); close(); }}>Generate quote</MenuItem>
-                  <MenuItem icon={<Icon name="receipt" size={15} />} onClick={() => { openDocBuilder(deal.id, 'invoice'); close(); }}>Generate invoice</MenuItem>
-                  <MenuItem icon={<Icon name="paperclip" size={15} />} onClick={() => { open('email'); close(); }}>Attach &amp; email a file</MenuItem>
-                </>
-              )}
-            </Popover>
-          </div>
-
-          {/* Note composer */}
-          <div className="dh-note-box">
-            <textarea
-              className="dh-textarea"
-              placeholder="Add a note, @mention a teammate, or log context…"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') addNote();
-              }}
-            />
-            <div className="dh-note-foot">
-              <span className="dh-note-hint">⌘↵ to save</span>
-              <Button variant="primary" size="sm" onClick={addNote} disabled={!note.trim()}>
-                Add note
-              </Button>
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <section className="dh-timeline">
-            <Timeline deal={deal} />
-          </section>
-          </section>
         </div>
+      )}
 
-        {/* Right rail */}
-        <aside className="dh-rec-railR">{rightSections.map(renderSection)}</aside>
+      {/* Body — column-driven customizable dashboard */}
+      <div className={`dh-rec-body cols-${cols.length} ${recordEditing ? 'editing' : ''}`}>
+        {cols.map((col, ci) => renderCol(col, ci))}
       </div>
 
       {preview && (

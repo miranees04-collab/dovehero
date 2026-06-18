@@ -63,6 +63,20 @@ export const DEFAULT_TABLE_COLS = ['name', 'stage', 'value', 'win', 'health', 'o
 export const DEFAULT_CARD_FIELDS = ['health', 'tags', 'nova', 'value', 'win', 'owner'];
 export const DEFAULT_RECORD_SECTIONS = ['coach', 'signals', 'account', 'group', 'lineitems', 'quotes', 'contracts', 'invoices', 'attachments', 'tags'];
 
+export type RecordCols = { standard: string[][]; tri: string[][] };
+export const DEFAULT_RECORD_COLS: RecordCols = {
+  standard: [
+    ['nova', 'pulse'],
+    ['coach', 'signals', 'account', 'group', 'lineitems', 'quotes', 'contracts', 'invoices', 'attachments', 'tags'],
+  ],
+  tri: [
+    ['properties', 'account', 'group', 'lineitems'],
+    ['nova', 'pulse'],
+    ['coach', 'signals', 'quotes', 'contracts', 'invoices', 'attachments', 'tags'],
+  ],
+};
+const cloneCols = (c: RecordCols): RecordCols => ({ standard: c.standard.map((x) => [...x]), tri: c.tri.map((x) => [...x]) });
+
 function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   const recs: Record<string, ObjectRecord[]> = {
     company: [],
@@ -155,6 +169,9 @@ export interface AppState {
   activeView: string | null;
   recordLayout: 'standard' | 'tri';
   recordSections: string[];
+  recordCols: RecordCols;
+  recordHidden: string[];
+  recordEditing: boolean;
   recordHeadMin: boolean;
   recordNovaMin: boolean;
   colW: Record<string, number>;
@@ -200,6 +217,11 @@ export interface AppState {
   setRecordLayout: (l: 'standard' | 'tri') => void;
   setRecordHeadMin: (v: boolean) => void;
   setRecordNovaMin: (v: boolean) => void;
+  setRecordEditing: (v: boolean) => void;
+  moveRecordSection: (key: string, toCol: number, toIndex: number) => void;
+  nudgeRecordSection: (key: string, dir: 'up' | 'down' | 'left' | 'right') => void;
+  toggleRecordSectionHidden: (key: string) => void;
+  resetRecordCols: () => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
   saveAutomation: (a: Automation) => void;
@@ -377,6 +399,9 @@ export const useStore = create<AppState>()(
   activeView: null,
   recordLayout: 'standard',
   recordSections: [...DEFAULT_RECORD_SECTIONS],
+  recordCols: cloneCols(DEFAULT_RECORD_COLS),
+  recordHidden: [],
+  recordEditing: false,
   recordHeadMin: false,
   recordNovaMin: false,
   colW: {},
@@ -451,6 +476,33 @@ export const useStore = create<AppState>()(
   setRecordLayout: (recordLayout) => set({ recordLayout }),
   setRecordHeadMin: (recordHeadMin) => set({ recordHeadMin }),
   setRecordNovaMin: (recordNovaMin) => set({ recordNovaMin }),
+  setRecordEditing: (recordEditing) => set({ recordEditing }),
+  moveRecordSection: (key, toCol, toIndex) =>
+    set((s) => {
+      const mode = s.recordLayout;
+      const cols = s.recordCols[mode].map((c) => c.filter((k) => k !== key));
+      if (toCol < 0) toCol = 0;
+      if (toCol > cols.length - 1) toCol = cols.length - 1;
+      const idx = Math.max(0, Math.min(toIndex, cols[toCol].length));
+      cols[toCol].splice(idx, 0, key);
+      return { recordCols: { ...s.recordCols, [mode]: cols } };
+    }),
+  nudgeRecordSection: (key, dir) =>
+    set((s) => {
+      const mode = s.recordLayout;
+      const cols = s.recordCols[mode].map((c) => [...c]);
+      let ci = -1, ri = -1;
+      cols.forEach((c, i) => { const j = c.indexOf(key); if (j >= 0) { ci = i; ri = j; } });
+      if (ci < 0) return {};
+      if (dir === 'up' && ri > 0) { [cols[ci][ri - 1], cols[ci][ri]] = [cols[ci][ri], cols[ci][ri - 1]]; }
+      else if (dir === 'down' && ri < cols[ci].length - 1) { [cols[ci][ri + 1], cols[ci][ri]] = [cols[ci][ri], cols[ci][ri + 1]]; }
+      else if (dir === 'left' && ci > 0) { cols[ci].splice(ri, 1); cols[ci - 1].push(key); }
+      else if (dir === 'right' && ci < cols.length - 1) { cols[ci].splice(ri, 1); cols[ci + 1].push(key); }
+      return { recordCols: { ...s.recordCols, [mode]: cols } };
+    }),
+  toggleRecordSectionHidden: (key) =>
+    set((s) => ({ recordHidden: s.recordHidden.includes(key) ? s.recordHidden.filter((k) => k !== key) : [...s.recordHidden, key] })),
+  resetRecordCols: () => set({ recordCols: cloneCols(DEFAULT_RECORD_COLS), recordHidden: [] }),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
   setAutoEdit: (autoEdit) => set({ autoEdit }),
@@ -1144,14 +1196,19 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
-      // v2 split the single "docs" record section into quotes/contracts/
-      // invoices/attachments — reset stored layouts so the new cards appear.
+      // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
+      // the column-based customizable record dashboard. Reset stored layouts so
+      // the new model takes effect.
       migrate: (persisted, version) => {
         const s = persisted as Partial<AppState> | undefined;
         if (s && version < 2) {
           s.recordSections = [...DEFAULT_RECORD_SECTIONS];
+        }
+        if (s && version < 3) {
+          s.recordCols = cloneCols(DEFAULT_RECORD_COLS);
+          s.recordHidden = [];
         }
         return s as AppState;
       },
@@ -1167,6 +1224,8 @@ export const useStore = create<AppState>()(
         savedViews: s.savedViews,
         recordLayout: s.recordLayout,
         recordSections: s.recordSections,
+        recordCols: s.recordCols,
+        recordHidden: s.recordHidden,
         recordHeadMin: s.recordHeadMin,
         recordNovaMin: s.recordNovaMin,
       }),

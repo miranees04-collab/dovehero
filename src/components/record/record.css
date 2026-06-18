@@ -220,24 +220,69 @@
   padding: 20px 22px;
   align-items: start;
 }
-.dh-rec-body.layout-standard {
-  grid-template-columns: 1fr 330px;
-  grid-template-areas: 'main railL' 'main railR';
-}
-.dh-rec-body.layout-tri {
-  grid-template-columns: 300px 1fr 300px;
-  grid-template-areas: 'railL main railR';
-}
-.dh-rec-main { grid-area: main; }
-.dh-rec-railL { grid-area: railL; }
-.dh-rec-railR { grid-area: railR; }
-.dh-rec-railL, .dh-rec-railR {
+.dh-rec-body.cols-2 { grid-template-columns: 1fr 340px; }
+.dh-rec-body.cols-3 { grid-template-columns: 320px 1fr 320px; }
+.dh-rec-col {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: sticky;
-  top: 0;
+  min-width: 0;
 }
+.dh-rec-col:first-child { grid-column: 1; }
+/* keep the wide column in the centre for 3-col */
+.dh-rec-body.cols-3 .dh-rec-col:nth-child(2) { min-width: 0; }
+.dh-rec-secwrap { min-width: 0; }
+
+/* ----- Customize / edit mode ----- */
+.dh-rec-editbar {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 11px 22px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-200);
+}
+[data-theme='dark'] .dh-rec-editbar { border-color: rgba(129,140,248,.28); }
+.dh-rec-editbar-left { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-2); }
+.dh-rec-editbar-left b { color: var(--ink); }
+.dh-rec-editbar-left span { color: var(--sub); }
+.dh-rec-editbar-left svg { color: var(--accent-600); }
+.dh-rec-editbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dh-rec-body.editing { background: var(--bg-sunk); }
+.dh-rec-col.editing {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: 10px;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  min-height: 80px;
+}
+.dh-rec-col-name {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--faint); padding: 2px 2px 4px;
+}
+.dh-rec-col-empty {
+  border: 1.5px dashed var(--border-2); border-radius: var(--r-md);
+  padding: 22px; text-align: center; font-size: 12.5px; color: var(--faint);
+}
+.dh-rec-secwrap.editing { position: relative; cursor: grab; }
+.dh-rec-secwrap.editing:active { cursor: grabbing; }
+.dh-rec-secwrap.editing > section,
+.dh-rec-secwrap.editing > .dh-rec-card { pointer-events: none; opacity: 0.94; }
+.dh-sec-edit {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--surface); border: 1px solid var(--accent-300);
+  border-radius: var(--r-sm) var(--r-sm) 0 0; padding: 5px 8px; margin-bottom: -1px;
+}
+.dh-sec-edit-grip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.dh-sec-edit-grip svg { color: var(--faint); }
+.dh-sec-edit-ctrls { display: flex; gap: 2px; }
+.dh-sec-edit-ctrls button {
+  width: 26px; height: 26px; display: grid; place-items: center;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-sm);
+  color: var(--sub); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-sec-edit-ctrls button:hover:not(:disabled) { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+.dh-sec-edit-ctrls button:disabled { opacity: 0.35; cursor: default; }
+.dh-sec-edit-ctrls button.hide:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
 .dh-account { display: flex; align-items: center; gap: 11px; }
 .dh-account-av {
   width: 40px; height: 40px; border-radius: 11px;
