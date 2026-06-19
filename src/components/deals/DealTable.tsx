@@ -6,7 +6,7 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
-import { evalDealColor } from '@/lib/colorRules';
+import { evalDealColor, firstMatchingRule, type ColorRule } from '@/lib/colorRules';
 import { CommBubble, CardActions } from './DealCard';
 import { BulkBar } from './BulkBar';
 import './table.css';
@@ -74,11 +74,13 @@ const groupOptions: { k: GroupBy; label: string }[] = [
   { k: 'stage', label: 'Stage' },
   { k: 'owner', label: 'Owner' },
   { k: 'priority', label: 'Priority' },
+  { k: 'rule', label: 'Color rule' },
 ];
-function groupOf(d: Deal, g: GroupBy): string {
+function groupOf(d: Deal, g: GroupBy, rules: ColorRule[] = []): string {
   if (g === 'stage') return d.stage;
   if (g === 'owner') return OWNERS[d.owner]?.name ?? d.owner;
   if (g === 'priority') return d.priority === 'high' ? 'High priority' : d.priority === 'med' ? 'Medium priority' : 'Low priority';
+  if (g === 'rule') return firstMatchingRule(d, rules)?.label ?? 'No rule matched';
   return '';
 }
 
@@ -114,6 +116,7 @@ export function DealTable() {
   const requestStage = useStore((s) => s.requestStage);
   const setPeek = useStore((s) => s.setPeek);
   const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
   const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
@@ -143,12 +146,12 @@ export function DealTable() {
     if (group === 'none') return [{ key: '', rows }];
     const map = new Map<string, Deal[]>();
     rows.forEach((d) => {
-      const g = groupOf(d, group);
+      const g = groupOf(d, group, colorRules);
       if (!map.has(g)) map.set(g, []);
       map.get(g)!.push(d);
     });
     return [...map.entries()].map(([key, rs]) => ({ key, rows: rs }));
-  }, [rows, group]);
+  }, [rows, group, colorRules]);
 
   const cols = tableCols.map(colMeta);
 
@@ -513,6 +516,9 @@ function GroupBlock({
           <td colSpan={cols.length + 2}>
             <button className="dh-group-head" onClick={onToggleCollapse}>
               <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={13} />
+              {group === 'rule' && (
+                <span className="dh-legend-dot" style={{ background: colorRules.find((r) => r.label === groupKey)?.color ?? 'var(--dim)' }} />
+              )}
               <span className="dh-group-name">{groupKey}</span>
               <span className="dh-group-count">{rows.length}</span>
               <span className="dh-group-total mono">{money(total, true)}</span>

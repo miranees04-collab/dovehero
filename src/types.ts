@@ -178,8 +178,8 @@ export type ThemeMode = 'light' | 'dark';
 export type DealView = 'board' | 'table' | 'insights' | 'activity';
 
 export type Density = 'comfortable' | 'compact';
-export type GroupBy = 'none' | 'stage' | 'owner' | 'priority';
-export type Swimlane = 'none' | 'owner' | 'priority';
+export type GroupBy = 'none' | 'stage' | 'owner' | 'priority' | 'rule';
+export type Swimlane = 'none' | 'owner' | 'priority' | 'rule';
 
 /** A saved table configuration the user can re-apply as a tab. */
 export interface SavedView {

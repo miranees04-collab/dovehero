@@ -1220,6 +1220,15 @@
 }
 .dh-cr-add:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
 
+.dh-board-empty {
+  display: flex; align-items: center; gap: 9px; justify-content: center;
+  margin: 30px auto; padding: 22px 26px; max-width: 520px;
+  border: 1px dashed var(--border-strong); border-radius: var(--r-lg);
+  color: var(--sub); font-size: 13.5px; text-align: center;
+}
+.dh-board-empty svg { color: var(--faint); flex: none; }
+.dh-board-empty b { color: var(--ink); }
+
 /* legend */
 .dh-color-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .dh-color-legend-t { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }

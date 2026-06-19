@@ -5,7 +5,7 @@ import type { Deal, StageKey, Priority } from '@/types';
 import { money } from '@/lib/format';
 import { DealCard } from './DealCard';
 import { BulkBar } from './BulkBar';
-import { matchRule } from '@/lib/colorRules';
+import { matchRule, firstMatchingRule } from '@/lib/colorRules';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar, Popover } from '@/components/ui/primitives';
 
@@ -24,6 +24,7 @@ export function Board() {
   const requestStage = useStore((s) => s.requestStage);
   const boardStages = useStore((s) => s.boardStages);
   const boardEditing = useStore((s) => s.boardEditing);
+  const colorRules = useStore((s) => s.colorRules);
   const openComposer = useStore((s) => s.openComposer);
   const openDeal = useStore((s) => s.openDeal);
   const toggleBulk = useStore((s) => s.toggleBulk);
@@ -167,6 +168,38 @@ export function Board() {
             </div>
           );
         })}
+      </div>
+    );
+  } else if (swimlane === 'rule') {
+    const activeRules = colorRules.filter((r) => r.enabled && r.value !== '');
+    const lanes = activeRules
+      .map((r) => ({ key: r.id, label: r.label, color: r.color, deals: deals.filter((d) => firstMatchingRule(d, colorRules)?.id === r.id) }))
+      .filter((l) => l.deals.length);
+    const unmatched = deals.filter((d) => !firstMatchingRule(d, colorRules));
+    body = activeRules.length === 0 ? (
+      <div className="dh-board-empty"><Icon name="sliders" size={20} /><span>No color rules yet — open <b>Colors</b> to define rules, then group by them.</span></div>
+    ) : (
+      <div className="dh-board-scroll">
+        {lanes.map((lane) => (
+          <div className="dh-swimlane" key={lane.key}>
+            <div className="dh-swimlane-head">
+              <span className="dh-legend-dot" style={{ background: lane.color }} />
+              <b>{lane.label}</b>
+              <span className="dh-swimlane-count">{lane.deals.length}</span>
+            </div>
+            {colsFor(lane.deals, 'r-' + lane.key)}
+          </div>
+        ))}
+        {unmatched.length > 0 && (
+          <div className="dh-swimlane" key="__none">
+            <div className="dh-swimlane-head">
+              <span className="dh-legend-dot" style={{ background: 'var(--dim)' }} />
+              <b>No rule matched</b>
+              <span className="dh-swimlane-count">{unmatched.length}</span>
+            </div>
+            {colsFor(unmatched, 'r-none')}
+          </div>
+        )}
       </div>
     );
   } else {

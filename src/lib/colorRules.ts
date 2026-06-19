@@ -108,12 +108,17 @@ export function matchRule(d: Deal, r: ColorRule): boolean {
   return x === v;
 }
 
-/** First enabled, matching rule wins. Returns its colour or null. */
-export function evalDealColor(d: Deal, rules: ColorRule[]): string | null {
+/** First enabled, matching rule (or null). */
+export function firstMatchingRule(d: Deal, rules: ColorRule[]): ColorRule | null {
   for (const r of rules) {
-    if (r.enabled && r.value !== '' && matchRule(d, r)) return r.color;
+    if (r.enabled && r.value !== '' && matchRule(d, r)) return r;
   }
   return null;
+}
+
+/** First enabled, matching rule wins. Returns its colour or null. */
+export function evalDealColor(d: Deal, rules: ColorRule[]): string | null {
+  return firstMatchingRule(d, rules)?.color ?? null;
 }
 
 export const DEFAULT_COLOR_RULES: ColorRule[] = [

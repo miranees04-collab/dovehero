@@ -209,7 +209,7 @@ export function PipelineBar() {
             align="end"
             trigger={({ toggle }) => (
               <button className={`dh-ctl-btn ${swimlane !== 'none' ? 'active' : ''}`} onClick={toggle}>
-                Swimlanes: <b>{swimlane === 'owner' ? 'Owner' : swimlane === 'priority' ? 'Priority' : 'None'}</b> <Icon name="chevronDown" size={12} />
+                Swimlanes: <b>{swimlane === 'owner' ? 'Owner' : swimlane === 'priority' ? 'Priority' : swimlane === 'rule' ? 'Color rule' : 'None'}</b> <Icon name="chevronDown" size={12} />
               </button>
             )}
           >
@@ -218,6 +218,7 @@ export function PipelineBar() {
                 <MenuItem active={swimlane === 'none'} onClick={() => { setSwimlane('none'); close(); }}>None</MenuItem>
                 <MenuItem active={swimlane === 'owner'} onClick={() => { setSwimlane('owner'); close(); }}>By owner</MenuItem>
                 <MenuItem active={swimlane === 'priority'} onClick={() => { setSwimlane('priority'); close(); }}>By priority</MenuItem>
+                <MenuItem active={swimlane === 'rule'} onClick={() => { setSwimlane('rule'); close(); }}>By color rule</MenuItem>
               </>
             )}
           </Popover>
