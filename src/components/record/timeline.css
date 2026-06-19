@@ -296,3 +296,9 @@
 .dh-tl-reply-input:focus { border-color: var(--accent-400); box-shadow: 0 0 0 3px var(--accent-soft); }
 .dh-tl-reply-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .dh-tl-reply-hint { margin-right: auto; font-size: 11px; color: var(--faint); }
+
+/* Read receipts + typing on chat/email cards */
+.dh-chat-check { margin-left: 4px; color: var(--faint); font-size: 10px; }
+.dh-chat-check.read { color: #34B7F1; }
+.dh-chat-b.typing { padding: 8px 12px; }
+.dh-em-typing { display: flex; align-items: center; gap: 8px; padding: 8px 2px 2px; }

@@ -3,10 +3,10 @@ import { useStore, type ComposerKind } from '@/store/useStore';
 import type { Deal, StageKey, Priority, Activity } from '@/types';
 import { money, staleDays } from '@/lib/format';
 import { healthColor, OWNERS, STAGES, ACTIVITY_META } from '@/data/constants';
-import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
+import { Avatar, Badge, Popover, Ring, TypingDots } from '@/components/ui/primitives';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
-import { inboundCount, lastInbound, lastComm, recentComms, lastMessage } from '@/lib/comms';
+import { inboundCount, inboundByChannel, lastInbound, lastComm, recentComms, lastMessage } from '@/lib/comms';
 import { evalDealColor } from '@/lib/colorRules';
 
 function lastCommDir(deal: Deal): 'in' | 'out' | null {
@@ -23,6 +23,7 @@ export function CommBubble({ deal }: { deal: Deal; onOpen?: () => void }) {
   const hoverOpened = useRef(false);
   if (!n) return null;
   const who = (lastInbound(deal)?.who ?? 'Client').split(' ')[0];
+  const channels = inboundByChannel(deal);
   return (
     <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <Popover
@@ -35,8 +36,11 @@ export function CommBubble({ deal }: { deal: Deal; onOpen?: () => void }) {
             onClick={(e) => { e.stopPropagation(); if (hoverOpened.current) { hoverOpened.current = false; return; } toggle(); }}
             onMouseEnter={() => { if (!open) { toggle(); hoverOpened.current = true; } }}
           >
-            <Icon name="chat" size={11} />
-            <span>{n}</span>
+            {channels.map((c) => (
+              <span key={c.type} className="dh-bubble-seg" style={{ ['--cc' as string]: ACTIVITY_META[c.type as keyof typeof ACTIVITY_META]?.color }}>
+                <Icon name={ACTIVITY_ICONS[c.type] ?? 'chat'} size={11} />{c.n}
+              </span>
+            ))}
           </button>
         )}
       >
@@ -53,14 +57,17 @@ function CommPopover({ deal, close }: { deal: Deal; close: () => void }) {
   const openComposer = useStore((s) => s.openComposer);
   const [text, setText] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
   const target = lastInbound(deal) ?? lastComm(deal);
+  const typing = useStore((s) => (activeReplyId ? s.typing[activeReplyId] : false));
   const comms = recentComms(deal, showAll ? 12 : 3);
   const chan: ComposerKind = target?.type === 'whatsapp' ? 'whatsapp' : target?.type === 'sms' ? 'sms' : 'email';
   const who = target ? lastMessage(target).who : deal.contacts[0]?.n ?? 'Client';
 
   const send = () => {
     if (!target || !text.trim()) return;
+    setActiveReplyId(target.id);
     reply(deal.id, target.id, text.trim());
     setText('');
   };
@@ -81,6 +88,7 @@ function CommPopover({ deal, close }: { deal: Deal; close: () => void }) {
       <div className="dh-comm-pop-list">
         {comms.length === 0 && <div className="dh-comm-pop-empty">No messages yet.</div>}
         {comms.map((a) => <CommRow key={a.id} act={a} />)}
+        {typing && <div className="dh-comm-typing"><TypingDots label={`${String(who).split(' ')[0]} is typing`} /></div>}
         {!showAll && recentComms(deal, 12).length > 3 && (
           <button className="dh-comm-pop-more" onClick={() => setShowAll(true)}>See recent communication ({recentComms(deal, 12).length})</button>
         )}

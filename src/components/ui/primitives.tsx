@@ -9,6 +9,16 @@ import { OWNERS } from '@/data/constants';
 import { initials } from '@/lib/format';
 import './ui.css';
 
+/* ---------------- Typing indicator ---------------- */
+export function TypingDots({ label }: { label?: string }) {
+  return (
+    <span className="dh-typing" aria-label="typing">
+      {label && <span className="dh-typing-label">{label}</span>}
+      <span className="dh-typing-dots"><i /><i /><i /></span>
+    </span>
+  );
+}
+
 /* ---------------- Avatar ---------------- */
 export function Avatar({ ownerKey, size = 26, name }: { ownerKey?: string; size?: number; name?: string }) {
   const o = ownerKey ? OWNERS[ownerKey] : undefined;

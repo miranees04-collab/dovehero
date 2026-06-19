@@ -40,6 +40,7 @@ export interface Activity {
   chan?: string;
   dir?: 'in' | 'out';
   status?: string;
+  read?: boolean; // outbound message has been read by the client (receipts)
   thread?: ThreadMsg[];
   /** task-specific */
   title?: string;

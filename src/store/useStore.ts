@@ -204,6 +204,7 @@ export interface AppState {
   novaThinking: boolean;
   dealNova: Record<string, { role: 'user' | 'nova'; text: string }[]>;
   dealNovaStreaming: string | null;
+  typing: Record<string, boolean>; // keyed by activity id — client is "typing"
   notifOpen: boolean;
   composers: ComposerState[];
   toasts: Toast[];
@@ -474,6 +475,7 @@ export const useStore = create<AppState>()(
   novaThinking: false,
   dealNova: {},
   dealNovaStreaming: null,
+  typing: {},
   notifOpen: false,
   composers: [],
   toasts: [],
@@ -930,10 +932,18 @@ export const useStore = create<AppState>()(
       ),
     }));
     get().toast('Reply sent', 'success');
-    // Simulate a short client acknowledgement so the thread feels live.
     const contact = act.who && act.who !== 'You' ? act.who : deal?.contacts[0]?.n ?? 'Client';
-    if (act.type === 'email') window.setTimeout(() => get().updateActivity(dealId, actId, { status: 'opened', opens: (act.opens ?? 1) + 1 }), 1400);
+    const setTyping = (v: boolean) => set((s) => ({ typing: { ...s.typing, [actId]: v } }));
+    // delivered → read receipt → typing → inbound reply
+    if (act.type === 'email') {
+      window.setTimeout(() => get().updateActivity(dealId, actId, { status: 'delivered' }), 700);
+      window.setTimeout(() => get().updateActivity(dealId, actId, { status: 'opened', read: true, opens: (act.opens ?? 1) + 1 }), 1500);
+    } else {
+      window.setTimeout(() => get().updateActivity(dealId, actId, { read: true }), 1500);
+    }
+    window.setTimeout(() => setTyping(true), 1900);
     window.setTimeout(() => {
+      setTyping(false);
       const d2 = get().deals.find((d) => d.id === dealId);
       const a2 = d2?.acts.find((a) => a.id === actId);
       if (!a2) return;
@@ -941,7 +951,7 @@ export const useStore = create<AppState>()(
         thread: [...(a2.thread ?? []), { dir: 'in', who: contact, w: 'now', text: 'Thanks — got it, will take a look and revert.' }],
       });
       get().toast(`${String(contact).split(' ')[0]} replied`, 'default');
-    }, 3200);
+    }, 3600);
   },
   convertQuoteToInvoice: (dealId, quoteId) => {
     const d = get().deals.find((x) => x.id === dealId);
@@ -1275,10 +1285,12 @@ export const useStore = create<AppState>()(
           thread: [{ dir: 'out', who: 'You', w: 'now', text: c.body.trim() }],
         });
         get().toast('Email sent · tracking on', 'success');
-        // Simulate delivery → open → client reply
+        // Simulate delivery → read → typing → client reply
         window.setTimeout(() => get().updateActivity(dealId, aid, { status: 'delivered' }), 1100);
-        window.setTimeout(() => get().updateActivity(dealId, aid, { status: 'opened', opens: 1 }), 2600);
+        window.setTimeout(() => get().updateActivity(dealId, aid, { status: 'opened', read: true, opens: 1 }), 2600);
+        window.setTimeout(() => set((s) => ({ typing: { ...s.typing, [aid]: true } })), 3200);
         window.setTimeout(() => {
+          set((s) => ({ typing: { ...s.typing, [aid]: false } }));
           const d2 = get().deals.find((d) => d.id === dealId);
           const a = d2?.acts.find((x) => x.id === aid);
           if (!a) return;
@@ -1287,18 +1299,32 @@ export const useStore = create<AppState>()(
             thread: [...(a.thread ?? []), { dir: 'in', who: contact, w: 'now', text: `Thanks ${OWNERS[ME].name.split(' ')[0]} — reviewing now, will revert shortly.` }],
           });
           get().toast(`${contact.split(' ')[0]} replied`, 'default');
-        }, 4600);
+        }, 4800);
         break;
       }
       case 'whatsapp':
-      case 'sms':
+      case 'sms': {
         if (!c.body?.trim()) return get().toast('Write a message first', 'warn');
-        get().addActivity(dealId, {
-          type: c.kind, who: 'You', w: 'now', chan: c.to,
+        const aid = uid('a');
+        const deal = get().deals.find((d) => d.id === dealId);
+        const contact = deal?.contacts[0]?.n ?? 'Client';
+        get().pushActivity(dealId, {
+          id: aid, type: c.kind, who: 'You', w: 'now', chan: c.to,
           thread: [{ dir: 'out', who: 'You', w: 'now', text: c.body.trim() }],
         });
         get().toast(`${c.kind === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent`, 'success');
+        window.setTimeout(() => get().updateActivity(dealId, aid, { read: true }), 1500);
+        window.setTimeout(() => set((s) => ({ typing: { ...s.typing, [aid]: true } })), 1900);
+        window.setTimeout(() => {
+          set((s) => ({ typing: { ...s.typing, [aid]: false } }));
+          const d2 = get().deals.find((d) => d.id === dealId);
+          const a = d2?.acts.find((x) => x.id === aid);
+          if (!a) return;
+          get().updateActivity(dealId, aid, { thread: [...(a.thread ?? []), { dir: 'in', who: contact, w: 'now', text: 'Got it 👍' }] });
+          get().toast(`${String(contact).split(' ')[0]} replied`, 'default');
+        }, 3600);
         break;
+      }
     }
     set((s) => ({ composers: s.composers.filter((x) => x.wid !== wid) }));
   },

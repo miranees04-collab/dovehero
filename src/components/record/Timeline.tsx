@@ -3,7 +3,7 @@ import { useStore } from '@/store/useStore';
 import type { Activity, Deal, ActivityType } from '@/types';
 import { ACTIVITY_META, TYPE_ORDER } from '@/data/constants';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
-import { Badge } from '@/components/ui/primitives';
+import { Badge, TypingDots } from '@/components/ui/primitives';
 import { initials } from '@/lib/format';
 import './timeline.css';
 
@@ -110,6 +110,7 @@ function Meta({ who, w, label }: { who: string; w: string; label?: string }) {
 }
 
 function EmailCard({ act, deal }: { act: Activity; deal: Deal }) {
+  const typing = useStore((s) => s.typing[act.id]);
   const thread = act.thread?.length ? act.thread : [{ dir: act.dir ?? 'out', who: act.who, w: act.w, text: act.text ?? '' }];
   const stages = ['sent', 'delivered', 'opened'];
   const si = stages.indexOf(act.status ?? 'sent');
@@ -143,6 +144,7 @@ function EmailCard({ act, deal }: { act: Activity; deal: Deal }) {
             </div>
           ))}
         </div>
+        {typing && <div className="dh-em-typing"><span className="dh-em-av">{initials(thread[0]?.who ?? 'C')}</span><TypingDots /></div>}
         <InlineReply act={act} deal={deal} kind="email" />
       </div>
     </>
@@ -239,19 +241,30 @@ function CallCard({ act }: { act: Activity }) {
 }
 
 function ChatCard({ act, deal }: { act: Activity; deal: Deal }) {
+  const typing = useStore((s) => s.typing[act.id]);
   const thread = act.thread?.length ? act.thread : [{ dir: act.dir ?? 'out', who: act.who, w: act.w, text: act.text ?? '' }];
   const isWa = act.type === 'whatsapp';
+  const lastOut = [...thread].reverse().findIndex((m) => m.dir === 'out');
+  const lastOutIdx = lastOut < 0 ? -1 : thread.length - 1 - lastOut;
   return (
     <>
       <Meta who={act.who} w={act.w} label={isWa ? 'WhatsApp' : 'SMS'} />
       <div className={`dh-chat-card ${isWa ? 'wa' : 'sms'}`}>
         <div className="dh-chat-to"><Icon name={isWa ? 'whatsapp' : 'sms'} size={12} color={isWa ? '#25D366' : '#0EA5E9'} /> {act.chan}</div>
         <div className="dh-chat-thread">
-          {thread.map((m, i) => (
-            <div key={i} className={`dh-chat-msg ${m.dir}`}>
-              <div className="dh-chat-b">{m.text}<span className="dh-chat-tm">{m.w}{m.dir === 'out' ? (isWa ? ' ✓✓' : ' ✓') : ''}</span></div>
-            </div>
-          ))}
+          {thread.map((m, i) => {
+            const read = act.read && i === lastOutIdx;
+            return (
+              <div key={i} className={`dh-chat-msg ${m.dir}`}>
+                <div className="dh-chat-b">{m.text}
+                  <span className="dh-chat-tm">{m.w}
+                    {m.dir === 'out' && <span className={`dh-chat-check ${read ? 'read' : ''}`} title={read ? 'Read' : 'Delivered'}>{isWa ? '✓✓' : '✓'}</span>}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {typing && <div className="dh-chat-msg in"><div className="dh-chat-b typing"><TypingDots /></div></div>}
         </div>
         <InlineReply act={act} deal={deal} kind={isWa ? 'whatsapp' : 'sms'} />
       </div>

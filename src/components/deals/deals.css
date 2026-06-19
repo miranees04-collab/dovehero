@@ -1322,3 +1322,12 @@
 .dh-comm-send { background: var(--accent-600); border-color: var(--accent-600); color: #fff; }
 .dh-comm-send:hover:not(:disabled) { background: var(--accent-700); }
 .dh-comm-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Per-channel bubble segments */
+.dh-commbubble { gap: 0; padding: 0; }
+.dh-bubble-seg {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 5px; font-size: 10px; font-weight: 700; line-height: 1;
+}
+.dh-bubble-seg + .dh-bubble-seg { border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.dh-comm-typing { padding: 6px 9px; }

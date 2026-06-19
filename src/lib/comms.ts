@@ -16,6 +16,15 @@ export function inboundCount(deal: Deal): number {
   return inboundComms(deal).length;
 }
 
+/** Inbound counts split by channel, for the bubble breakdown. */
+export function inboundByChannel(deal: Deal): { type: string; n: number }[] {
+  const counts: Record<string, number> = {};
+  inboundComms(deal).forEach((a) => { counts[a.type] = (counts[a.type] ?? 0) + 1; });
+  return ['email', 'whatsapp', 'sms', 'call']
+    .filter((t) => counts[t])
+    .map((t) => ({ type: t, n: counts[t] }));
+}
+
 /** The most recent inbound message, for previews. */
 export function lastInbound(deal: Deal): Activity | undefined {
   return deal.acts.find(isInbound);
