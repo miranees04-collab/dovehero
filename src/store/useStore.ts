@@ -186,6 +186,8 @@ export interface AppState {
   colorRules: ColorRule[];
   colorRulesOn: boolean;
   colorRulesOpen: boolean;
+  ruleFilter: string | null;
+  swimCollapsed: Record<string, boolean>;
   focusMode: boolean;
   recordHeadMin: boolean;
   recordNovaMin: boolean;
@@ -253,6 +255,8 @@ export interface AppState {
   removeColorRule: (id: string) => void;
   moveColorRule: (id: string, dir: -1 | 1) => void;
   resetColorRules: () => void;
+  setRuleFilter: (id: string | null) => void;
+  toggleSwimCollapse: (key: string) => void;
   setFocusMode: (v: boolean) => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
@@ -441,6 +445,8 @@ export const useStore = create<AppState>()(
   colorRules: DEFAULT_COLOR_RULES.map((r) => ({ ...r })),
   colorRulesOn: false,
   colorRulesOpen: false,
+  ruleFilter: null,
+  swimCollapsed: {},
   focusMode: false,
   recordHeadMin: false,
   recordNovaMin: false,
@@ -595,6 +601,8 @@ export const useStore = create<AppState>()(
       return { colorRules: arr };
     }),
   resetColorRules: () => set({ colorRules: DEFAULT_COLOR_RULES.map((r) => ({ ...r })) }),
+  setRuleFilter: (ruleFilter) => set((s) => ({ ruleFilter, colorRulesOn: ruleFilter ? true : s.colorRulesOn })),
+  toggleSwimCollapse: (key) => set((s) => ({ swimCollapsed: { ...s.swimCollapsed, [key]: !s.swimCollapsed[key] } })),
   setFocusMode: (focusMode) => set({ focusMode }),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),

@@ -2,9 +2,43 @@ import { useStore } from '@/store/useStore';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
-import { RULE_FIELDS, OPS_BY_TYPE, RULE_COLORS, fieldMeta, type ColorRule } from '@/lib/colorRules';
+import type { Deal } from '@/types';
+import { RULE_FIELDS, OPS_BY_TYPE, RULE_COLORS, fieldMeta, firstMatchingRule, type ColorRule } from '@/lib/colorRules';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
+
+/** Legend of active color rules with live counts. Each chip is also a quick
+ *  filter — click to show only deals matching that rule. Used on board & list. */
+export function ColorLegend({ deals }: { deals: Deal[] }) {
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const setRuleFilter = useStore((s) => s.setRuleFilter);
+  const toggleColorRules = useStore((s) => s.toggleColorRules);
+  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
+  if (!colorRulesOn) return null;
+  const active = colorRules.filter((r) => r.enabled && r.value !== '');
+  if (!active.length) return null;
+  const counts = active.map((r) => deals.filter((d) => firstMatchingRule(d, colorRules)?.id === r.id).length);
+  return (
+    <div className="dh-color-legend">
+      <button className="dh-color-legend-t" onClick={() => setColorRulesOpen(true)} title="Edit color rules"><Icon name="sliders" size={12} /> Color rules</button>
+      {active.map((r, i) => (
+        <button
+          key={r.id}
+          className={`dh-legend-chip ${ruleFilter === r.id ? 'on' : ''} ${ruleFilter && ruleFilter !== r.id ? 'dim' : ''}`}
+          onClick={() => setRuleFilter(ruleFilter === r.id ? null : r.id)}
+          title={ruleFilter === r.id ? 'Clear filter' : `Show only “${r.label}”`}
+        >
+          <span className="dh-legend-dot" style={{ background: r.color }} />
+          {r.label}<b>{counts[i]}</b>
+        </button>
+      ))}
+      {ruleFilter && <button className="dh-legend-clear" onClick={() => setRuleFilter(null)} title="Clear rule filter"><Icon name="x" size={12} /> Clear filter</button>}
+      <button className="dh-legend-off" onClick={() => { setRuleFilter(null); toggleColorRules(false); }} title="Turn off color coding"><Icon name="x" size={12} /></button>
+    </div>
+  );
+}
 
 export function ColorRulesModal() {
   const open = useStore((s) => s.colorRulesOpen);

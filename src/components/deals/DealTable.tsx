@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
 import { evalDealColor, firstMatchingRule, type ColorRule } from '@/lib/colorRules';
 import { CommBubble, CardActions } from './DealCard';
+import { ColorLegend } from './ColorRules';
 import { BulkBar } from './BulkBar';
 import './table.css';
 
@@ -117,6 +118,7 @@ export function DealTable() {
   const setPeek = useStore((s) => s.setPeek);
   const colorRulesOn = useStore((s) => s.colorRulesOn);
   const colorRules = useStore((s) => s.colorRules);
+  const ruleFilter = useStore((s) => s.ruleFilter);
   const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
@@ -125,6 +127,7 @@ export function DealTable() {
 
   const rows = useMemo(() => {
     let list = base.filter((d) => d.pipeline === pipeline);
+    if (ruleFilter) list = list.filter((d) => firstMatchingRule(d, colorRules)?.id === ruleFilter);
     // per-column search
     const active = Object.entries(colSearch).filter(([, q]) => q.trim());
     if (active.length) {
@@ -140,7 +143,7 @@ export function DealTable() {
       }
       return 0;
     });
-  }, [base, pipeline, sort, colSearch]);
+  }, [base, pipeline, sort, colSearch, ruleFilter, colorRules]);
 
   const grouped = useMemo(() => {
     if (group === 'none') return [{ key: '', rows }];
@@ -366,6 +369,8 @@ export function DealTable() {
           </button>
         </div>
       </div>
+
+      <div className="dh-table-legend"><ColorLegend deals={base.filter((d) => d.pipeline === pipeline)} /></div>
 
       <div className="dh-table-scroll">
         <table className={`dh-table density-${density}`}>

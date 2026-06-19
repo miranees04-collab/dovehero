@@ -5,7 +5,8 @@ import type { Deal, StageKey, Priority } from '@/types';
 import { money } from '@/lib/format';
 import { DealCard } from './DealCard';
 import { BulkBar } from './BulkBar';
-import { matchRule, firstMatchingRule } from '@/lib/colorRules';
+import { ColorLegend } from './ColorRules';
+import { firstMatchingRule } from '@/lib/colorRules';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar, Popover } from '@/components/ui/primitives';
 
@@ -29,7 +30,11 @@ export function Board() {
   const openDeal = useStore((s) => s.openDeal);
   const toggleBulk = useStore((s) => s.toggleBulk);
   const setPeek = useStore((s) => s.setPeek);
-  const deals = useFilteredDeals().filter((d) => d.pipeline === pipeline);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const swimCollapsed = useStore((s) => s.swimCollapsed);
+  const toggleSwimCollapse = useStore((s) => s.toggleSwimCollapse);
+  const pipeDeals = useFilteredDeals().filter((d) => d.pipeline === pipeline);
+  const deals = pipeDeals.filter((d) => !ruleFilter || firstMatchingRule(d, colorRules)?.id === ruleFilter);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -134,21 +139,30 @@ export function Board() {
     />
   );
 
+  const swim = (key: string, head: React.ReactNode, subset: Deal[], laneKey: string) => {
+    const collapsed = !!swimCollapsed[key];
+    const sum = subset.reduce((a, d) => a + d.value, 0);
+    return (
+      <div className={`dh-swimlane ${collapsed ? 'collapsed' : ''}`} key={key}>
+        <div className="dh-swimlane-head">
+          <button className="dh-swim-cx" onClick={() => toggleSwimCollapse(key)} title={collapsed ? 'Expand' : 'Collapse'} aria-label={collapsed ? 'Expand lane' : 'Collapse lane'}>
+            <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={14} />
+          </button>
+          {head}
+          <span className="dh-swimlane-count">{subset.length}</span>
+          {collapsed && <span className="dh-swimlane-sum mono">{money(sum, true)}</span>}
+        </div>
+        {!collapsed && colsFor(subset, laneKey)}
+      </div>
+    );
+  };
+
   let body: React.ReactNode;
   if (swimlane === 'owner') {
     const owners = Array.from(new Set(deals.map((d) => d.owner)));
     body = (
       <div className="dh-board-scroll">
-        {owners.map((ok) => (
-          <div className="dh-swimlane" key={ok}>
-            <div className="dh-swimlane-head">
-              <Avatar ownerKey={ok} size={22} />
-              <b>{OWNERS[ok]?.name ?? ok}</b>
-              <span className="dh-swimlane-count">{deals.filter((d) => d.owner === ok).length}</span>
-            </div>
-            {colsFor(deals.filter((d) => d.owner === ok), 'o-' + ok)}
-          </div>
-        ))}
+        {owners.map((ok) => swim('owner:' + ok, <><Avatar ownerKey={ok} size={22} /><b>{OWNERS[ok]?.name ?? ok}</b></>, deals.filter((d) => d.owner === ok), 'o-' + ok))}
       </div>
     );
   } else if (swimlane === 'priority') {
@@ -157,16 +171,7 @@ export function Board() {
         {PRIO_LANES.map((p) => {
           const subset = deals.filter((d) => d.priority === p.k);
           if (!subset.length) return null;
-          return (
-            <div className="dh-swimlane" key={p.k}>
-              <div className="dh-swimlane-head">
-                <span className={`dh-prio ${p.k}`} style={{ marginTop: 0 }} />
-                <b>{p.label}</b>
-                <span className="dh-swimlane-count">{subset.length}</span>
-              </div>
-              {colsFor(subset, 'p-' + p.k)}
-            </div>
-          );
+          return swim('priority:' + p.k, <><span className={`dh-prio ${p.k}`} style={{ marginTop: 0 }} /><b>{p.label}</b></>, subset, 'p-' + p.k);
         })}
       </div>
     );
@@ -180,26 +185,8 @@ export function Board() {
       <div className="dh-board-empty"><Icon name="sliders" size={20} /><span>No color rules yet — open <b>Colors</b> to define rules, then group by them.</span></div>
     ) : (
       <div className="dh-board-scroll">
-        {lanes.map((lane) => (
-          <div className="dh-swimlane" key={lane.key}>
-            <div className="dh-swimlane-head">
-              <span className="dh-legend-dot" style={{ background: lane.color }} />
-              <b>{lane.label}</b>
-              <span className="dh-swimlane-count">{lane.deals.length}</span>
-            </div>
-            {colsFor(lane.deals, 'r-' + lane.key)}
-          </div>
-        ))}
-        {unmatched.length > 0 && (
-          <div className="dh-swimlane" key="__none">
-            <div className="dh-swimlane-head">
-              <span className="dh-legend-dot" style={{ background: 'var(--dim)' }} />
-              <b>No rule matched</b>
-              <span className="dh-swimlane-count">{unmatched.length}</span>
-            </div>
-            {colsFor(unmatched, 'r-none')}
-          </div>
-        )}
+        {lanes.map((lane) => swim('rule:' + lane.key, <><span className="dh-legend-dot" style={{ background: lane.color }} /><b>{lane.label}</b></>, lane.deals, 'r-' + lane.key))}
+        {unmatched.length > 0 && swim('rule:__none', <><span className="dh-legend-dot" style={{ background: 'var(--dim)' }} /><b>No rule matched</b></>, unmatched, 'r-none')}
       </div>
     );
   } else {
@@ -209,7 +196,7 @@ export function Board() {
   return (
     <>
       <BoardViewTabs />
-      <ColorLegend deals={deals} />
+      <ColorLegend deals={pipeDeals} />
       {boardEditing && <BoardEditBar />}
       {body}
       <BulkBar />
@@ -352,32 +339,6 @@ function BoardEditBar() {
         <button className="dh-btn v-ghost s-sm" onClick={resetBoardStages}><Icon name="reset" size={14} /> Reset</button>
         <button className="dh-btn v-primary s-sm" onClick={() => setBoardEditing(false)}><Icon name="check" size={14} /> Done</button>
       </div>
-    </div>
-  );
-}
-
-function ColorLegend({ deals }: { deals: Deal[] }) {
-  const colorRulesOn = useStore((s) => s.colorRulesOn);
-  const colorRules = useStore((s) => s.colorRules);
-  const toggleColorRules = useStore((s) => s.toggleColorRules);
-  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
-  if (!colorRulesOn) return null;
-  const active = colorRules.filter((r) => r.enabled && r.value !== '');
-  const firstRuleId = (d: Deal): string | null => {
-    for (const r of colorRules) if (r.enabled && r.value !== '' && matchRule(d, r)) return r.id;
-    return null;
-  };
-  const counts = active.map((r) => deals.filter((d) => firstRuleId(d) === r.id).length);
-  return (
-    <div className="dh-color-legend">
-      <span className="dh-color-legend-t"><Icon name="sliders" size={12} /> Color rules</span>
-      {active.map((r, i) => (
-        <button key={r.id} className="dh-legend-chip" onClick={() => setColorRulesOpen(true)} title="Edit color rules">
-          <span className="dh-legend-dot" style={{ background: r.color }} />
-          {r.label}<b>{counts[i]}</b>
-        </button>
-      ))}
-      <button className="dh-legend-off" onClick={() => toggleColorRules(false)} title="Turn off color coding"><Icon name="x" size={12} /></button>
     </div>
   );
 }
