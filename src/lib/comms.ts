@@ -20,3 +20,24 @@ export function inboundCount(deal: Deal): number {
 export function lastInbound(deal: Deal): Activity | undefined {
   return deal.acts.find(isInbound);
 }
+
+const COMM_TYPES = ['email', 'whatsapp', 'sms', 'call'];
+
+/** Recent communication activities (newest first) on a deal. */
+export function recentComms(deal: Deal, n = 6): Activity[] {
+  return deal.acts.filter((a) => COMM_TYPES.includes(a.type)).slice(0, n);
+}
+
+/** The most recent communication of any direction (for the bubble preview). */
+export function lastComm(deal: Deal): Activity | undefined {
+  return deal.acts.find((a) => COMM_TYPES.includes(a.type));
+}
+
+/** Last message text + direction on an activity. */
+export function lastMessage(a: Activity): { text: string; dir: 'in' | 'out'; who: string; w: string } {
+  if (a.thread && a.thread.length) {
+    const m = a.thread[a.thread.length - 1];
+    return { text: m.text, dir: m.dir, who: m.who, w: m.w };
+  }
+  return { text: a.text ?? a.subj ?? '', dir: a.dir ?? 'out', who: a.who, w: a.w };
+}

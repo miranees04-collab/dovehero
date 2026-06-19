@@ -274,3 +274,25 @@
 .dh-rem-chip.done { opacity: 0.6; }
 .dh-rem-chip.done b { text-decoration: line-through; }
 .dh-rem-due { color: var(--faint); }
+
+/* Inline reply on timeline communication cards */
+.dh-tl-reply-bar { display: flex; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
+.dh-tl-replybtn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-tl-replybtn:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+[data-theme='dark'] .dh-tl-replybtn:hover { color: var(--accent); }
+.dh-tl-replybtn.primary { background: var(--accent-600); border-color: var(--accent-600); color: #fff; }
+.dh-tl-replybtn.primary:hover { background: var(--accent-700); color: #fff; }
+.dh-tl-replybtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dh-tl-reply { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
+.dh-tl-reply-input {
+  width: 100%; min-height: 56px; resize: vertical; font: inherit; font-size: 13px;
+  border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 8px 10px;
+  background: var(--surface); color: var(--ink); outline: none;
+}
+.dh-tl-reply-input:focus { border-color: var(--accent-400); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dh-tl-reply-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.dh-tl-reply-hint { margin-right: auto; font-size: 11px; color: var(--faint); }

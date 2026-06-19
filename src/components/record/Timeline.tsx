@@ -90,7 +90,7 @@ function Body({ act, deal }: { act: Activity; deal: Deal }) {
     case 'meeting': return <MeetingCard act={act} />;
     case 'call': return <CallCard act={act} />;
     case 'whatsapp':
-    case 'sms': return <ChatCard act={act} />;
+    case 'sms': return <ChatCard act={act} deal={deal} />;
     case 'marketing': return <SequenceCard act={act} />;
     case 'task': return <TaskCard act={act} deal={deal} />;
     case 'note': return <NoteCard act={act} deal={deal} />;
@@ -109,7 +109,7 @@ function Meta({ who, w, label }: { who: string; w: string; label?: string }) {
   );
 }
 
-function EmailCard({ act }: { act: Activity; deal: Deal }) {
+function EmailCard({ act, deal }: { act: Activity; deal: Deal }) {
   const thread = act.thread?.length ? act.thread : [{ dir: act.dir ?? 'out', who: act.who, w: act.w, text: act.text ?? '' }];
   const stages = ['sent', 'delivered', 'opened'];
   const si = stages.indexOf(act.status ?? 'sent');
@@ -143,8 +143,50 @@ function EmailCard({ act }: { act: Activity; deal: Deal }) {
             </div>
           ))}
         </div>
+        <InlineReply act={act} deal={deal} kind="email" />
       </div>
     </>
+  );
+}
+
+function InlineReply({ act, deal, kind }: { act: Activity; deal: Deal; kind: 'email' | 'whatsapp' | 'sms' }) {
+  const reply = useStore((s) => s.replyToActivity);
+  const openComposer = useStore((s) => s.openComposer);
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState(false);
+  const label = kind === 'email' ? 'email' : kind === 'whatsapp' ? 'WhatsApp' : 'SMS';
+
+  const send = () => { if (!text.trim()) return; reply(deal.id, act.id, text.trim()); setText(''); setOpen(false); };
+  const draft = () => {
+    const c = deal.contacts[0];
+    const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+    openComposer({ dealId: deal.id, kind, to: kind === 'email' ? email : '+1 (415) 555-0140', subject: kind === 'email' ? `Re: ${act.subj ?? deal.name}` : '', body: text.trim(), outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30' });
+  };
+
+  if (!open) {
+    return (
+      <div className="dh-tl-reply-bar">
+        <button className="dh-tl-replybtn" onClick={() => setOpen(true)}><Icon name="mail" size={12} /> Reply</button>
+        <button className="dh-tl-replybtn" onClick={draft}><Icon name="pencil" size={12} /> Draft</button>
+      </div>
+    );
+  }
+  return (
+    <div className="dh-tl-reply">
+      <textarea
+        className="dh-tl-reply-input"
+        placeholder={`Write a ${label} reply…`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); if (e.key === 'Escape') setOpen(false); }}
+        autoFocus
+      />
+      <div className="dh-tl-reply-actions">
+        <span className="dh-tl-reply-hint">⌘↵ to send</span>
+        <button className="dh-tl-replybtn" onClick={draft}><Icon name="pencil" size={12} /> Draft</button>
+        <button className="dh-tl-replybtn primary" onClick={send} disabled={!text.trim()}><Icon name="send" size={12} /> Send</button>
+      </div>
+    </div>
   );
 }
 
@@ -196,7 +238,7 @@ function CallCard({ act }: { act: Activity }) {
   );
 }
 
-function ChatCard({ act }: { act: Activity }) {
+function ChatCard({ act, deal }: { act: Activity; deal: Deal }) {
   const thread = act.thread?.length ? act.thread : [{ dir: act.dir ?? 'out', who: act.who, w: act.w, text: act.text ?? '' }];
   const isWa = act.type === 'whatsapp';
   return (
@@ -211,6 +253,7 @@ function ChatCard({ act }: { act: Activity }) {
             </div>
           ))}
         </div>
+        <InlineReply act={act} deal={deal} kind={isWa ? 'whatsapp' : 'sms'} />
       </div>
     </>
   );

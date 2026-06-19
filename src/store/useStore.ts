@@ -315,6 +315,7 @@ export interface AppState {
   enrollSequence: (dealId: string, seqKey: string) => void;
   bulkEnroll: (seqKey: string) => void;
   togglePinNote: (dealId: string, actId: string) => void;
+  replyToActivity: (dealId: string, actId: string, text: string) => void;
   convertQuoteToInvoice: (dealId: string, quoteId: string) => void;
   invoiceFromAsset: (dealId: string, total: number, fromLabel: string) => void;
   sendDoc: (dealId: string, docName: string) => void;
@@ -901,6 +902,47 @@ export const useStore = create<AppState>()(
         d.id === dealId ? { ...d, acts: d.acts.map((a) => (a.id === actId ? { ...a, pin: !a.pin } : a)) } : d,
       ),
     })),
+  replyToActivity: (dealId, actId, text) => {
+    const t = text.trim();
+    if (!t) return get().toast('Write a reply first', 'warn');
+    const deal = get().deals.find((d) => d.id === dealId);
+    const act = deal?.acts.find((a) => a.id === actId);
+    if (!act) return;
+    set((s) => ({
+      deals: s.deals.map((d) =>
+        d.id === dealId
+          ? {
+              ...d,
+              acts: d.acts.map((a) =>
+                a.id === actId
+                  ? {
+                      ...a,
+                      status: a.type === 'email' ? 'sent' : a.status,
+                      thread: [
+                        ...(a.thread ?? [{ dir: a.dir ?? 'out', who: a.who, w: a.w, text: a.text ?? a.subj ?? '' }]),
+                        { dir: 'out' as const, who: 'You', w: 'now', text: t },
+                      ],
+                    }
+                  : a,
+              ),
+            }
+          : d,
+      ),
+    }));
+    get().toast('Reply sent', 'success');
+    // Simulate a short client acknowledgement so the thread feels live.
+    const contact = act.who && act.who !== 'You' ? act.who : deal?.contacts[0]?.n ?? 'Client';
+    if (act.type === 'email') window.setTimeout(() => get().updateActivity(dealId, actId, { status: 'opened', opens: (act.opens ?? 1) + 1 }), 1400);
+    window.setTimeout(() => {
+      const d2 = get().deals.find((d) => d.id === dealId);
+      const a2 = d2?.acts.find((a) => a.id === actId);
+      if (!a2) return;
+      get().updateActivity(dealId, actId, {
+        thread: [...(a2.thread ?? []), { dir: 'in', who: contact, w: 'now', text: 'Thanks — got it, will take a look and revert.' }],
+      });
+      get().toast(`${String(contact).split(' ')[0]} replied`, 'default');
+    }, 3200);
+  },
   convertQuoteToInvoice: (dealId, quoteId) => {
     const d = get().deals.find((x) => x.id === dealId);
     const q = d?.quotes?.find((x) => x.id === quoteId);
