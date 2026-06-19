@@ -30,7 +30,7 @@ import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants'
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
 import { uid } from '@/lib/format';
-import { inboundCount } from '@/lib/comms';
+import { inboundCount, inboundByChannel } from '@/lib/comms';
 
 const emptyFilters: FilterState = {
   owners: [],
@@ -40,6 +40,7 @@ const emptyFilters: FilterState = {
   minValue: null,
   health: 'any',
   inbox: false,
+  inboxChannel: null,
   adv: [],
 };
 
@@ -215,6 +216,7 @@ export interface AppState {
   // deal interactions
   cardMenuId: string | null;
   peekId: string | null;
+  commDealId: string | null;
   capture: { id: string; to: StageKey } | null;
   confettiAt: number;
   bulk: string[];
@@ -332,6 +334,7 @@ export interface AppState {
   cancelCapture: () => void;
   setCardMenu: (id: string | null) => void;
   setPeek: (id: string | null) => void;
+  openCommPanel: (id: string | null) => void;
   toggleBulk: (id: string) => void;
   clearBulk: () => void;
   bulkStage: (to: StageKey) => void;
@@ -484,6 +487,7 @@ export const useStore = create<AppState>()(
   hubOpen: false,
   cardMenuId: null,
   peekId: null,
+  commDealId: null,
   capture: null,
   confettiAt: 0,
   bulk: [],
@@ -1095,6 +1099,7 @@ export const useStore = create<AppState>()(
   cancelCapture: () => set({ capture: null }),
   setCardMenu: (cardMenuId) => set({ cardMenuId }),
   setPeek: (peekId) => set({ peekId }),
+  openCommPanel: (commDealId) => set({ commDealId }),
 
   toggleBulk: (id) =>
     set((s) => ({ bulk: s.bulk.includes(id) ? s.bulk.filter((x) => x !== id) : [...s.bulk, id] })),
@@ -1432,7 +1437,9 @@ export function filterDeals(deals: Deal[], q: string, f: FilterState): Deal[] {
     if (f.minValue != null && d.value < f.minValue) return false;
     if (f.health === 'healthy' && d.health < 70) return false;
     if (f.health === 'risk' && d.health >= 45) return false;
-    if (f.inbox && inboundCount(d) === 0) return false;
+    if (f.inboxChannel) {
+      if (!inboundByChannel(d).some((c) => c.type === f.inboxChannel)) return false;
+    } else if (f.inbox && inboundCount(d) === 0) return false;
     for (const r of f.adv) {
       if (!r.value) continue;
       const num = parseFloat(r.value.replace(/[^0-9.\-]/g, '')) || 0;

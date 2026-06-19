@@ -189,7 +189,7 @@ export function CommandPalette() {
         icon: 'chat',
         label: 'Show deals with new replies',
         hint: 'Filter',
-        run: () => { setNav('deals'); setFilters({ inbox: true }); },
+        run: () => { setNav('deals'); setFilters({ inbox: true, inboxChannel: null }); },
       },
       {
         id: 'filter-risk',

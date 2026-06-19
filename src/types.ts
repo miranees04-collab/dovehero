@@ -212,6 +212,7 @@ export interface FilterState {
   minValue: number | null;
   health: 'any' | 'healthy' | 'risk';
   inbox: boolean;
+  inboxChannel: string | null;
   adv: AdvRule[];
 }
 

@@ -6,12 +6,18 @@ import { ReorderList } from '@/components/ui/ReorderList';
 import { OWNERS, OPEN_STAGES, STAGES } from '@/data/constants';
 import type { ReactNode } from 'react';
 import { money, uid } from '@/lib/format';
-import { inboundCount } from '@/lib/comms';
+import { inboundCount, inboundByChannel } from '@/lib/comms';
 import type { Priority, AdvRule } from '@/types';
 import './deals.css';
 
 const ALL_TAGS = ['Enterprise', 'Expansion', 'Strategic', 'Renewal', 'Outbound', 'Inbound', 'At-risk'];
 const BOARD_STAGE_KEYS = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+const CHANNELS = [
+  { k: 'email', label: 'Email', icon: 'mail', color: '#3B82F6' },
+  { k: 'whatsapp', label: 'WhatsApp', icon: 'whatsapp', color: '#25D366' },
+  { k: 'sms', label: 'SMS', icon: 'sms', color: '#0EA5E9' },
+  { k: 'call', label: 'Call', icon: 'phone', color: '#8B5CF6' },
+];
 
 function Facet({ label, count, width, children }: { label: string; count: number; width?: number; children: (close: () => void) => ReactNode }) {
   return (
@@ -69,10 +75,13 @@ export function PipelineBar() {
   const open = all.filter((d) => OPEN_STAGES.includes(d.stage as never));
   const total = open.reduce((s, d) => s + d.value, 0);
   const weighted = Math.round(open.reduce((s, d) => s + (d.value * d.win) / 100, 0));
-  const inboundTotal = deals.filter((d) => d.pipeline === pipeline).reduce((s, d) => s + inboundCount(d), 0);
+  const pipeDeals = deals.filter((d) => d.pipeline === pipeline);
+  const inboundTotal = pipeDeals.reduce((s, d) => s + inboundCount(d), 0);
+  const chanTotals: Record<string, number> = {};
+  pipeDeals.forEach((d) => inboundByChannel(d).forEach((c) => { chanTotals[c.type] = (chanTotals[c.type] ?? 0) + c.n; }));
 
   const activeFilters =
-    filters.owners.length + filters.stages.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length + (filters.inbox ? 1 : 0);
+    filters.owners.length + filters.stages.length + filters.priorities.length + filters.tags.length + (filters.minValue ? 1 : 0) + (filters.health !== 'any' ? 1 : 0) + filters.adv.length + (filters.inbox || filters.inboxChannel ? 1 : 0);
 
   const toggleArr = <T,>(arr: T[], v: T): T[] => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
@@ -118,15 +127,41 @@ export function PipelineBar() {
       <span className="dh-pipe-label"><Icon name="filter" size={13} /> Filter</span>
       <div className="dh-facets">
         {inboundTotal > 0 && (
-          <button
-            className={`dh-inbox-btn ${filters.inbox ? 'on' : ''}`}
-            onClick={() => setFilters({ inbox: !filters.inbox })}
-            title="Show only deals with new client replies"
+          <Popover
+            width={230}
+            trigger={({ open: o, toggle }) => {
+              const cm = CHANNELS.find((c) => c.k === filters.inboxChannel);
+              const active = filters.inbox || !!filters.inboxChannel;
+              return (
+                <button className={`dh-inbox-btn ${active ? 'on' : ''} ${o ? 'open' : ''}`} onClick={toggle} title="Filter by new client replies">
+                  <Icon name={cm ? cm.icon : 'chat'} size={15} />
+                  <span className="hide-sm">{cm ? `${cm.label} replies` : 'New replies'}</span>
+                  <span className="dh-inbox-count">{cm ? (chanTotals[cm.k] ?? 0) : inboundTotal}</span>
+                  <Icon name="chevronDown" size={12} />
+                </button>
+              );
+            }}
           >
-            <Icon name="chat" size={15} />
-            <span className="hide-sm">New replies</span>
-            <span className="dh-inbox-count">{inboundTotal}</span>
-          </button>
+            {(close) => (
+              <div className="dh-facet-list">
+                <button className={`dh-facet-item ${filters.inbox && !filters.inboxChannel ? 'on' : ''}`} onClick={() => { setFilters({ inbox: true, inboxChannel: null }); close(); }}>
+                  <Icon name="chat" size={14} /> All new replies
+                  <span className="dh-chan-ct">{inboundTotal}</span>
+                </button>
+                {CHANNELS.filter((c) => chanTotals[c.k]).map((c) => (
+                  <button key={c.k} className={`dh-facet-item ${filters.inboxChannel === c.k ? 'on' : ''}`} onClick={() => { setFilters({ inbox: false, inboxChannel: c.k }); close(); }}>
+                    <Icon name={c.icon} size={14} color={c.color} /> {c.label}
+                    <span className="dh-chan-ct">{chanTotals[c.k]}</span>
+                  </button>
+                ))}
+                {(filters.inbox || filters.inboxChannel) && (
+                  <button className="dh-facet-item" onClick={() => { setFilters({ inbox: false, inboxChannel: null }); close(); }}>
+                    <Icon name="x" size={14} /> Show all deals
+                  </button>
+                )}
+              </div>
+            )}
+          </Popover>
         )}
 
         <Facet label="Owner" count={filters.owners.length}>

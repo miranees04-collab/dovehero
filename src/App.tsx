@@ -19,6 +19,7 @@ import { Composer } from './components/composer/Composer';
 import { CaptureSheet } from './components/deals/CaptureSheet';
 import { Confetti } from './components/deals/Confetti';
 import { Peek } from './components/deals/Peek';
+import { CommPanel } from './components/deals/CommPanel';
 import { ColorRulesModal } from './components/deals/ColorRules';
 import { DocBuilder } from './components/docs/DocBuilder';
 import { Toasts } from './components/ui/Toasts';
@@ -102,6 +103,7 @@ export default function App() {
       <Composer />
       <CaptureSheet />
       <Peek />
+      <CommPanel />
       <ColorRulesModal />
       <DocBuilder />
       <Confetti />

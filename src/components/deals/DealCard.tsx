@@ -1,12 +1,11 @@
-import { useState, useRef } from 'react';
 import { useStore, type ComposerKind } from '@/store/useStore';
-import type { Deal, StageKey, Priority, Activity } from '@/types';
+import type { Deal, StageKey, Priority } from '@/types';
 import { money, staleDays } from '@/lib/format';
-import { healthColor, OWNERS, STAGES, ACTIVITY_META } from '@/data/constants';
-import { Avatar, Badge, Popover, Ring, TypingDots } from '@/components/ui/primitives';
+import { healthColor, OWNERS, STAGES } from '@/data/constants';
+import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
-import { inboundCount, inboundByChannel, lastInbound, lastComm, recentComms, lastMessage } from '@/lib/comms';
+import { inboundCount, inboundByChannel, lastInbound } from '@/lib/comms';
 import { evalDealColor } from '@/lib/colorRules';
 
 function lastCommDir(deal: Deal): 'in' | 'out' | null {
@@ -20,119 +19,22 @@ const STAGE_KEYS: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 
 
 export function CommBubble({ deal }: { deal: Deal; onOpen?: () => void }) {
   const n = inboundCount(deal);
-  const hoverOpened = useRef(false);
+  const openCommPanel = useStore((s) => s.openCommPanel);
   if (!n) return null;
   const who = (lastInbound(deal)?.who ?? 'Client').split(' ')[0];
   const channels = inboundByChannel(deal);
   return (
-    <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-      <Popover
-        align="start"
-        width={320}
-        trigger={({ open, toggle }) => (
-          <button
-            className={`dh-commbubble ${open ? 'on' : ''}`}
-            title={`${n} new repl${n > 1 ? 'ies' : 'y'} from ${who}`}
-            onClick={(e) => { e.stopPropagation(); if (hoverOpened.current) { hoverOpened.current = false; return; } toggle(); }}
-            onMouseEnter={() => { if (!open) { toggle(); hoverOpened.current = true; } }}
-          >
-            {channels.map((c) => (
-              <span key={c.type} className="dh-bubble-seg" style={{ ['--cc' as string]: ACTIVITY_META[c.type as keyof typeof ACTIVITY_META]?.color }}>
-                <Icon name={ACTIVITY_ICONS[c.type] ?? 'chat'} size={11} />{c.n}
-              </span>
-            ))}
-          </button>
-        )}
-      >
-        {(close) => <CommPopover deal={deal} close={close} />}
-      </Popover>
-    </span>
-  );
-}
-
-function CommPopover({ deal, close }: { deal: Deal; close: () => void }) {
-  const openDeal = useStore((s) => s.openDeal);
-  const setNav = useStore((s) => s.setNav);
-  const reply = useStore((s) => s.replyToActivity);
-  const openComposer = useStore((s) => s.openComposer);
-  const [text, setText] = useState('');
-  const [showAll, setShowAll] = useState(false);
-  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
-
-  const target = lastInbound(deal) ?? lastComm(deal);
-  const typing = useStore((s) => (activeReplyId ? s.typing[activeReplyId] : false));
-  const comms = recentComms(deal, showAll ? 12 : 3);
-  const chan: ComposerKind = target?.type === 'whatsapp' ? 'whatsapp' : target?.type === 'sms' ? 'sms' : 'email';
-  const who = target ? lastMessage(target).who : deal.contacts[0]?.n ?? 'Client';
-
-  const send = () => {
-    if (!target || !text.trim()) return;
-    setActiveReplyId(target.id);
-    reply(deal.id, target.id, text.trim());
-    setText('');
-  };
-  const draft = () => {
-    const c = deal.contacts[0];
-    const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${deal.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
-    openComposer({ dealId: deal.id, kind: chan, to: chan === 'email' ? email : '+1 (415) 555-0140', subject: chan === 'email' ? `Re: ${target?.subj ?? deal.name}` : '', body: text.trim(), outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30' });
-    close();
-  };
-
-  return (
-    <div className="dh-comm-pop">
-      <div className="dh-comm-pop-head">
-        <span className="dh-comm-pop-title"><Icon name="chat" size={13} /> Conversation · {deal.company}</span>
-        <button className="dh-comm-pop-open" onClick={() => { setNav('deals'); openDeal(deal.id); close(); }}>Open deal <Icon name="arrowRight" size={12} /></button>
-      </div>
-
-      <div className="dh-comm-pop-list">
-        {comms.length === 0 && <div className="dh-comm-pop-empty">No messages yet.</div>}
-        {comms.map((a) => <CommRow key={a.id} act={a} />)}
-        {typing && <div className="dh-comm-typing"><TypingDots label={`${String(who).split(' ')[0]} is typing`} /></div>}
-        {!showAll && recentComms(deal, 12).length > 3 && (
-          <button className="dh-comm-pop-more" onClick={() => setShowAll(true)}>See recent communication ({recentComms(deal, 12).length})</button>
-        )}
-      </div>
-
-      {target && (
-        <div className="dh-comm-pop-reply">
-          <div className="dh-comm-pop-replyto">
-            <Icon name={ACTIVITY_ICONS[chan] ?? 'mail'} size={12} /> Reply to {String(who).split(' ')[0]} · {ACTIVITY_META[chan].label}
-          </div>
-          <textarea
-            className="dh-comm-pop-input"
-            placeholder={`Write a ${ACTIVITY_META[chan].label.toLowerCase()}…`}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
-            autoFocus
-          />
-          <div className="dh-comm-pop-actions">
-            <button className="dh-comm-draft" onClick={draft}><Icon name="pencil" size={13} /> Draft</button>
-            <button className="dh-comm-send" onClick={send} disabled={!text.trim()}><Icon name="send" size={13} /> Send</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CommRow({ act }: { act: Activity }) {
-  const m = lastMessage(act);
-  const meta = ACTIVITY_META[act.type];
-  return (
-    <div className={`dh-comm-row ${m.dir}`}>
-      <span className="dh-comm-row-ic" style={{ color: meta.color }}><Icon name={ACTIVITY_ICONS[act.type] ?? 'mail'} size={13} /></span>
-      <div className="dh-comm-row-body">
-        <div className="dh-comm-row-meta">
-          <b>{m.who}</b>
-          <span className={`dh-comm-dir ${m.dir}`}>{m.dir === 'in' ? '↓ in' : '↑ out'}</span>
-          <span className="dh-comm-row-time">{m.w}</span>
-        </div>
-        {act.subj && act.type === 'email' && <div className="dh-comm-row-subj">{act.subj}</div>}
-        <div className="dh-comm-row-text">{m.text}</div>
-      </div>
-    </div>
+    <button
+      className="dh-commbubble"
+      title={`${n} new repl${n > 1 ? 'ies' : 'y'} from ${who} — click to reply`}
+      onClick={(e) => { e.stopPropagation(); openCommPanel(deal.id); }}
+    >
+      {channels.map((c) => (
+        <span key={c.type} className="dh-bubble-seg">
+          <Icon name={ACTIVITY_ICONS[c.type] ?? 'chat'} size={11} />{c.n}
+        </span>
+      ))}
+    </button>
   );
 }
 
