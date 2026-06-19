@@ -28,6 +28,7 @@ import type {
 import { seedDeals } from '@/data/seed';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
+import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
 import { uid } from '@/lib/format';
 import { inboundCount } from '@/lib/comms';
 
@@ -182,6 +183,10 @@ export interface AppState {
   boardStages: BoardStageCfg[];
   boardEditing: boolean;
   boardViews: BoardView[];
+  colorRules: ColorRule[];
+  colorRulesOn: boolean;
+  colorRulesOpen: boolean;
+  focusMode: boolean;
   recordHeadMin: boolean;
   recordNovaMin: boolean;
   colW: Record<string, number>;
@@ -241,6 +246,14 @@ export interface AppState {
   saveBoardView: (name: string) => void;
   applyBoardView: (name: string) => void;
   deleteBoardView: (name: string) => void;
+  setColorRulesOpen: (v: boolean) => void;
+  toggleColorRules: (v?: boolean) => void;
+  addColorRule: () => void;
+  updateColorRule: (id: string, patch: Partial<ColorRule>) => void;
+  removeColorRule: (id: string) => void;
+  moveColorRule: (id: string, dir: -1 | 1) => void;
+  resetColorRules: () => void;
+  setFocusMode: (v: boolean) => void;
   setAuto: (open: boolean) => void;
   setAutoEdit: (a: Automation | null) => void;
   saveAutomation: (a: Automation) => void;
@@ -425,6 +438,10 @@ export const useStore = create<AppState>()(
   boardStages: DEFAULT_BOARD_STAGES.map((s) => ({ ...s })),
   boardEditing: false,
   boardViews: [],
+  colorRules: DEFAULT_COLOR_RULES.map((r) => ({ ...r })),
+  colorRulesOn: false,
+  colorRulesOpen: false,
+  focusMode: false,
   recordHeadMin: false,
   recordNovaMin: false,
   colW: {},
@@ -557,6 +574,28 @@ export const useStore = create<AppState>()(
       return { pipeline: v.pipeline, swimlane: v.swimlane, kbCompact: v.kbCompact, filters: JSON.parse(JSON.stringify(v.filters)) };
     }),
   deleteBoardView: (name) => set((s) => ({ boardViews: s.boardViews.filter((x) => x.name !== name) })),
+
+  setColorRulesOpen: (colorRulesOpen) => set({ colorRulesOpen }),
+  toggleColorRules: (v) => set((s) => ({ colorRulesOn: v ?? !s.colorRulesOn })),
+  addColorRule: () =>
+    set((s) => ({
+      colorRules: [...s.colorRules, { id: uid('cr'), enabled: true, label: 'New rule', field: 'health', op: 'lt', value: '', color: RULE_COLORS[s.colorRules.length % RULE_COLORS.length] }],
+      colorRulesOn: true,
+    })),
+  updateColorRule: (id, patch) =>
+    set((s) => ({ colorRules: s.colorRules.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+  removeColorRule: (id) => set((s) => ({ colorRules: s.colorRules.filter((r) => r.id !== id) })),
+  moveColorRule: (id, dir) =>
+    set((s) => {
+      const arr = [...s.colorRules];
+      const i = arr.findIndex((r) => r.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return {};
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { colorRules: arr };
+    }),
+  resetColorRules: () => set({ colorRules: DEFAULT_COLOR_RULES.map((r) => ({ ...r })) }),
+  setFocusMode: (focusMode) => set({ focusMode }),
 
   setAuto: (autoOpen) => set({ autoOpen, autoEdit: autoOpen ? get().autoEdit : null }),
   setAutoEdit: (autoEdit) => set({ autoEdit }),
@@ -1253,7 +1292,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1270,6 +1309,10 @@ export const useStore = create<AppState>()(
         if (s && version < 4) {
           s.boardStages = DEFAULT_BOARD_STAGES.map((x) => ({ ...x }));
           s.boardViews = [];
+        }
+        if (s && version < 5) {
+          s.colorRules = DEFAULT_COLOR_RULES.map((x) => ({ ...x }));
+          s.colorRulesOn = false;
         }
         return s as AppState;
       },
@@ -1291,6 +1334,8 @@ export const useStore = create<AppState>()(
         recordNovaMin: s.recordNovaMin,
         boardStages: s.boardStages,
         boardViews: s.boardViews,
+        colorRules: s.colorRules,
+        colorRulesOn: s.colorRulesOn,
       }),
     },
   ),

@@ -19,8 +19,10 @@ import { Composer } from './components/composer/Composer';
 import { CaptureSheet } from './components/deals/CaptureSheet';
 import { Confetti } from './components/deals/Confetti';
 import { Peek } from './components/deals/Peek';
+import { ColorRulesModal } from './components/deals/ColorRules';
 import { DocBuilder } from './components/docs/DocBuilder';
 import { Toasts } from './components/ui/Toasts';
+import { Icon } from './components/ui/Icon';
 
 export default function App() {
   const nav = useStore((s) => s.nav);
@@ -30,6 +32,8 @@ export default function App() {
   const setNova = useStore((s) => s.setNova);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
+  const focusMode = useStore((s) => s.focusMode);
+  const setFocusMode = useStore((s) => s.setFocusMode);
 
   // global keyboard shortcuts
   useEffect(() => {
@@ -47,11 +51,15 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+      } else if (key === 'f' && !typing && !mod && !e.shiftKey && !e.altKey) {
+        setFocusMode(!useStore.getState().focusMode);
+      } else if (key === 'escape' && useStore.getState().focusMode) {
+        setFocusMode(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setPalette, setNova, undo, redo]);
+  }, [setPalette, setNova, undo, redo, setFocusMode]);
 
   let content;
   if (nav !== 'deals') {
@@ -72,12 +80,17 @@ export default function App() {
   }
 
   return (
-    <div className="dh-app">
+    <div className={`dh-app ${focusMode ? 'focus-mode' : ''}`}>
       <Sidebar />
       <div className="dh-main">
         <TopBar />
         <div className="dh-content">{content}</div>
       </div>
+      {focusMode && (
+        <button className="dh-focus-exit" onClick={() => setFocusMode(false)} title="Exit focus mode (Esc)">
+          <Icon name="x" size={14} /> Exit focus <kbd>Esc</kbd>
+        </button>
+      )}
 
       {/* overlays */}
       <NovaPanel />
@@ -89,6 +102,7 @@ export default function App() {
       <Composer />
       <CaptureSheet />
       <Peek />
+      <ColorRulesModal />
       <DocBuilder />
       <Confetti />
       <Toasts />

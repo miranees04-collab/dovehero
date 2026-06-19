@@ -6,6 +6,7 @@ import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
 import { inboundCount, lastInbound } from '@/lib/comms';
+import { evalDealColor } from '@/lib/colorRules';
 
 function lastCommDir(deal: Deal): 'in' | 'out' | null {
   const a = deal.acts.find((x) => x.type === 'email' || x.type === 'whatsapp' || x.type === 'sms');
@@ -53,7 +54,10 @@ export function DealCard({
   const requestStage = useStore((s) => s.requestStage);
   const bulk = useStore((s) => s.bulk);
   const toggleBulk = useStore((s) => s.toggleBulk);
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
   const selected = bulk.includes(deal.id);
+  const ruleColor = colorRulesOn ? evalDealColor(deal, colorRules) : null;
   const has = (k: string) => cardFields.includes(k);
   const hc = healthColor(deal.health);
   const stale = staleDays(deal.acts?.[0]?.w) >= 14 && deal.stage !== 'Won';
@@ -69,8 +73,9 @@ export function DealCard({
 
   return (
     <article
-      className={`dh-card ${dragging ? 'dragging' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`}
+      className={`dh-card ${dragging ? 'dragging' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''} ${ruleColor ? 'ruled' : ''}`}
       data-deal-card={deal.id}
+      style={ruleColor ? { background: `color-mix(in srgb, ${ruleColor} 7%, var(--surface))`, borderColor: `color-mix(in srgb, ${ruleColor} 35%, var(--border))` } : undefined}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -84,7 +89,7 @@ export function DealCard({
         }
       }}
     >
-      <span className="dh-card-age" style={{ background: ageColor }} title={closed ? deal.stage : `${idle}d since last activity`} />
+      <span className="dh-card-age" style={{ background: ruleColor ?? ageColor, width: ruleColor ? 5 : undefined }} title={ruleColor ? 'Matches a color rule' : closed ? deal.stage : `${idle}d since last activity`} />
       <button
         className={`dh-card-select ${selected ? 'on' : ''}`}
         onClick={(e) => { e.stopPropagation(); toggleBulk(deal.id); }}

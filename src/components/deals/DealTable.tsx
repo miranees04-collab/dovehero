@@ -6,6 +6,7 @@ import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
+import { evalDealColor } from '@/lib/colorRules';
 import { CommBubble, CardActions } from './DealCard';
 import { BulkBar } from './BulkBar';
 import './table.css';
@@ -112,6 +113,8 @@ export function DealTable() {
   const openComposer = useStore((s) => s.openComposer);
   const requestStage = useStore((s) => s.requestStage);
   const setPeek = useStore((s) => s.setPeek);
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
   const base = useFilteredDeals();
   const [viewName, setViewName] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -349,6 +352,11 @@ export function DealTable() {
             <span className="hide-sm">Search columns</span>
           </button>
 
+          <button className={`dh-filter-btn ${colorRulesOn ? 'active' : ''}`} onClick={() => setColorRulesOpen(true)} title="Color-code rows by rules">
+            <Icon name="sliders" size={15} />
+            <span className="hide-sm">Colors</span>
+          </button>
+
           <button className="dh-filter-btn" onClick={exportCsv}>
             <Icon name="download" size={15} />
             <span className="hide-sm">Export</span>
@@ -495,6 +503,8 @@ function GroupBlock({
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
   const total = rows.reduce((s, d) => s + d.value, 0);
   return (
     <>
@@ -510,8 +520,16 @@ function GroupBlock({
           </td>
         </tr>
       )}
-      {!collapsed && rows.map((d) => (
-        <tr key={d.id} data-row={d.id} onClick={() => openDeal(d.id)} className={`${bulk.includes(d.id) ? 'selected' : ''} ${focusId === d.id ? 'focused' : ''}`}>
+      {!collapsed && rows.map((d) => {
+        const ruleColor = colorRulesOn ? evalDealColor(d, colorRules) : null;
+        return (
+        <tr
+          key={d.id}
+          data-row={d.id}
+          onClick={() => openDeal(d.id)}
+          className={`${bulk.includes(d.id) ? 'selected' : ''} ${focusId === d.id ? 'focused' : ''}`}
+          style={ruleColor ? { boxShadow: `inset 3px 0 0 ${ruleColor}`, background: `color-mix(in srgb, ${ruleColor} 6%, transparent)` } : undefined}
+        >
           <td className="dh-td-check" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={bulk.includes(d.id)} onChange={() => toggleBulk(d.id)} aria-label={`Select ${d.name}`} />
           </td>
@@ -524,7 +542,8 @@ function GroupBlock({
             <RowActions deal={d} />
           </td>
         </tr>
-      ))}
+        );
+      })}
     </>
   );
 }

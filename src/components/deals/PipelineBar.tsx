@@ -59,6 +59,9 @@ export function PipelineBar() {
   const boardEditing = useStore((s) => s.boardEditing);
   const setBoardEditing = useStore((s) => s.setBoardEditing);
   const saveBoardView = useStore((s) => s.saveBoardView);
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
+  const setFocusMode = useStore((s) => s.setFocusMode);
   const [boardViewName, setBoardViewName] = useState('');
   const allCollapsed = BOARD_STAGE_KEYS.every((k) => collapsedCols[k]);
 
@@ -221,6 +224,8 @@ export function PipelineBar() {
           <button className={`dh-ctl-btn ${kbCompact ? 'active' : ''}`} onClick={() => setKbCompact(!kbCompact)}>Compact</button>
           <button className="dh-ctl-btn" onClick={() => setAllCollapsed(BOARD_STAGE_KEYS, !allCollapsed)}>{allCollapsed ? 'Expand all' : 'Collapse all'}</button>
           <button className={`dh-ctl-btn ${boardEditing ? 'active' : ''}`} onClick={() => setBoardEditing(!boardEditing)}><Icon name="grid" size={14} /> {boardEditing ? 'Done' : 'Customize'}</button>
+          <button className={`dh-ctl-btn ${colorRulesOn ? 'active' : ''}`} onClick={() => setColorRulesOpen(true)} title="Color-code deals by rules"><Icon name="sliders" size={14} /> Colors</button>
+          <button className="dh-ctl-btn" onClick={() => setFocusMode(true)} title="Focus mode (press F)"><Icon name="expand" size={14} /> Focus</button>
           <Popover
             align="end"
             width={240}

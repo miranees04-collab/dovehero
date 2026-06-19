@@ -5,6 +5,7 @@ import type { Deal, StageKey, Priority } from '@/types';
 import { money } from '@/lib/format';
 import { DealCard } from './DealCard';
 import { BulkBar } from './BulkBar';
+import { matchRule } from '@/lib/colorRules';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar, Popover } from '@/components/ui/primitives';
 
@@ -175,6 +176,7 @@ export function Board() {
   return (
     <>
       <BoardViewTabs />
+      <ColorLegend deals={deals} />
       {boardEditing && <BoardEditBar />}
       {body}
       <BulkBar />
@@ -317,6 +319,32 @@ function BoardEditBar() {
         <button className="dh-btn v-ghost s-sm" onClick={resetBoardStages}><Icon name="reset" size={14} /> Reset</button>
         <button className="dh-btn v-primary s-sm" onClick={() => setBoardEditing(false)}><Icon name="check" size={14} /> Done</button>
       </div>
+    </div>
+  );
+}
+
+function ColorLegend({ deals }: { deals: Deal[] }) {
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
+  const toggleColorRules = useStore((s) => s.toggleColorRules);
+  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
+  if (!colorRulesOn) return null;
+  const active = colorRules.filter((r) => r.enabled && r.value !== '');
+  const firstRuleId = (d: Deal): string | null => {
+    for (const r of colorRules) if (r.enabled && r.value !== '' && matchRule(d, r)) return r.id;
+    return null;
+  };
+  const counts = active.map((r) => deals.filter((d) => firstRuleId(d) === r.id).length);
+  return (
+    <div className="dh-color-legend">
+      <span className="dh-color-legend-t"><Icon name="sliders" size={12} /> Color rules</span>
+      {active.map((r, i) => (
+        <button key={r.id} className="dh-legend-chip" onClick={() => setColorRulesOpen(true)} title="Edit color rules">
+          <span className="dh-legend-dot" style={{ background: r.color }} />
+          {r.label}<b>{counts[i]}</b>
+        </button>
+      ))}
+      <button className="dh-legend-off" onClick={() => toggleColorRules(false)} title="Turn off color coding"><Icon name="x" size={12} /></button>
     </div>
   );
 }
