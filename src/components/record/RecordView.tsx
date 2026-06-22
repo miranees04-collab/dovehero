@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore, type ComposerKind } from '@/store/useStore';
 import { STAGES, OWNERS, healthColor, healthBand, SEQUENCES, CATALOG } from '@/data/constants';
 import type { StageKey, ActivityType } from '@/types';
-import { money, staleDays } from '@/lib/format';
+import { money, staleDays, type DateRange } from '@/lib/format';
 import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
@@ -92,6 +92,7 @@ export function RecordView() {
   const [preview, setPreview] = useState<DerivedAsset | null>(null);
   const [feedFilter, setFeedFilter] = useState<ActivityType | 'all'>('all');
   const [feedSearch, setFeedSearch] = useState('');
+  const [feedRange, setFeedRange] = useState<DateRange>('all');
 
   if (!deal) return null;
   const companyRec = companies.find((c) => c.name === deal.company);
@@ -271,7 +272,7 @@ export function RecordView() {
                 <Button variant="primary" size="sm" onClick={addNote} disabled={!note.trim()}>Add note</Button>
               </div>
             </div>
-            <div className="dh-timeline"><Timeline deal={deal} filter={feedFilter} setFilter={setFeedFilter} search={feedSearch} setSearch={setFeedSearch} /></div>
+            <div className="dh-timeline"><Timeline deal={deal} filter={feedFilter} setFilter={setFeedFilter} search={feedSearch} setSearch={setFeedSearch} range={feedRange} setRange={setFeedRange} /></div>
           </section>
         );
       case 'properties':

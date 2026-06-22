@@ -4,7 +4,7 @@ import type { Activity, Deal, ActivityType } from '@/types';
 import { ACTIVITY_META, TYPE_ORDER } from '@/data/constants';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { Badge, TypingDots } from '@/components/ui/primitives';
-import { initials } from '@/lib/format';
+import { initials, inRange, DATE_RANGES, type DateRange } from '@/lib/format';
 import './timeline.css';
 
 const PROVIDERS: Record<string, { label: string; color: string }> = {
@@ -20,17 +20,20 @@ function actText(a: Activity): string {
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
-export function Timeline({ deal, filter, setFilter, search, setSearch }: {
+export function Timeline({ deal, filter, setFilter, search, setSearch, range, setRange }: {
   deal: Deal;
   filter: ActivityType | 'all';
   setFilter: (f: ActivityType | 'all') => void;
   search: string;
   setSearch: (s: string) => void;
+  range: DateRange;
+  setRange: (r: DateRange) => void;
 }) {
   const q = search.trim().toLowerCase();
-  const acts = deal.acts.filter((a) => (filter === 'all' || a.type === filter) && (!q || actText(a).includes(q)));
+  const scoped = deal.acts.filter((a) => inRange(a.w, range));
+  const acts = scoped.filter((a) => (filter === 'all' || a.type === filter) && (!q || actText(a).includes(q)));
   const counts: Partial<Record<ActivityType, number>> = {};
-  deal.acts.forEach((a) => { counts[a.type] = (counts[a.type] ?? 0) + 1; });
+  scoped.forEach((a) => { counts[a.type] = (counts[a.type] ?? 0) + 1; });
 
   const pinned = acts.filter((a) => a.type === 'note' && a.pin);
   const upcoming = acts.filter((a) => a.type === 'task' && !a.done);
@@ -38,19 +41,26 @@ export function Timeline({ deal, filter, setFilter, search, setSearch }: {
 
   return (
     <>
-      <div className="dh-feed-search">
-        <Icon name="search" size={14} />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search activities, messages, people…"
-          aria-label="Search activities"
-        />
-        {search && <button className="dh-feed-search-x" onClick={() => setSearch('')} aria-label="Clear search"><Icon name="x" size={13} /></button>}
+      <div className="dh-feed-toolbar">
+        <div className="dh-feed-search">
+          <Icon name="search" size={14} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search activities, messages, people…"
+            aria-label="Search activities"
+          />
+          {search && <button className="dh-feed-search-x" onClick={() => setSearch('')} aria-label="Clear search"><Icon name="x" size={13} /></button>}
+        </div>
+        <div className="dh-feed-range">
+          {DATE_RANGES.map((r) => (
+            <button key={r.k} className={range === r.k ? 'on' : ''} onClick={() => setRange(r.k)}>{r.label}</button>
+          ))}
+        </div>
       </div>
       <div className="dh-feedtabs">
         <button className={`dh-feedtab ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
-          <Icon name="activity" size={12} /> All <b>{deal.acts.length}</b>
+          <Icon name="activity" size={12} /> All <b>{scoped.length}</b>
         </button>
         {TYPE_ORDER.filter((k) => counts[k]).map((k) => (
           <button key={k} className={`dh-feedtab ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)} style={filter === k ? { ['--fc' as string]: ACTIVITY_META[k].color } : undefined}>

@@ -31,9 +31,24 @@ export function ageHours(w: string): number {
   return unit === 'h' ? n : unit === 'd' ? n * 24 : unit === 'w' ? n * 24 * 7 : n * 24 * 30;
 }
 
+export type DateRange = 'all' | 'today' | 'week' | 'month';
+export const DATE_RANGES: { k: DateRange; label: string }[] = [
+  { k: 'all', label: 'All time' },
+  { k: 'today', label: 'Today' },
+  { k: 'week', label: 'This week' },
+  { k: 'month', label: 'This month' },
+];
+/** Does an activity's relative-time label fall within the selected range? */
+export function inRange(w: string, range: DateRange): boolean {
+  if (range === 'all') return true;
+  const h = ageHours(w);
+  if (range === 'today') return h < 24;
+  if (range === 'week') return h < 24 * 7;
+  return h < 24 * 30; // month
+}
+
 export function staleDays(lastW: string | undefined): number {
-  if (!lastW) return 99;
-  return Math.round(ageHours(lastW) / 24);
+  if (!lastW) return 99;  return Math.round(ageHours(lastW) / 24);
 }
 
 let idSeq = Date.now();

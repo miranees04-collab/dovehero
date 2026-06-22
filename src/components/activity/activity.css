@@ -102,3 +102,28 @@
   color: var(--dim);
   font-size: 13px;
 }
+
+/* Activity center: clickable stat tiles + controls */
+.dh-ac-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+.dh-ac-tile {
+  display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); cursor: pointer;
+  box-shadow: var(--shadow-xs); transition: all var(--t-fast) var(--ease);
+}
+.dh-ac-tile:hover { border-color: var(--accent-400); box-shadow: var(--shadow-sm); }
+.dh-ac-tile.on { border-color: var(--accent-500); background: var(--accent-soft); }
+.dh-ac-tile .v { font-size: 20px; font-weight: 700; color: var(--ink); }
+.dh-ac-tile.on .v { color: var(--accent-700); }
+[data-theme='dark'] .dh-ac-tile.on .v { color: var(--accent); }
+.dh-ac-tile .l { font-size: 11px; color: var(--faint); }
+.dh-ac-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.dh-ac-controls .dh-feed-search { margin-bottom: 0; flex: 1; min-width: 200px; }
+.dh-ac-range { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-md); }
+.dh-ac-range button {
+  padding: 5px 10px; border: none; background: none; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 550; color: var(--sub); cursor: pointer; white-space: nowrap;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-ac-range button:hover { color: var(--ink); }
+.dh-ac-range button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-xs); }
+@media (max-width: 720px) { .dh-ac-tiles { grid-template-columns: repeat(2, 1fr); } }
