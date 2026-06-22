@@ -265,7 +265,7 @@ export function RecordView() {
             <div className="dh-peek-rows" style={{ marginTop: 12 }}>
               <div><span className="pk">Stage</span><span className="pv"><InlineEdit value={deal.stage} display={deal.stage} options={STAGES.map((s) => ({ value: s.k, label: s.k }))} onCommit={(v) => requestStage(deal.id, v as StageKey)} /></span></div>
               <div><span className="pk">Amount</span><span className="pv mono"><InlineEdit value={deal.value} type="number" display={money(deal.value)} onCommit={(v) => updateDeal(deal.id, { value: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} /></span></div>
-              <div><span className="pk">Win</span><span className="pv mono" style={{ color: 'var(--violet)' }}>{deal.win}%</span></div>
+              <div><span className="pk">Win</span><span className="pv mono" style={{ color: 'var(--violet)' }}><InlineEdit value={deal.win} type="number" display={`${deal.win}%`} onCommit={(v) => updateDeal(deal.id, { win: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} /></span></div>
               <div><span className="pk">Health</span><span className="pv" style={{ color: hc }}><InlineEdit value={deal.health} type="number" onCommit={(v) => updateDeal(deal.id, { health: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} /></span></div>
               <div><span className="pk">Close date</span><span className="pv"><InlineEdit value={deal.close} onCommit={(v) => updateDeal(deal.id, { close: v })} /></span></div>
               <div><span className="pk">Priority</span><span className="pv" style={{ textTransform: 'capitalize' }}><InlineEdit value={deal.priority} display={deal.priority} options={[{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }]} onCommit={(v) => updateDeal(deal.id, { priority: v as typeof deal.priority })} /></span></div>
@@ -555,7 +555,9 @@ export function RecordView() {
             </div>
             <div className="dh-rec-metric">
               <span className="l">Win</span>
-              <span className="v mono">{deal.win}%</span>
+              <span className="v mono">
+                <InlineEdit value={deal.win} type="number" display={`${deal.win}%`} onCommit={(v) => updateDeal(deal.id, { win: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} />
+              </span>
             </div>
             <div className="dh-rec-metric">
               <span className="l">Health</span>

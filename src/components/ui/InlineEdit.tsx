@@ -24,7 +24,7 @@ export function InlineEdit({ value, display, type = 'text', options, onCommit, c
         tabIndex={0}
         title="Click to edit"
         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setEditing(true); } }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); setEditing(true); } }}
       >
         {display ?? value}
       </span>
@@ -40,6 +40,7 @@ export function InlineEdit({ value, display, type = 'text', options, onCommit, c
         autoFocus
         defaultValue={String(value)}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
         onChange={(e) => commit(e.target.value)}
         onBlur={() => setEditing(false)}
       >
@@ -54,9 +55,11 @@ export function InlineEdit({ value, display, type = 'text', options, onCommit, c
       autoFocus
       type={type === 'number' ? 'number' : 'text'}
       defaultValue={String(value)}
+      onFocus={(e) => e.target.select()}
       onClick={(e) => e.stopPropagation()}
       onBlur={(e) => commit(e.target.value)}
       onKeyDown={(e) => {
+        e.stopPropagation();
         if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
         if (e.key === 'Escape') setEditing(false);
       }}

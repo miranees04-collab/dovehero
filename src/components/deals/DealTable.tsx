@@ -1,9 +1,10 @@
-import { useMemo, useState, useEffect, useRef, type ReactNode, type ReactElement } from 'react';
+import { useMemo, useState, useEffect, useRef, type ReactElement } from 'react';
 import { useStore, useFilteredDeals, type ComposerKind } from '@/store/useStore';
 import type { Deal, GroupBy } from '@/types';
-import { OWNERS, hueOf, healthColor, healthBand } from '@/data/constants';
+import { OWNERS, hueOf, healthColor, healthBand, STAGES } from '@/data/constants';
 import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
+import { InlineEdit } from '@/components/ui/InlineEdit';
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors } from '@/lib/nova';
 import { evalDealColor, firstMatchingRule, type ColorRule } from '@/lib/colorRules';
@@ -112,7 +113,6 @@ export function DealTable() {
   const setColSearch = useStore((s) => s.setColSearch);
   const colSearchOpen = useStore((s) => s.colSearchOpen);
   const toggleColSearch = useStore((s) => s.toggleColSearch);
-  const updateDeal = useStore((s) => s.updateDeal);
   const openComposer = useStore((s) => s.openComposer);
   const requestStage = useStore((s) => s.requestStage);
   const setPeek = useStore((s) => s.setPeek);
@@ -445,7 +445,6 @@ export function DealTable() {
                 openDeal={openDeal}
                 bulk={bulk}
                 toggleBulk={toggleBulk}
-                updateDeal={updateDeal}
                 focusId={focusId}
                 collapsed={!!collapsedGroups[g.key]}
                 onToggleCollapse={() => setCollapsedGroups((m) => ({ ...m, [g.key]: !m[g.key] }))}
@@ -497,7 +496,7 @@ function ResizeHandle({ onResize }: { onResize: (dx: number, startW: number) => 
 }
 
 function GroupBlock({
-  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, updateDeal, focusId, collapsed, onToggleCollapse,
+  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, focusId, collapsed, onToggleCollapse,
 }: {
   groupKey: string;
   rows: Deal[];
@@ -506,7 +505,6 @@ function GroupBlock({
   openDeal: (id: string) => void;
   bulk: string[];
   toggleBulk: (id: string) => void;
-  updateDeal: (id: string, patch: Partial<Deal>) => void;
   focusId: string | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -546,7 +544,7 @@ function GroupBlock({
           </td>
           {cols.map((c) => (
             <td key={c.k} style={{ textAlign: c.align }} className={c.k === 'value' ? 'mono' : ''}>
-              <Cell deal={d} col={c.k} updateDeal={updateDeal} />
+              <Cell deal={d} col={c.k} />
             </td>
           ))}
           <td className="dh-td-acts" onClick={(e) => e.stopPropagation()}>
@@ -559,46 +557,36 @@ function GroupBlock({
   );
 }
 
-const EDITABLE: Record<string, 'number' | 'text'> = { value: 'number', win: 'number', health: 'number', close: 'text', name: 'text' };
+const STAGE_OPTS = STAGES.map((s) => ({ value: s.k, label: s.k }));
+const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
+const PRIO_OPTS = [{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }];
 
-function EditableCell({ deal: d, col, updateDeal, children }: { deal: Deal; col: string; updateDeal: (id: string, patch: Partial<Deal>) => void; children: ReactNode }) {
-  const [editing, setEditing] = useState(false);
-  const type = EDITABLE[col];
-  if (!type) return <>{children}</>;
-  const cur = col === 'name' ? d.name : col === 'close' ? d.close : String((d as unknown as Record<string, number>)[col]);
-  if (!editing) {
-    return (
-      <span className="dh-editable" onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} title="Double-click to edit">
-        {children}
-      </span>
-    );
-  }
-  return (
-    <input
-      className="dh-cell-edit"
-      autoFocus
-      type={type === 'number' ? 'number' : 'text'}
-      defaultValue={cur}
-      onClick={(e) => e.stopPropagation()}
-      onBlur={(e) => { commit(e.target.value); }}
-      onKeyDown={(e) => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditing(false); }}
-    />
-  );
-  function commit(v: string) {
-    setEditing(false);
-    if (type === 'number') {
-      const n = parseInt(v.replace(/[^0-9]/g, ''), 10) || 0;
-      updateDeal(d.id, { [col]: col === 'win' || col === 'health' ? Math.min(100, n) : n } as Partial<Deal>);
-    } else {
-      updateDeal(d.id, { [col]: v } as Partial<Deal>);
-    }
-  }
-}
+function Cell({ deal: d, col }: { deal: Deal; col: string }) {
+  const updateDeal = useStore((s) => s.updateDeal);
+  const requestStage = useStore((s) => s.requestStage);
+  const display = renderCell(d, col);
+  const num = (v: string, clamp?: boolean) => { const n = parseInt(v.replace(/[^0-9]/g, ''), 10) || 0; return clamp ? Math.min(100, n) : n; };
 
-function Cell({ deal: d, col, updateDeal }: { deal: Deal; col: string; updateDeal: (id: string, patch: Partial<Deal>) => void }) {
-  const inner = renderCell(d, col);
-  if (EDITABLE[col]) return <EditableCell deal={d} col={col} updateDeal={updateDeal}>{inner}</EditableCell>;
-  return inner;
+  switch (col) {
+    case 'value':
+      return <InlineEdit value={d.value} type="number" display={display} onCommit={(v) => updateDeal(d.id, { value: num(v) })} />;
+    case 'win':
+      return <InlineEdit value={d.win} type="number" display={display} onCommit={(v) => updateDeal(d.id, { win: num(v, true) })} />;
+    case 'health':
+      return <InlineEdit value={d.health} type="number" display={display} onCommit={(v) => updateDeal(d.id, { health: num(v, true) })} />;
+    case 'stage':
+      return <InlineEdit value={d.stage} options={STAGE_OPTS} display={display} onCommit={(v) => requestStage(d.id, v as Deal['stage'])} />;
+    case 'owner':
+      return <InlineEdit value={d.owner} options={OWNER_OPTS} display={display} onCommit={(v) => updateDeal(d.id, { owner: v })} />;
+    case 'priority':
+      return <InlineEdit value={d.priority} options={PRIO_OPTS} display={display} onCommit={(v) => updateDeal(d.id, { priority: v as Deal['priority'] })} />;
+    case 'industry':
+      return <InlineEdit value={d.industry} display={display} onCommit={(v) => v.trim() && updateDeal(d.id, { industry: v.trim() })} />;
+    case 'close':
+      return <InlineEdit value={d.close} display={display} onCommit={(v) => updateDeal(d.id, { close: v })} />;
+    default:
+      return display;
+  }
 }
 
 function renderCell(d: Deal, col: string): ReactElement {
