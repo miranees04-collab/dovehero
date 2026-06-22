@@ -442,7 +442,6 @@ export function DealTable() {
                 rows={g.rows}
                 cols={cols}
                 group={group}
-                openDeal={openDeal}
                 bulk={bulk}
                 toggleBulk={toggleBulk}
                 focusId={focusId}
@@ -465,12 +464,12 @@ export function DealTable() {
 }
 
 function RowActions({ deal }: { deal: Deal }) {
-  const setPeek = useStore((s) => s.setPeek);
+  const openDeal = useStore((s) => s.openDeal);
   return (
     <div className="dh-row-acts">
       <CardActions deal={deal} className="dh-row-cardacts" />
-      <button className="dh-row-peek" title="Quick preview" aria-label="Quick preview" onClick={() => setPeek(deal.id)}>
-        <Icon name="eye" size={15} />
+      <button className="dh-row-peek" title="Open full record" aria-label="Open full record" onClick={() => openDeal(deal.id)}>
+        <Icon name="expand" size={15} />
       </button>
     </div>
   );
@@ -496,13 +495,12 @@ function ResizeHandle({ onResize }: { onResize: (dx: number, startW: number) => 
 }
 
 function GroupBlock({
-  groupKey, rows, cols, group, openDeal, bulk, toggleBulk, focusId, collapsed, onToggleCollapse,
+  groupKey, rows, cols, group, bulk, toggleBulk, focusId, collapsed, onToggleCollapse,
 }: {
   groupKey: string;
   rows: Deal[];
   cols: ColMeta[];
   group: GroupBy;
-  openDeal: (id: string) => void;
   bulk: string[];
   toggleBulk: (id: string) => void;
   focusId: string | null;
@@ -511,6 +509,7 @@ function GroupBlock({
 }) {
   const colorRulesOn = useStore((s) => s.colorRulesOn);
   const colorRules = useStore((s) => s.colorRules);
+  const setPeek = useStore((s) => s.setPeek);
   const total = rows.reduce((s, d) => s + d.value, 0);
   return (
     <>
@@ -535,7 +534,7 @@ function GroupBlock({
         <tr
           key={d.id}
           data-row={d.id}
-          onClick={() => openDeal(d.id)}
+          onClick={() => setPeek(d.id)}
           className={`${bulk.includes(d.id) ? 'selected' : ''} ${focusId === d.id ? 'focused' : ''}`}
           style={ruleColor ? { boxShadow: `inset 3px 0 0 ${ruleColor}`, background: `color-mix(in srgb, ${ruleColor} 6%, transparent)` } : undefined}
         >
