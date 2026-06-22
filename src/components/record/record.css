@@ -516,6 +516,11 @@
 }
 .dh-rec-metric-tile .v { font-size: 20px; font-weight: 700; color: var(--ink); }
 .dh-rec-metric-tile .l { font-size: 11px; color: var(--faint); }
+.dh-rec-metric-tile.clickable { cursor: pointer; text-align: left; transition: all var(--t-fast) var(--ease); }
+.dh-rec-metric-tile.clickable:hover { border-color: var(--accent-400); box-shadow: var(--shadow-sm); }
+.dh-rec-metric-tile.clickable.on { border-color: var(--accent-500); background: var(--accent-soft); }
+.dh-rec-metric-tile.clickable.on .v { color: var(--accent-700); }
+[data-theme='dark'] .dh-rec-metric-tile.clickable.on .v { color: var(--accent); }
 @media (max-width: 560px) { .dh-rec-metrics-row { grid-template-columns: repeat(2, 1fr); } }
 .dh-nba {
   display: flex;

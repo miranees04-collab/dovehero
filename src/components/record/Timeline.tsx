@@ -14,9 +14,21 @@ const PROVIDERS: Record<string, { label: string; color: string }> = {
   phone: { label: 'Phone', color: '#8B5CF6' },
 };
 
-export function Timeline({ deal }: { deal: Deal }) {
-  const [filter, setFilter] = useState<ActivityType | 'all'>('all');
-  const acts = filter === 'all' ? deal.acts : deal.acts.filter((a) => a.type === filter);
+function actText(a: Activity): string {
+  const parts = [a.text, a.subj, a.chan, a.title, a.who, a.outcome, a.agenda];
+  if (a.thread) a.thread.forEach((m) => { parts.push(m.text); parts.push(m.who); });
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
+export function Timeline({ deal, filter, setFilter, search, setSearch }: {
+  deal: Deal;
+  filter: ActivityType | 'all';
+  setFilter: (f: ActivityType | 'all') => void;
+  search: string;
+  setSearch: (s: string) => void;
+}) {
+  const q = search.trim().toLowerCase();
+  const acts = deal.acts.filter((a) => (filter === 'all' || a.type === filter) && (!q || actText(a).includes(q)));
   const counts: Partial<Record<ActivityType, number>> = {};
   deal.acts.forEach((a) => { counts[a.type] = (counts[a.type] ?? 0) + 1; });
 
@@ -26,6 +38,16 @@ export function Timeline({ deal }: { deal: Deal }) {
 
   return (
     <>
+      <div className="dh-feed-search">
+        <Icon name="search" size={14} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search activities, messages, people…"
+          aria-label="Search activities"
+        />
+        {search && <button className="dh-feed-search-x" onClick={() => setSearch('')} aria-label="Clear search"><Icon name="x" size={13} /></button>}
+      </div>
       <div className="dh-feedtabs">
         <button className={`dh-feedtab ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
           <Icon name="activity" size={12} /> All <b>{deal.acts.length}</b>
@@ -52,7 +74,11 @@ export function Timeline({ deal }: { deal: Deal }) {
             {history.map((a) => <Card key={a.id} act={a} deal={deal} />)}
           </Group>
         )}
-        {!acts.length && <div className="dh-feed-empty">No {filter === 'all' ? 'activity' : ACTIVITY_META[filter].label.toLowerCase()} yet.</div>}
+        {!acts.length && (
+          <div className="dh-feed-empty">
+            {q ? `No activities match “${search.trim()}”.` : `No ${filter === 'all' ? 'activity' : ACTIVITY_META[filter].label.toLowerCase()} yet.`}
+          </div>
+        )}
       </div>
     </>
   );

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore, type ComposerKind } from '@/store/useStore';
 import { STAGES, OWNERS, healthColor, healthBand, SEQUENCES, CATALOG } from '@/data/constants';
-import type { StageKey } from '@/types';
+import type { StageKey, ActivityType } from '@/types';
 import { money, staleDays } from '@/lib/format';
 import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
@@ -90,6 +90,8 @@ export function RecordView() {
   const [note, setNote] = useState('');
   const [ask, setAsk] = useState('');
   const [preview, setPreview] = useState<DerivedAsset | null>(null);
+  const [feedFilter, setFeedFilter] = useState<ActivityType | 'all'>('all');
+  const [feedSearch, setFeedSearch] = useState('');
 
   if (!deal) return null;
   const companyRec = companies.find((c) => c.name === deal.company);
@@ -229,16 +231,23 @@ export function RecordView() {
           <section className="dh-rec-card dh-360" key="pulse">
             <div className="dh-360-head">
               <div className="dh-360-lead"><Icon name="target" size={15} /> 360° View</div>
-              <div className="dh-360-sub">Every interaction, activity &amp; engagement signal on this deal</div>
+              <div className="dh-360-sub">Every interaction, activity &amp; engagement signal · last touch {deal.acts[0]?.w ?? '—'} · {deal.contacts.length} contacts</div>
             </div>
             <div className="dh-rec-metrics-row">
-              {[
-                ['Interactions', String(deal.acts.length)],
-                ['Last touch', deal.acts[0]?.w ?? '—'],
-                ['Contacts', String(deal.contacts.length)],
-                ['Open tasks', String(deal.acts.filter((a) => a.type === 'task' && !a.done).length)],
-              ].map(([l, v]) => (
-                <div key={l} className="dh-rec-metric-tile"><span className="v mono">{v}</span><span className="l">{l}</span></div>
+              {([
+                ['Interactions', deal.acts.length, 'all'],
+                ['Comments', deal.acts.filter((a) => a.type === 'note').length, 'note'],
+                ['Emails', deal.acts.filter((a) => a.type === 'email').length, 'email'],
+                ['Open tasks', deal.acts.filter((a) => a.type === 'task' && !a.done).length, 'task'],
+              ] as [string, number, ActivityType | 'all'][]).map(([l, v, f]) => (
+                <button
+                  key={l}
+                  className={`dh-rec-metric-tile clickable ${feedFilter === f ? 'on' : ''}`}
+                  onClick={() => { setFeedFilter(f); setFeedSearch(''); }}
+                  title={`Show ${l.toLowerCase()} in the feed`}
+                >
+                  <span className="v mono">{v}</span><span className="l">{l}</span>
+                </button>
               ))}
             </div>
             <div className="dh-rec-actions">
@@ -262,7 +271,7 @@ export function RecordView() {
                 <Button variant="primary" size="sm" onClick={addNote} disabled={!note.trim()}>Add note</Button>
               </div>
             </div>
-            <div className="dh-timeline"><Timeline deal={deal} /></div>
+            <div className="dh-timeline"><Timeline deal={deal} filter={feedFilter} setFilter={setFeedFilter} search={feedSearch} setSearch={setFeedSearch} /></div>
           </section>
         );
       case 'properties':
