@@ -325,6 +325,9 @@ export interface AppState {
   addDealProduct: (dealId: string, item: { n: string; v: number }) => void;
   removeDealProduct: (dealId: string, index: number) => void;
   addDealContact: (dealId: string, contact: { n: string; r: string; t: string; s: 'Strong' | 'Medium' | 'Weak' | 'Dormant' }) => void;
+  updateDealContact: (dealId: string, index: number, patch: Partial<{ n: string; r: string; t: string; s: 'Strong' | 'Medium' | 'Weak' | 'Dormant' }>) => void;
+  removeDealContact: (dealId: string, index: number) => void;
+  updateDealProduct: (dealId: string, index: number, patch: Partial<{ n: string; v: number }>) => void;
   duplicateDeal: (id: string) => void;
   deleteDeal: (id: string) => void;
   setDealPriority: (id: string, p: Priority) => void;
@@ -996,6 +999,12 @@ export const useStore = create<AppState>()(
     set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, products: d.products.filter((_, i) => i !== index) } : d)) })),
   addDealContact: (dealId, contact) =>
     set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, contacts: [...d.contacts, contact] } : d)) })),
+  updateDealContact: (dealId, index, patch) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, contacts: d.contacts.map((c, i) => (i === index ? { ...c, ...patch } : c)) } : d)) })),
+  removeDealContact: (dealId, index) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, contacts: d.contacts.filter((_, i) => i !== index) } : d)) })),
+  updateDealProduct: (dealId, index, patch) =>
+    set((s) => ({ deals: s.deals.map((d) => (d.id === dealId ? { ...d, products: d.products.map((p, i) => (i === index ? { ...p, ...patch } : p)) } : d)) })),
 
   toggleTask: (dealId, actId) =>
     set((s) => ({

@@ -1,11 +1,12 @@
 import { useStore, type ComposerKind } from '@/store/useStore';
 import { Drawer } from '@/components/ui/Modal';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
-import { Avatar, Badge, Button } from '@/components/ui/primitives';
+import { Avatar, Button } from '@/components/ui/primitives';
 import { OWNERS, STAGES, healthColor, hueOf, ACTIVITY_META } from '@/data/constants';
 import { money, initials } from '@/lib/format';
 import { nextBestAction } from '@/lib/nova';
 import { InlineEdit } from '@/components/ui/InlineEdit';
+import { TagEditor } from '@/components/ui/TagEditor';
 
 const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
 const PRIO_OPTS = [{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }];
@@ -91,9 +92,7 @@ export function Peek() {
             <div><span className="pk">Close date</span><span className="pv"><InlineEdit value={deal.close} onCommit={(v) => updateDeal(deal.id, { close: v })} /></span></div>
             <div><span className="pk">Created</span><span className="pv">{deal.created}</span></div>
           </div>
-          {deal.tags.length > 0 && (
-            <div className="dh-peek-tags">{deal.tags.map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}</div>
-          )}
+          <div className="dh-peek-tags"><TagEditor tags={deal.tags} onChange={(next) => updateDeal(deal.id, { tags: next })} /></div>
         </section>
 
         {/* Recent activity & comments */}

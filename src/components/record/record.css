@@ -970,3 +970,30 @@
 .dh-asset-preview-tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .dh-asset-preview-tbl td { padding: 9px 8px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
 .dh-asset-preview-total { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; font-size: 15px; font-weight: 700; color: var(--ink); }
+
+/* Tag editor (chips with add/remove) */
+.dh-tag-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dh-tag-chip { display: inline-flex; align-items: center; gap: 2px; }
+.dh-tag-x { display: grid; place-items: center; width: 16px; height: 16px; border: none; background: none; color: var(--faint); cursor: pointer; border-radius: 4px; }
+.dh-tag-x:hover { color: var(--red); background: var(--red-soft); }
+.dh-tag-add {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+  border: 1px dashed var(--border-strong); background: none; border-radius: var(--r-pill);
+  font-size: 11.5px; font-weight: 600; color: var(--sub); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-tag-add:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+[data-theme='dark'] .dh-tag-add:hover { color: var(--accent); }
+.dh-tag-input {
+  width: 110px; font-size: 12px; padding: 3px 8px; color: var(--ink);
+  border: 1px solid var(--accent-500); border-radius: var(--r-pill); background: var(--surface); outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Editable contact rows */
+.dh-contact.editable { position: relative; }
+.dh-contact-rm {
+  position: absolute; top: 4px; right: 0; width: 18px; height: 18px; display: none; place-items: center;
+  border: none; background: var(--surface); color: var(--faint); border-radius: 4px; cursor: pointer;
+}
+.dh-contact.editable:hover .dh-contact-rm { display: grid; }
+.dh-contact-rm:hover { color: var(--red); background: var(--red-soft); }

@@ -7,12 +7,15 @@ import { Avatar, Badge, Button, Ring, Popover, MenuItem } from '@/components/ui/
 import { Icon } from '@/components/ui/Icon';
 import { nextBestAction, riskFactors, dealSignals } from '@/lib/nova';
 import { InlineEdit } from '@/components/ui/InlineEdit';
+import { TagEditor } from '@/components/ui/TagEditor';
 import { Modal } from '@/components/ui/Modal';
 import { assocFor, assetStatusColor, type DerivedAsset } from '@/lib/assoc';
 import { Timeline } from './Timeline';
 import './record.css';
 
 const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
+const CONTACT_ROLES = ['Economic buyer', 'Champion', 'Decision maker', 'Influencer', 'User', 'Blocker'].map((r) => ({ value: r, label: r }));
+const STRENGTHS = ['Strong', 'Medium', 'Weak', 'Dormant'].map((s) => ({ value: s, label: s }));
 
 const SECTION_META: Record<string, { label: string; icon: string }> = {
   nova: { label: 'Nova — deal intelligence', icon: 'sparkles' },
@@ -64,6 +67,9 @@ export function RecordView() {
   const sendDoc = useStore((s) => s.sendDoc);
   const addDealProduct = useStore((s) => s.addDealProduct);
   const removeDealProduct = useStore((s) => s.removeDealProduct);
+  const updateDealProduct = useStore((s) => s.updateDealProduct);
+  const updateDealContact = useStore((s) => s.updateDealContact);
+  const removeDealContact = useStore((s) => s.removeDealContact);
   const enrollSequence = useStore((s) => s.enrollSequence);
   const askDealNova = useStore((s) => s.askDealNova);
   const clearDealNova = useStore((s) => s.clearDealNova);
@@ -329,14 +335,19 @@ export function RecordView() {
               <AddContact dealId={deal.id} />
             </div>
             <div className="dh-contacts">
-              {deal.contacts.map((c) => (
-                <div key={c.n} className="dh-contact">
+              {deal.contacts.length === 0 && <div className="dh-lineitem" style={{ color: 'var(--faint)' }}>No contacts yet.</div>}
+              {deal.contacts.map((c, i) => (
+                <div key={i} className="dh-contact editable">
                   <Avatar name={c.n} size={30} />
-                  <div className="dh-contact-text"><b>{c.n}</b><small>{c.t}</small></div>
-                  <div className="dh-contact-meta">
-                    <Badge tone={c.r === 'Economic buyer' ? 'violet' : c.r === 'Champion' ? 'green' : 'neutral'}>{c.r}</Badge>
-                    <span className={`dh-signal-strength s-${c.s.toLowerCase()}`}>{c.s}</span>
+                  <div className="dh-contact-text">
+                    <b><InlineEdit value={c.n} onCommit={(v) => v.trim() && updateDealContact(deal.id, i, { n: v.trim() })} /></b>
+                    <small><InlineEdit value={c.t} onCommit={(v) => updateDealContact(deal.id, i, { t: v })} /></small>
                   </div>
+                  <div className="dh-contact-meta">
+                    <InlineEdit value={c.r} display={<Badge tone={c.r === 'Economic buyer' ? 'violet' : c.r === 'Champion' ? 'green' : 'neutral'}>{c.r}</Badge>} options={CONTACT_ROLES} onCommit={(v) => updateDealContact(deal.id, i, { r: v })} />
+                    <InlineEdit value={c.s} display={<span className={`dh-signal-strength s-${c.s.toLowerCase()}`}>{c.s}</span>} options={STRENGTHS} onCommit={(v) => updateDealContact(deal.id, i, { s: v as 'Strong' | 'Medium' | 'Weak' | 'Dormant' })} />
+                  </div>
+                  <button className="dh-contact-rm" onClick={() => removeDealContact(deal.id, i)} aria-label="Remove contact"><Icon name="x" size={12} /></button>
                 </div>
               ))}
             </div>
@@ -364,8 +375,8 @@ export function RecordView() {
               {deal.products.length === 0 && <div className="dh-lineitem" style={{ color: 'var(--faint)' }}>No products linked yet.</div>}
               {deal.products.map((p, i) => (
                 <div key={p.n + i} className="dh-lineitem">
-                  <span>{p.n}</span>
-                  <span className="mono">{money(p.v)}</span>
+                  <span><InlineEdit value={p.n} onCommit={(v) => v.trim() && updateDealProduct(deal.id, i, { n: v.trim() })} /></span>
+                  <span className="mono"><InlineEdit value={p.v} type="number" display={money(p.v)} onCommit={(v) => updateDealProduct(deal.id, i, { v: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} /></span>
                   <button className="dh-lineitem-rm" onClick={() => removeDealProduct(deal.id, i)} aria-label="Remove"><Icon name="x" size={12} /></button>
                 </div>
               ))}
@@ -434,14 +445,12 @@ export function RecordView() {
           </section>
         );
       case 'tags':
-        return deal.tags.length > 0 ? (
+        return (
           <section className="dh-rec-card" key="tags">
             <h4 className="dh-rail-title">Tags</h4>
-            <div className="dh-card-tags" style={{ marginLeft: 0 }}>
-              {deal.tags.map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}
-            </div>
+            <TagEditor tags={deal.tags} onChange={(next) => updateDeal(deal.id, { tags: next })} />
           </section>
-        ) : null;
+        );
       default:
         return null;
     }
