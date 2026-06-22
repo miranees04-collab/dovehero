@@ -727,9 +727,6 @@
 .dh-card:hover .dh-card-select,
 .dh-card.selected .dh-card-select { opacity: 1; }
 .dh-card-select.on { background: var(--accent-600); border-color: var(--accent-600); }
-.dh-card-top { transition: padding-left var(--t-fast) var(--ease); }
-.dh-card:hover .dh-card-top,
-.dh-card.selected .dh-card-top { padding-left: 24px; }
 /* one-click stage advance */
 .dh-card-advance {
   width: 22px; height: 22px;

@@ -3,15 +3,10 @@ import type { Deal, StageKey, Priority } from '@/types';
 import { money, staleDays } from '@/lib/format';
 import { healthColor, OWNERS, STAGES } from '@/data/constants';
 import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
-import { InlineEdit } from '@/components/ui/InlineEdit';
-import { TagEditor } from '@/components/ui/TagEditor';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
 import { inboundCount, inboundByChannel, lastInbound } from '@/lib/comms';
 import { evalDealColor } from '@/lib/colorRules';
-
-const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
-const PRIO_OPTS = [{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }];
 
 function lastCommDir(deal: Deal): 'in' | 'out' | null {
   const a = deal.acts.find((x) => x.type === 'email' || x.type === 'whatsapp' || x.type === 'sms');
@@ -59,9 +54,9 @@ export function DealCard({
   onDragEnd: () => void;
 }) {
   const openDeal = useStore((s) => s.openDeal);
+  const setPeek = useStore((s) => s.setPeek);
   const cardFields = useStore((s) => s.cardFields);
   const requestStage = useStore((s) => s.requestStage);
-  const updateDeal = useStore((s) => s.updateDeal);
   const bulk = useStore((s) => s.bulk);
   const toggleBulk = useStore((s) => s.toggleBulk);
   const colorRulesOn = useStore((s) => s.colorRulesOn);
@@ -88,13 +83,13 @@ export function DealCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={() => openDeal(deal.id)}
+      onClick={() => setPeek(deal.id)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          openDeal(deal.id);
+          setPeek(deal.id);
         }
       }}
     >
@@ -108,7 +103,7 @@ export function DealCard({
         {selected && <Icon name="check" size={11} color="#fff" />}
       </button>
       <div className="dh-card-top">
-        <InlineEdit value={deal.priority} options={PRIO_OPTS} display={<span className={`dh-prio ${deal.priority}`} title={`${deal.priority} priority — click to change`} />} onCommit={(v) => updateDeal(deal.id, { priority: v as Priority })} />
+        <span className={`dh-prio ${deal.priority}`} title={`${deal.priority} priority`} />
         <h3 className="dh-card-title">{deal.name}</h3>
         <CommBubble deal={deal} onOpen={() => openDeal(deal.id)} />
         {nextStage && (
@@ -125,9 +120,7 @@ export function DealCard({
         <CardMenu deal={deal} />
       </div>
 
-      <div className="dh-card-company">
-        <InlineEdit value={deal.company} onCommit={(v) => v.trim() && updateDeal(deal.id, { company: v.trim() })} />
-      </div>
+      <div className="dh-card-company">{deal.company}</div>
 
       {(() => {
         // Render body fields in the user-chosen cardFields order.
@@ -137,13 +130,14 @@ export function DealCard({
         return cardFields.map((k) => {
           if (k === 'health') return null;
           if (k === 'tags') {
-            return (
-              <div className="dh-card-tags" key="tags" onClick={(e) => e.stopPropagation()}>
+            const showTags = deal.tags.length > 0 || stale || !!dir;
+            return showTags ? (
+              <div className="dh-card-tags" key="tags">
                 {dir && <Badge tone={dir === 'in' ? 'green' : 'neutral'}>{dir === 'in' ? '↓ Inbound' : '↑ Outbound'}</Badge>}
+                {deal.tags.slice(0, 3).map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}
                 {stale && <Badge tone="amber"><Icon name="clock" size={11} /> Stale</Badge>}
-                <TagEditor tags={deal.tags} onChange={(next) => updateDeal(deal.id, { tags: next })} />
               </div>
-            );
+            ) : null;
           }
           if (k === 'nova') {
             return showNova ? (
@@ -158,20 +152,10 @@ export function DealCard({
             footerDone = true;
             return (
               <div className="dh-card-foot" key="footer">
-                {has('value') && (
-                  <span className="dh-card-value mono">
-                    <InlineEdit value={deal.value} type="number" display={money(deal.value, true)} onCommit={(v) => updateDeal(deal.id, { value: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 })} />
-                  </span>
-                )}
+                {has('value') && <span className="dh-card-value mono">{money(deal.value, true)}</span>}
                 <div className="dh-card-foot-right">
-                  {has('win') && (
-                    <span className="dh-card-win mono" title="Win probability">
-                      <InlineEdit value={deal.win} type="number" display={`${deal.win}%`} onCommit={(v) => updateDeal(deal.id, { win: Math.min(100, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0) })} />
-                    </span>
-                  )}
-                  {has('owner') && (
-                    <InlineEdit value={deal.owner} options={OWNER_OPTS} display={<Avatar ownerKey={deal.owner} size={22} />} onCommit={(v) => updateDeal(deal.id, { owner: v })} />
-                  )}
+                  {has('win') && <span className="dh-card-win mono" title="Win probability">{deal.win}%</span>}
+                  {has('owner') && <Avatar ownerKey={deal.owner} size={22} />}
                 </div>
               </div>
             );
@@ -187,8 +171,6 @@ export function DealCard({
           <span style={{ width: `${deal.win}%`, background: hc }} />
         </div>
       )}
-
-      <CardActions deal={deal} />
     </article>
   );
 }
@@ -232,7 +214,7 @@ function CardMenu({ deal }: { deal: Deal }) {
   const setDealOwner = useStore((s) => s.setDealOwner);
   const duplicateDeal = useStore((s) => s.duplicateDeal);
   const deleteDeal = useStore((s) => s.deleteDeal);
-  const setPeek = useStore((s) => s.setPeek);
+  const openDeal = useStore((s) => s.openDeal);
 
   return (
     <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -247,8 +229,8 @@ function CardMenu({ deal }: { deal: Deal }) {
       >
         {(close) => (
           <div className="dh-cardmenu">
-            <button className="dh-menu-item" onClick={() => { setPeek(deal.id); close(); }}>
-              <span className="dh-menu-icon"><Icon name="eye" size={15} /></span>Quick peek
+            <button className="dh-menu-item" onClick={() => { openDeal(deal.id); close(); }}>
+              <span className="dh-menu-icon"><Icon name="expand" size={15} /></span>Open full record
             </button>
             <div className="dh-menu-sep" />
             <div className="dh-menu-head">Move to</div>
