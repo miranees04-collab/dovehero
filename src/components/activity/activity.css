@@ -127,3 +127,24 @@
 .dh-ac-range button:hover { color: var(--ink); }
 .dh-ac-range button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-xs); }
 @media (max-width: 720px) { .dh-ac-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* Unread toggle + quick reply + inbound markers */
+.dh-ac-unread {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; height: 36px;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-md);
+  font-size: 12.5px; font-weight: 550; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-ac-unread:hover { border-color: var(--border-strong); }
+.dh-ac-unread.on { border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); }
+.dh-ac-unread b { font-family: var(--font-mono); }
+.dh-ac-row.unread { background: color-mix(in srgb, var(--green) 5%, transparent); }
+.dh-ac-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+.dh-ac-row-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.dh-ac-reply {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-pill);
+  font-size: 11.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-ac-reply:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+[data-theme='dark'] .dh-ac-reply:hover { color: var(--accent); }
