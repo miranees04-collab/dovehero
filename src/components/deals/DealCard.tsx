@@ -4,6 +4,7 @@ import { money, staleDays } from '@/lib/format';
 import { healthColor, OWNERS, STAGES } from '@/data/constants';
 import { Avatar, Badge, Popover, Ring } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
+import { TagEditor } from '@/components/ui/TagEditor';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { nextBestAction } from '@/lib/nova';
 import { inboundCount, inboundByChannel, lastInbound } from '@/lib/comms';
@@ -73,7 +74,6 @@ export function DealCard({
   const atRisk = deal.health < 45;
   const dir = lastCommDir(deal);
   const showNova = has('nova') && (atRisk || deal.win >= 80);
-  const showTags = has('tags') && (deal.tags.length > 0 || stale || !!dir);
   const advIdx = ADVANCE_ORDER.indexOf(deal.stage);
   const nextStage = advIdx >= 0 && advIdx < ADVANCE_ORDER.length - 1 ? ADVANCE_ORDER[advIdx + 1] : null;
   const idle = staleDays(deal.acts?.[0]?.w);
@@ -137,13 +137,13 @@ export function DealCard({
         return cardFields.map((k) => {
           if (k === 'health') return null;
           if (k === 'tags') {
-            return showTags ? (
-              <div className="dh-card-tags" key="tags">
+            return (
+              <div className="dh-card-tags" key="tags" onClick={(e) => e.stopPropagation()}>
                 {dir && <Badge tone={dir === 'in' ? 'green' : 'neutral'}>{dir === 'in' ? '↓ Inbound' : '↑ Outbound'}</Badge>}
-                {deal.tags.slice(0, 2).map((t) => <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>)}
                 {stale && <Badge tone="amber"><Icon name="clock" size={11} /> Stale</Badge>}
+                <TagEditor tags={deal.tags} onChange={(next) => updateDeal(deal.id, { tags: next })} />
               </div>
-            ) : null;
+            );
           }
           if (k === 'nova') {
             return showNova ? (
