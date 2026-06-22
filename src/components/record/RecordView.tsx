@@ -234,23 +234,6 @@ export function RecordView() {
               <div className="dh-360-lead"><Icon name="target" size={15} /> 360° View</div>
               <div className="dh-360-sub">Every interaction, activity &amp; engagement signal · last touch {deal.acts[0]?.w ?? '—'} · {deal.contacts.length} contacts</div>
             </div>
-            <div className="dh-rec-metrics-row">
-              {([
-                ['Interactions', deal.acts.length, 'all'],
-                ['Comments', deal.acts.filter((a) => a.type === 'note').length, 'note'],
-                ['Emails', deal.acts.filter((a) => a.type === 'email').length, 'email'],
-                ['Open tasks', deal.acts.filter((a) => a.type === 'task' && !a.done).length, 'task'],
-              ] as [string, number, ActivityType | 'all'][]).map(([l, v, f]) => (
-                <button
-                  key={l}
-                  className={`dh-rec-metric-tile clickable ${feedFilter === f ? 'on' : ''}`}
-                  onClick={() => { setFeedFilter(f); setFeedSearch(''); }}
-                  title={`Show ${l.toLowerCase()} in the feed`}
-                >
-                  <span className="v mono">{v}</span><span className="l">{l}</span>
-                </button>
-              ))}
-            </div>
             <div className="dh-rec-actions">
               <button onClick={() => open('note')}><Icon name="note" size={16} /> Note</button>
               <button onClick={() => open('email')}><Icon name="mail" size={16} /> Email</button>
