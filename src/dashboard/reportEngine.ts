@@ -407,7 +407,9 @@ function bucketLabel(key: string, dim: Dimension, def: ObjectDef): string {
 
 // --- Report config + result -------------------------------------------------
 
-export type Viz = 'kpi' | 'gauge' | 'bar' | 'hbar' | 'line' | 'area' | 'pie' | 'donut' | 'funnel' | 'table' | 'leaderboard';
+export type Viz =
+  | 'kpi' | 'gauge' | 'bar' | 'hbar' | 'line' | 'area' | 'pie' | 'donut'
+  | 'funnel' | 'table' | 'leaderboard' | 'scatter' | 'cohort';
 
 export type RuleTone = 'good' | 'bad' | 'warn';
 
@@ -427,6 +429,7 @@ export interface ReportConfig {
   object: ObjectKey;
   viz: Viz;
   measure: Measure;
+  measureY?: Measure | null; // Y axis for scatter/quadrant (X = measure)
   dimension?: Dimension | null;
   breakdown?: Dimension | null;
   filterGroups: FilterGroup[];
@@ -446,14 +449,37 @@ export interface Point {
   series: Record<string, number>; // seriesKey -> value (for breakdown)
 }
 
+export interface ScatterPoint {
+  label: string;
+  x: number;
+  y: number;
+  n: number;
+}
+
+export interface CohortRow {
+  label: string;
+  base: number;
+  cells: Array<number | null>; // cumulative win % per months-since-created
+}
+
 export interface ReportResult {
   points: Point[];
   seriesKeys: string[];
   value: number; // total / kpi value
   prevValue: number | null;
   unit: 'money' | 'int' | 'days' | 'pct';
+  unitY?: 'money' | 'int' | 'days' | 'pct'; // scatter Y
   total: number;
   rowCount: number;
+  scatter?: ScatterPoint[];
+  cohort?: CohortRow[];
+  cohortCols?: string[];
+}
+
+export interface CrossFilter {
+  field: string; // materialized field key (stage, source, owner, status, …)
+  value: string;
+  label: string;
 }
 
 export interface EngineCtx {
@@ -462,13 +488,18 @@ export interface EngineCtx {
   bounds: Bounds;
   now: number;
   jitter: number;
+  cross?: CrossFilter[];
 }
 
-/** Apply the global owner/pipeline filter (dashboard-level) to raw rows. */
-function applyGlobal(rows: Row[], object: ObjectKey, filters: Filters): Row[] {
+/** Apply dashboard-level owner/pipeline filter + any active cross-filters. */
+function applyGlobal(rows: Row[], object: ObjectKey, filters: Filters, cross: CrossFilter[] = []): Row[] {
+  const fields = new Set(OBJECTS[object].fields.map((f) => f.key));
+  // A cross-filter only scopes objects that actually have that field.
+  const applicable = cross.filter((c) => fields.has(c.field));
   return rows.filter((r) => {
     if (filters.owner !== 'all' && r._ownerId !== filters.owner) return false;
     if (filters.pipeline !== 'all' && object === 'deals' && r.pipeline !== filters.pipeline) return false;
+    for (const c of applicable) if (String(r[c.field]) !== c.value) return false;
     return true;
   });
 }
@@ -480,15 +511,68 @@ function inRange(row: Row, dateField: string | null, a: number, b: number): bool
 }
 
 /** Compile a report config into chart-ready data. */
+const EMPTY: ReportResult = { points: [], seriesKeys: [], value: 0, prevValue: null, unit: 'int', total: 0, rowCount: 0 };
+
 export function runReport(cfg: ReportConfig, ctx: EngineCtx): ReportResult {
   const def = OBJECTS[cfg.object];
-  const all = applyGlobal(materialize(cfg.object, ctx.data, ctx.now), cfg.object, ctx.filters);
+  const all = applyGlobal(materialize(cfg.object, ctx.data, ctx.now), cfg.object, ctx.filters, ctx.cross);
   const { start, end, prevStart, prevEnd } = ctx.bounds;
 
   const filtered = all.filter(
     (r) => passesFilters(r, cfg.filterGroups, ctx.now) && inRange(r, cfg.dateField, start, end),
   );
   const unit = measureUnit(cfg.object, cfg.measure);
+
+  // Cohort retention: created-month cohorts × months-since, cumulative win %.
+  if (cfg.viz === 'cohort') {
+    const rows = all.filter((r) => passesFilters(r, cfg.filterGroups, ctx.now) && r.createdAt !== null);
+    const N = 6;
+    const base = new Date(ctx.now);
+    const monthStart = (back: number) => new Date(base.getFullYear(), base.getMonth() - back, 1).getTime();
+    const cohortCols = Array.from({ length: N }, (_, k) => `+${k}`);
+    const cohort: CohortRow[] = [];
+    for (let i = N - 1; i >= 0; i--) {
+      const cStart = monthStart(i);
+      const cEnd = new Date(base.getFullYear(), base.getMonth() - i + 1, 1).getTime();
+      const cohortDeals = rows.filter((r) => Number(r.createdAt) >= cStart && Number(r.createdAt) < cEnd);
+      const label = new Date(cStart).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      const cells: Array<number | null> = [];
+      for (let k = 0; k < N; k++) {
+        const windowEnd = new Date(base.getFullYear(), base.getMonth() - i + k + 1, 1).getTime();
+        if (windowEnd > ctx.now + MS_DAY) { cells.push(null); continue; } // future — triangular
+        if (cohortDeals.length === 0) { cells.push(null); continue; }
+        const won = cohortDeals.filter((r) => r.status === 'won' && r.closedAt !== null && Number(r.closedAt) < windowEnd).length;
+        cells.push((won / cohortDeals.length) * 100);
+      }
+      cohort.push({ label, base: cohortDeals.length, cells });
+    }
+    return { ...EMPTY, cohort, cohortCols, rowCount: rows.length, unit: 'pct' };
+  }
+
+  // Scatter / quadrant: two measures per entity, split by medians.
+  if (cfg.viz === 'scatter' && cfg.dimension && cfg.measureY) {
+    const groups = new Map<string, Row[]>();
+    for (const r of filtered) {
+      const k = bucketKey(r, cfg.dimension, def);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(r);
+    }
+    const scatter: ScatterPoint[] = [...groups.entries()]
+      .filter(([, rs]) => rs.length > 0)
+      .map(([key, rs]) => ({
+        label: bucketLabel(key, cfg.dimension!, def),
+        x: aggregate(rs, cfg.measure),
+        y: aggregate(rs, cfg.measureY!),
+        n: rs.length,
+      }));
+    return {
+      ...EMPTY,
+      scatter,
+      unit,
+      unitY: measureUnit(cfg.object, cfg.measureY),
+      rowCount: filtered.length,
+    };
+  }
 
   // Funnel is special: cumulative reach across ordered stages.
   if (cfg.viz === 'funnel') {
@@ -624,7 +708,7 @@ export function fmtByUnit(v: number, unit: ReportResult['unit'], compact = true)
 /** Underlying records behind a drill-down click (a dimension bucket, or all). */
 export function drillRecords(cfg: ReportConfig, ctx: EngineCtx, bucketKey: string | null): Row[] {
   const def = OBJECTS[cfg.object];
-  const all = applyGlobal(materialize(cfg.object, ctx.data, ctx.now), cfg.object, ctx.filters);
+  const all = applyGlobal(materialize(cfg.object, ctx.data, ctx.now), cfg.object, ctx.filters, ctx.cross);
   const { start, end } = ctx.bounds;
   let rows = all.filter(
     (r) => passesFilters(r, cfg.filterGroups, ctx.now) && inRange(r, cfg.dateField, start, end),

@@ -2,7 +2,7 @@
 // Generic renderer: takes any ReportConfig, runs it through the engine, and
 // draws the configured visualization. One component covers every chart type,
 // so a user-built report and a preset tile render through the same path.
-// Clicking a data point drills through to the underlying records.
+// Clicking a categorical data point cross-filters the whole dashboard.
 // ---------------------------------------------------------------------------
 import { useMemo } from 'react';
 import {
@@ -13,6 +13,10 @@ import {
   Area,
   LineChart,
   Line,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -54,19 +58,26 @@ export interface DrillTarget {
 export function ReportView({
   config,
   ctx,
-  onDrill,
+  onCross,
 }: {
   config: ReportConfig;
   ctx: EngineCtx;
-  onDrill?: (t: DrillTarget) => void;
+  onCross?: (field: string, value: string, label: string) => void;
 }) {
   const res = useMemo(() => runReport(config, ctx), [config, ctx]);
   const fmt = (v: number) => fmtByUnit(v, res.unit);
   const fmtFull = (v: number) => fmtByUnit(v, res.unit, false);
-  const drill = (key: string | null, label: string) => onDrill?.({ config, bucketKey: key, bucketLabel: label });
+
+  // Clicking a categorical mark cross-filters the dashboard by that value.
+  const dimF = config.dimension && OBJECTS[config.object].fields.find((f) => f.key === config.dimension!.field);
+  const canCross = !!onCross && !!dimF && dimF.type !== 'date';
+  const cross = (key: string, label: string) => {
+    if (canCross && key && !key.startsWith('__') && key !== 'Other' && key !== '—') onCross!(dimF!.key, key, label);
+  };
+  const cursor = canCross ? 'pointer' : 'default';
 
   // ---- KPI ----
-  if (config.viz === 'kpi') return <KpiView config={config} res={res} fmt={fmt} onDrill={() => drill(null, config.title)} />;
+  if (config.viz === 'kpi') return <KpiView config={config} res={res} fmt={fmt} />;
 
   // ---- Gauge ----
   if (config.viz === 'gauge') {
@@ -82,6 +93,18 @@ export function ReportView({
         caption={config.goal ? 'Actual vs target' : 'Set a target in the report settings'}
       />
     );
+  }
+
+  // ---- Cohort retention heatmap ----
+  if (config.viz === 'cohort') {
+    if (!res.cohort || res.cohort.every((r) => r.base === 0)) return <Empty msg="No cohorts in range" />;
+    return <CohortView res={res} />;
+  }
+
+  // ---- Scatter / quadrant ----
+  if (config.viz === 'scatter') {
+    if (!res.scatter || res.scatter.length === 0) return <Empty />;
+    return <ScatterView config={config} res={res} />;
   }
 
   if (res.points.length === 0) return <Empty />;
@@ -102,8 +125,8 @@ export function ReportView({
               )}
               <div
                 className="cd-funnel-row"
-                onClick={() => drill(p.key, p.label)}
-                style={{ cursor: onDrill ? 'pointer' : 'default' }}
+                onClick={() => cross(p.key, p.label)}
+                style={{ cursor }}
                 title={`${p.label}: ${p.value}`}
               >
                 <span className="cd-funnel-stage">{p.label}</span>
@@ -137,10 +160,10 @@ export function ReportView({
                 paddingAngle={1.5}
                 stroke="var(--surface)"
                 strokeWidth={2}
-                onClick={(_, i) => drill(data[i].key, data[i].name)}
+                onClick={(_, i) => cross(data[i].key, data[i].name)}
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={seriesColor(i)} cursor={onDrill ? 'pointer' : 'default'} />
+                  <Cell key={i} fill={seriesColor(i)} cursor={cursor} />
                 ))}
               </Pie>
               <Tooltip content={<ChartTip fmt={fmtFull} />} />
@@ -158,7 +181,7 @@ export function ReportView({
         <table className="cd-table" style={{ flex: 1, minWidth: 150 }}>
           <tbody>
             {data.map((d, i) => (
-              <tr key={d.key} style={{ cursor: onDrill ? 'pointer' : 'default' }} onClick={() => drill(d.key, d.name)}>
+              <tr key={d.key} style={{ cursor }} onClick={() => cross(d.key, d.name)}>
                 <td style={{ padding: '5px 6px' }}>
                   <span className="cd-legend" style={{ padding: 0 }}>
                     <span className="key">
@@ -201,8 +224,8 @@ export function ReportView({
               <tr
                 key={p.key}
                 className={rank && i === 0 ? 'top' : ''}
-                style={{ cursor: onDrill ? 'pointer' : 'default' }}
-                onClick={() => drill(p.key, p.label)}
+                style={{ cursor }}
+                onClick={() => cross(p.key, p.label)}
               >
                 {rank && <td className="num" style={{ color: 'var(--muted)', fontWeight: 600 }}>{i + 1}</td>}
                 <td style={{ fontWeight: rank ? 600 : 400 }}>{p.label}</td>
@@ -226,7 +249,7 @@ export function ReportView({
   const legendItems = multi
     ? keys.map((k, i) => ({ label: k, color: seriesColor(i), kind: (config.viz === 'line' || config.viz === 'area' ? 'line' : 'rect') as 'line' | 'rect' }))
     : [];
-  const clickPoint = (idx: number) => drill(res.points[idx]?.key ?? null, res.points[idx]?.label ?? '');
+  const clickPoint = (idx: number) => cross(res.points[idx]?.key ?? '', res.points[idx]?.label ?? '');
 
   return (
     <div>
@@ -239,7 +262,7 @@ export function ReportView({
             <YAxis type="category" dataKey="label" width={96} tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
             <Tooltip cursor={{ fill: 'var(--wash)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
-              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={18} radius={multi ? 0 : [0, 4, 4, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={onDrill ? 'pointer' : 'default'}>
+              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={18} radius={multi ? 0 : [0, 4, 4, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={cursor}>
                 {!multi && <LabelList dataKey="value" position="right" formatter={(v) => fmt(Number(v))} style={{ fill: 'var(--ink-2)', fontSize: 11 }} />}
               </Bar>
             ))}
@@ -251,7 +274,7 @@ export function ReportView({
             <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmt} width={44} />
             <Tooltip cursor={{ fill: 'var(--wash)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
-              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={34} radius={multi ? 0 : [4, 4, 0, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={onDrill ? 'pointer' : 'default'} />
+              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={34} radius={multi ? 0 : [4, 4, 0, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={cursor} />
             ))}
           </BarChart>
         ) : config.viz === 'line' ? (
@@ -284,16 +307,14 @@ function KpiView({
   config,
   res,
   fmt,
-  onDrill,
 }: {
   config: ReportConfig;
   res: ReportResult;
   fmt: (v: number) => string;
-  onDrill: () => void;
 }) {
   const rule = evalRules(res.value, config.rules);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }} onClick={onDrill}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <StatTile label={measureLabel(config)} value={fmt(res.value)}>
         {config.compare && res.prevValue !== null ? (
           <Delta cur={res.value} prev={res.prevValue} hasPrev suffix="vs prev period" />
@@ -310,11 +331,99 @@ function KpiView({
   );
 }
 
-export function measureLabel(config: ReportConfig): string {
-  const m = config.measure;
+export function measureLabel(config: ReportConfig, m: typeof config.measure = config.measure): string {
   if (m.agg === 'count') return `Count of ${OBJECTS[config.object].label.toLowerCase()}`;
   if (m.agg === 'winRate') return 'Win rate';
   const f = OBJECTS[config.object].fields.find((x) => x.key === m.field);
   const aggWord: Record<string, string> = { sum: 'Total', avg: 'Average', min: 'Min', max: 'Max', median: 'Median', countUnique: 'Unique' };
   return `${aggWord[m.agg] ?? ''} ${f?.label ?? ''}`.trim();
+}
+
+// --- Scatter / quadrant ------------------------------------------------------
+
+function ScatterView({ config, res }: { config: ReportConfig; res: ReportResult }) {
+  const pts = res.scatter!;
+  const xs = pts.map((p) => p.x).sort((a, b) => a - b);
+  const ys = pts.map((p) => p.y).sort((a, b) => a - b);
+  const median = (arr: number[]) => arr.length ? arr[Math.floor(arr.length / 2)] : 0;
+  const mx = median(xs);
+  const my = median(ys);
+  const fx = (v: number) => fmtByUnit(v, res.unit, false);
+  const fy = (v: number) => fmtByUnit(v, res.unitY ?? 'int', false);
+  const xLabel = measureLabel(config);
+  const yLabel = config.measureY ? measureLabel(config, config.measureY) : 'Y';
+  return (
+    <div>
+      <div className="cd-fnote" style={{ margin: '0 0 4px' }}>Each point is one {OBJECTS[config.object].singular === 'deal' ? config.dimension?.field : OBJECTS[config.object].singular}. Lines mark the medians → four performance quadrants.</div>
+      <ResponsiveContainer width="100%" height={230}>
+        <ScatterChart margin={{ left: -4, right: 14, top: 10, bottom: 6 }}>
+          <CartesianGrid stroke="var(--grid)" />
+          <XAxis type="number" dataKey="x" name={xLabel} tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={(v) => fmtByUnit(Number(v), res.unit)} />
+          <YAxis type="number" dataKey="y" name={yLabel} tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={(v) => fmtByUnit(Number(v), res.unitY ?? 'int')} width={46} />
+          <ZAxis type="number" dataKey="n" range={[60, 340]} name="records" />
+          <ReferenceLine x={mx} stroke="var(--axis)" strokeDasharray="4 3" />
+          <ReferenceLine y={my} stroke="var(--axis)" strokeDasharray="4 3" />
+          <Tooltip
+            cursor={{ strokeDasharray: '3 3' }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload as typeof pts[number];
+              return (
+                <div className="cd-tip">
+                  <div className="t">{d.label} · {d.n} records</div>
+                  <div className="row"><span className="k" style={{ borderTopColor: 'var(--s1)' }} /><b>{fx(d.x)}</b><span>{xLabel}</span></div>
+                  <div className="row"><span className="k" style={{ borderTopColor: 'var(--s1)' }} /><b>{fy(d.y)}</b><span>{yLabel}</span></div>
+                </div>
+              );
+            }}
+          />
+          <Scatter data={pts} fill="var(--s1)" stroke="var(--surface)" strokeWidth={2}>
+            <LabelList dataKey="label" position="top" style={{ fill: 'var(--ink-2)', fontSize: 10.5 }} />
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// --- Cohort retention heatmap -----------------------------------------------
+
+function CohortView({ res }: { res: ReportResult }) {
+  const rows = res.cohort!;
+  const cols = res.cohortCols!;
+  // Sequential blue ramp (validated ordinal steps), light→dark by magnitude.
+  const RAMP = ['#e8f1fd', '#cfe0f9', '#a9c8f1', '#7db0ea', '#4f95e6', '#2a78d6'];
+  const cellColor = (pct: number) => RAMP[Math.min(RAMP.length - 1, Math.floor((pct / 100) * RAMP.length))];
+  const ink = (pct: number) => (pct >= 55 ? '#fff' : 'var(--ink)');
+  return (
+    <div className="cd-tablewrap">
+      <div className="cd-fnote" style={{ margin: '0 0 6px' }}>Cumulative win rate of each create-month cohort, by months since created.</div>
+      <table className="cd-cohort">
+        <thead>
+          <tr>
+            <th>Cohort</th>
+            <th className="num">Deals</th>
+            {cols.map((c) => <th key={c} className="num">{c}mo</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td className="num" style={{ color: 'var(--muted)' }}>{r.base}</td>
+              {r.cells.map((v, i) => (
+                <td key={i} className="cd-cohort-cell">
+                  {v === null ? (
+                    <span className="cd-cohort-empty" />
+                  ) : (
+                    <span className="cd-cohort-fill" style={{ background: cellColor(v), color: ink(v) }}>{Math.round(v)}%</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

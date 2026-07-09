@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import {
   BarChart3, BarChartHorizontal, LineChart, AreaChart, PieChart, CircleDashed,
   Gauge, Hash, Table2, Filter, Plus, Trash2, X, Check, ChevronLeft, Sparkles,
-  TrendingUp, Users, DollarSign, Trophy, Timer, Target, ArrowRight,
+  TrendingUp, Users, DollarSign, Trophy, Timer, Target, ArrowRight, Grid2x2, Grid3x3,
 } from 'lucide-react';
 import { ReportView } from './ReportView';
 import {
@@ -32,13 +32,15 @@ const VIZ_META: Array<{ key: Viz; label: string; icon: ReactNode }> = [
   { key: 'funnel', label: 'Funnel', icon: <Filter size={16} /> },
   { key: 'table', label: 'Table', icon: <Table2 size={16} /> },
   { key: 'leaderboard', label: 'Leaderboard', icon: <Trophy size={16} /> },
+  { key: 'scatter', label: 'Quadrant', icon: <Grid2x2 size={16} /> },
+  { key: 'cohort', label: 'Cohort', icon: <Grid3x3 size={16} /> },
 ];
 
 const AGG_OPTIONS: Aggregation[] = ['count', 'sum', 'avg', 'median', 'min', 'max', 'countUnique', 'winRate'];
 
 // A tile's grid width chosen to suit the viz.
 const DEFAULT_SPAN: Record<Viz, ReportConfig['span']> = {
-  kpi: 3, gauge: 4, bar: 6, hbar: 6, line: 8, area: 8, pie: 4, donut: 4, funnel: 4, table: 6, leaderboard: 7,
+  kpi: 3, gauge: 4, bar: 6, hbar: 6, line: 8, area: 8, pie: 4, donut: 4, funnel: 4, table: 6, leaderboard: 7, scatter: 6, cohort: 8,
 };
 
 export function blankConfig(): ReportConfig {
@@ -105,6 +107,14 @@ const TEMPLATES: Template[] = [
     key: 'goal', name: 'Revenue vs goal', desc: 'Closed-won against a target gauge', icon: <Target size={16} />,
     make: () => ({ ...blankConfig(), title: 'Revenue vs goal', viz: 'gauge', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }], rules: [{ id: uid('rl'), op: 'lt', value: 900_000, tone: 'bad', label: 'Behind target' }] }),
   },
+  {
+    key: 'quadrant', name: 'Rep performance quadrant', desc: 'Deal size vs win rate, split into zones', icon: <Grid2x2 size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Deal size vs win rate by rep', viz: 'scatter', span: 6, measure: { agg: 'avg', field: 'amount' }, measureY: { agg: 'winRate' }, dimension: { field: 'owner' }, dateField: 'closedAt' }),
+  },
+  {
+    key: 'cohort', name: 'Win-rate cohorts', desc: 'Cumulative win rate by create-month cohort', icon: <Grid3x3 size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Win-rate cohorts', viz: 'cohort', span: 8, measure: { agg: 'count' }, dimension: null, dateField: 'createdAt' }),
+  },
 ];
 
 // --- Small styled form controls --------------------------------------------
@@ -157,14 +167,27 @@ export function ReportBuilder({
   };
 
   const setViz = (viz: Viz) => {
-    const wantsDim = viz !== 'kpi' && viz !== 'gauge';
+    const wantsDim = viz !== 'kpi' && viz !== 'gauge' && viz !== 'cohort';
+    const firstEnum = def.fields.find((f) => f.groupable && f.type === 'enum');
     const firstGroup = def.fields.find((f) => f.groupable);
-    patch({
+    const p: Partial<ReportConfig> = {
       viz,
       span: DEFAULT_SPAN[viz],
-      dimension: viz === 'funnel' ? { field: 'stage' } : wantsDim ? (cfg.dimension ?? (firstGroup ? { field: firstGroup.key } : null)) : null,
-      breakdown: viz === 'funnel' || viz === 'pie' || viz === 'donut' ? null : cfg.breakdown,
-    });
+      dimension: viz === 'funnel' ? { field: 'stage' } : viz === 'cohort' ? null : wantsDim ? (cfg.dimension ?? (firstGroup ? { field: firstGroup.key } : null)) : null,
+      breakdown: viz === 'funnel' || viz === 'pie' || viz === 'donut' || viz === 'scatter' ? null : cfg.breakdown,
+    };
+    if (viz === 'scatter') {
+      // Two measures per entity; default to amount vs win-rate/count per owner.
+      p.measure = { agg: 'avg', field: def.fields.find((f) => f.measurable)?.key };
+      p.measureY = cfg.object === 'deals' ? { agg: 'winRate' } : { agg: 'count' };
+      p.dimension = { field: (firstEnum ?? firstGroup)?.key ?? 'owner' };
+    }
+    if (viz === 'cohort') {
+      p.object = 'deals';
+      p.measure = { agg: 'count' };
+      p.dateField = 'createdAt';
+    }
+    patch(p);
   };
 
   const setMeasureAgg = (agg: Aggregation) => {
@@ -172,17 +195,26 @@ export function ReportBuilder({
     const field = needsField ? (cfg.measure.field ?? def.fields.find((f) => f.measurable)?.key) : undefined;
     patch({ measure: { agg, field } });
   };
+  const setMeasureYAgg = (agg: Aggregation) => {
+    const needsField = agg !== 'count' && agg !== 'winRate';
+    const field = needsField ? (cfg.measureY?.field ?? def.fields.find((f) => f.measurable)?.key) : undefined;
+    patch({ measureY: { agg, field } });
+  };
 
   const measurable = def.fields.filter((f) => f.measurable);
   const groupable = def.fields.filter((f) => f.groupable);
   const dimField = def.fields.find((f) => f.key === cfg.dimension?.field);
   const needsField = cfg.measure.agg !== 'count' && cfg.measure.agg !== 'winRate';
-  const showDim = cfg.viz !== 'kpi' && cfg.viz !== 'gauge' && cfg.viz !== 'funnel';
+  const isScatter = cfg.viz === 'scatter';
+  const isCohort = cfg.viz === 'cohort';
+  const showMeasure = !isCohort;
+  const showDim = cfg.viz !== 'kpi' && cfg.viz !== 'gauge' && cfg.viz !== 'funnel' && !isCohort;
   const showBreakdown = ['bar', 'hbar', 'line', 'area', 'table'].includes(cfg.viz);
-  const showSortLimit = showDim && dimField?.type !== 'date';
+  const showSortLimit = showDim && !isScatter && dimField?.type !== 'date';
   const showGoal = cfg.viz === 'gauge' || cfg.viz === 'kpi';
   const showCompare = cfg.viz === 'kpi';
   const showRules = cfg.viz === 'kpi' || cfg.viz === 'gauge';
+  const needsFieldY = cfg.measureY && cfg.measureY.agg !== 'count' && cfg.measureY.agg !== 'winRate';
 
   // ----- Gallery -----
   if (stage === 'gallery') {
@@ -257,30 +289,50 @@ export function ReportBuilder({
 
             <div className="cd-fsection">Measure &amp; grouping</div>
 
-            <Row label="Measure by" hint="the value">
-              <div className="cd-inline">
-                <Sel value={cfg.measure.agg} onChange={(v) => setMeasureAgg(v as Aggregation)}>
-                  {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
-                    <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
-                  ))}
-                </Sel>
-                {needsField && (
-                  <Sel value={cfg.measure.field ?? ''} onChange={(v) => patch({ measure: { ...cfg.measure, field: v } })}>
-                    {measurable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+            {showMeasure && (
+              <Row label={isScatter ? 'X measure' : 'Measure by'} hint="the value">
+                <div className="cd-inline">
+                  <Sel value={cfg.measure.agg} onChange={(v) => setMeasureAgg(v as Aggregation)}>
+                    {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
+                      <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
+                    ))}
                   </Sel>
-                )}
-              </div>
-            </Row>
+                  {needsField && (
+                    <Sel value={cfg.measure.field ?? ''} onChange={(v) => patch({ measure: { ...cfg.measure, field: v } })}>
+                      {measurable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </Sel>
+                  )}
+                </div>
+              </Row>
+            )}
+
+            {isScatter && (
+              <Row label="Y measure" hint="second axis">
+                <div className="cd-inline">
+                  <Sel value={cfg.measureY?.agg ?? 'count'} onChange={(v) => setMeasureYAgg(v as Aggregation)}>
+                    {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
+                      <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
+                    ))}
+                  </Sel>
+                  {needsFieldY && (
+                    <Sel value={cfg.measureY?.field ?? ''} onChange={(v) => patch({ measureY: { ...cfg.measureY!, field: v } })}>
+                      {measurable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </Sel>
+                  )}
+                </div>
+              </Row>
+            )}
 
             {cfg.viz === 'funnel' && <p className="cd-fnote">Funnel always groups by deal stage and shows cumulative reach.</p>}
+            {isCohort && <p className="cd-fnote">Cohort groups deals by their create month and tracks cumulative win rate across the following months — no other setup needed.</p>}
 
             {showDim && (
-              <Row label="View by" hint="group / X-axis">
+              <Row label={isScatter ? 'Plot each' : 'View by'} hint={isScatter ? 'one point per' : 'group / X-axis'}>
                 <div className="cd-inline">
                   <Sel value={cfg.dimension?.field ?? ''} onChange={(v) => patch({ dimension: { field: v, grain: def.fields.find((f) => f.key === v)?.type === 'date' ? 'month' : undefined } })}>
-                    {groupable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    {(isScatter ? groupable.filter((f) => f.type !== 'date') : groupable).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
                   </Sel>
-                  {dimField?.type === 'date' && (
+                  {!isScatter && dimField?.type === 'date' && (
                     <Sel value={cfg.dimension?.grain ?? 'month'} onChange={(v) => patch({ dimension: { ...cfg.dimension!, grain: v as DateGrain } })}>
                       {(['day', 'week', 'month', 'quarter'] as DateGrain[]).map((g) => <option key={g} value={g}>by {g}</option>)}
                     </Sel>

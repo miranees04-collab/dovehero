@@ -56,6 +56,7 @@ import {
   Sparkles,
   Table2,
   Target,
+  Trash2,
   TrendingUp,
   Trophy,
   UserPlus,
@@ -108,9 +109,11 @@ import { ReportBuilder } from './ReportBuilder';
 import {
   drillRecords,
   fmtByUnit,
+  uid,
   OBJECTS,
   type ReportConfig,
   type EngineCtx,
+  type CrossFilter,
   type Row,
 } from './reportEngine';
 import './dashboard.css';
@@ -1078,7 +1081,8 @@ function TileCard({
   onRefresh,
   onExport,
   onEdit,
-  onDrill,
+  onCross,
+  onViewRecords,
   dragging,
   dropTarget,
   onDragStart,
@@ -1092,7 +1096,8 @@ function TileCard({
   onRefresh: () => void;
   onExport: () => void;
   onEdit: () => void;
-  onDrill: (t: DrillTarget) => void;
+  onCross: (field: string, value: string, label: string) => void;
+  onViewRecords: () => void;
   dragging: boolean;
   dropTarget: boolean;
   onDragStart: () => void;
@@ -1130,9 +1135,14 @@ function TileCard({
                 <RefreshCw size={14} /> Refresh
               </button>
               {isCustom && (
-                <button className="cd-pop-row" onClick={() => { setOpen(false); onEdit(); }}>
-                  <Pencil size={14} /> Edit report
-                </button>
+                <>
+                  <button className="cd-pop-row" onClick={() => { setOpen(false); onViewRecords(); }}>
+                    <Table2 size={14} /> View records
+                  </button>
+                  <button className="cd-pop-row" onClick={() => { setOpen(false); onEdit(); }}>
+                    <Pencil size={14} /> Edit report
+                  </button>
+                </>
               )}
               <button className="cd-pop-row" onClick={() => { setOpen(false); onExport(); }}>
                 <Download size={14} /> Export CSV
@@ -1147,7 +1157,7 @@ function TileCard({
       </div>
       {sub && <div className="cd-card-sub">{sub}</div>}
       <div className="cd-card-body cd-refreshing" key={`${tile.id}-${flash}-${presetCtx.jit}`}>
-        {isCustom ? <ReportView config={tile.report} ctx={engineCtx} onDrill={onDrill} /> : def?.render(presetCtx)}
+        {isCustom ? <ReportView config={tile.report} ctx={engineCtx} onCross={onCross} /> : def?.render(presetCtx)}
       </div>
     </section>
   );
@@ -1250,6 +1260,75 @@ const NAV_ITEMS = [
   { key: 'deals', label: 'Deals', icon: <Briefcase size={17} /> },
 ];
 
+/** Apply active cross-filters to a raw deal (mirrors the engine for presets). */
+function matchDealCross(d: Deal, cross: CrossFilter[]): boolean {
+  for (const c of cross) {
+    if (c.field === 'stage' && STAGES[d.stage] !== c.value) return false;
+    if (c.field === 'source' && d.source !== c.value) return false;
+    if (c.field === 'status' && d.status !== c.value) return false;
+    if (c.field === 'pipeline' && d.pipeline !== c.value) return false;
+    if (c.field === 'owner' && (REPS.find((r) => r.id === d.owner)?.name ?? '') !== c.value) return false;
+  }
+  return true;
+}
+
+const crossFieldLabel = (field: string) => OBJECTS.deals.fields.find((f) => f.key === field)?.label ?? field;
+
+const VIZ_LABEL: Record<string, string> = {
+  kpi: 'Single value', gauge: 'Gauge', bar: 'Bar', hbar: 'Horizontal bar', line: 'Line', area: 'Area',
+  pie: 'Pie', donut: 'Donut', funnel: 'Funnel', table: 'Table', leaderboard: 'Leaderboard', scatter: 'Quadrant', cohort: 'Cohort',
+};
+
+/** The reusable report library (the "Reports" workspace). */
+function ReportsLibrary({
+  reports, dashName, onNew, onAdd, onEdit, onDelete,
+}: {
+  reports: ReportConfig[];
+  dashName: string;
+  onNew: () => void;
+  onAdd: (r: ReportConfig) => void;
+  onEdit: (r: ReportConfig) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <>
+      <div className="cd-canvas-head" style={{ justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1>Report library</h1>
+          <span className="sub">{reports.length} saved report{reports.length === 1 ? '' : 's'} · reuse on any dashboard</span>
+        </div>
+        <button className="cd-btn primary" onClick={onNew}><Sparkles size={15} /> Create report</button>
+      </div>
+      {reports.length === 0 ? (
+        <div className="cd-placeholder">
+          <BarChart3 size={28} style={{ color: 'var(--axis)' }} />
+          <h2>No saved reports yet</h2>
+          <p>Every report you build is saved here so you can drop it onto any dashboard later.</p>
+          <button className="cd-btn primary" onClick={onNew}><Sparkles size={15} /> Create your first report</button>
+        </div>
+      ) : (
+        <div className="cd-lib-grid">
+          {reports.map((r) => (
+            <div className="cd-lib-card" key={r.id}>
+              <div className="cd-lib-card-top">
+                <span className="cd-card-title">{r.title}</span>
+                <button className="cd-iconbtn" onClick={() => onDelete(r.id)} aria-label="Delete report"><Trash2 size={15} /></button>
+              </div>
+              <div className="cd-lib-card-meta">
+                {OBJECTS[r.object].label} · {VIZ_LABEL[r.viz]} · {measureLabel(r)}
+              </div>
+              <div className="cd-lib-card-actions">
+                <button className="cd-btn primary" onClick={() => onAdd(r)}><Plus size={14} /> Add to {dashName}</button>
+                <button className="cd-btn" onClick={() => onEdit(r)}><Pencil size={14} /> Edit</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function CrmDashboard() {
   const now = useMemo(() => Date.now(), []);
   const [seed] = useState(1_337_042);
@@ -1264,8 +1343,10 @@ export default function CrmDashboard() {
   const [pending, setPending] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
-  const [builder, setBuilder] = useState<{ initial?: ReportConfig; tileId?: string } | null>(null);
+  const [builder, setBuilder] = useState<{ initial?: ReportConfig; tileId?: string; libraryEdit?: boolean } | null>(null);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
+  const [savedReports, setSavedReports] = useState<ReportConfig[]>([]);
+  const [cross, setCross] = useState<CrossFilter[]>([]);
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string }>>([]);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -1273,15 +1354,28 @@ export default function CrmDashboard() {
 
   const dash = dashboards.find((d) => d.id === activeId) ?? dashboards[0];
   const bounds = useMemo(() => periodBounds(filters.range, now), [filters.range, now]);
-  const deals = useMemo(() => sliceDeals(data.deals, filters), [data, filters]);
+  // Preset widgets read raw deals; apply the cross-filter here too so a click
+  // in one tile narrows the whole dashboard, presets included.
+  const deals = useMemo(
+    () => sliceDeals(data.deals, filters).filter((d) => matchDealCross(d, cross)),
+    [data, filters, cross],
+  );
   const rep = REPS.find((r) => r.id === filters.owner) ?? REPS[0];
 
   // Engine context for custom reports (full dataset; global owner/pipeline/date
-  // applied inside the engine) and drill-through.
+  // + cross-filters applied inside the engine) and drill-through.
   const engineCtx: EngineCtx = useMemo(
-    () => ({ data, filters, bounds, now, jitter: globalJit }),
-    [data, filters, bounds, now, globalJit],
+    () => ({ data, filters, bounds, now, jitter: globalJit, cross }),
+    [data, filters, bounds, now, globalJit, cross],
   );
+
+  const toggleCross = (field: string, value: string, label: string) => {
+    holdFrame();
+    setCross((cs) => {
+      const exists = cs.some((c) => c.field === field && c.value === value);
+      return exists ? cs.filter((c) => !(c.field === field && c.value === value)) : [...cs, { field, value, label }];
+    });
+  };
 
   // Refetch keeps the frame: dim the previous render briefly, no skeleton.
   const holdFrame = () => {
@@ -1321,16 +1415,31 @@ export default function CrmDashboard() {
     });
   };
 
+  const upsertLibrary = (cfg: ReportConfig) =>
+    setSavedReports((rs) => (rs.some((r) => r.id === cfg.id) ? rs.map((r) => (r.id === cfg.id ? cfg : r)) : [...rs, cfg]));
+
   const saveReport = (cfg: ReportConfig) => {
-    if (builder?.tileId) {
+    if (builder?.libraryEdit) {
+      upsertLibrary(cfg);
+      toast(`Saved “${cfg.title}” to the report library`);
+    } else if (builder?.tileId) {
       const id = builder.tileId;
       mutateDash((tiles) => tiles.map((t) => (t.id === id ? { id, kind: 'custom', report: cfg } : t)));
+      upsertLibrary(cfg);
       toast(`Saved “${cfg.title}”`);
     } else {
       mutateDash((tiles) => [...tiles, { id: tid(), kind: 'custom', report: cfg }]);
+      upsertLibrary(cfg);
       toast(`“${cfg.title}” added to ${dash.name}`);
     }
     setBuilder(null);
+  };
+
+  // Clone a saved report onto the current dashboard (independent copy).
+  const addLibraryToDash = (cfg: ReportConfig) => {
+    mutateDash((tiles) => [...tiles, { id: tid(), kind: 'custom', report: { ...cfg, id: uid('rep') } }]);
+    setNav('dashboards');
+    toast(`“${cfg.title}” added to ${dash.name}`);
   };
 
   const createDashboard = () => {
@@ -1440,7 +1549,16 @@ export default function CrmDashboard() {
         </header>
 
         <main className="cd-canvas">
-          {nav !== 'dashboards' ? (
+          {nav === 'reports' ? (
+            <ReportsLibrary
+              reports={savedReports}
+              dashName={dash.name}
+              onNew={() => setBuilder({})}
+              onAdd={addLibraryToDash}
+              onEdit={(r) => setBuilder({ initial: r, libraryEdit: true })}
+              onDelete={(id) => setSavedReports((rs) => rs.filter((r) => r.id !== id))}
+            />
+          ) : nav !== 'dashboards' ? (
             <div className="cd-placeholder">
               <span style={{ color: 'var(--axis)' }}>{NAV_ITEMS.find((n) => n.key === nav)?.icon}</span>
               <h2>{NAV_ITEMS.find((n) => n.key === nav)?.label}</h2>
@@ -1455,6 +1573,17 @@ export default function CrmDashboard() {
                 <h1>{dash.name}</h1>
                 <span className="sub">{sliceLabel}</span>
               </div>
+              {cross.length > 0 && (
+                <div className="cd-crossbar">
+                  <span className="cd-cross-label">Cross-filter</span>
+                  {cross.map((c) => (
+                    <button key={`${c.field}:${c.value}`} className="cd-crosschip" onClick={() => toggleCross(c.field, c.value, c.label)}>
+                      {crossFieldLabel(c.field)}: <b>{c.label}</b> <X size={12} />
+                    </button>
+                  ))}
+                  <button className="cd-linkbtn" onClick={() => { holdFrame(); setCross([]); }}>Clear all</button>
+                </div>
+              )}
               {dash.tiles.length === 0 ? (
                 <div className="cd-placeholder">
                   <LayoutDashboard size={28} style={{ color: 'var(--axis)' }} />
@@ -1494,7 +1623,8 @@ export default function CrmDashboard() {
                         onRefresh={() => setJitters((j) => ({ ...j, [tile.id]: (j[tile.id] ?? 0) + 1 }))}
                         onExport={() => toast(`Export queued (mock) — ${label}.csv`)}
                         onEdit={() => tile.kind === 'custom' && setBuilder({ initial: tile.report, tileId: tile.id })}
-                        onDrill={(t) => setDrill(t)}
+                        onCross={toggleCross}
+                        onViewRecords={() => tile.kind === 'custom' && setDrill({ config: tile.report, bucketKey: null, bucketLabel: tile.report.title })}
                         dragging={dragKey === tile.id}
                         dropTarget={dropKey === tile.id && dragKey !== tile.id}
                         onDragStart={() => setDragKey(tile.id)}

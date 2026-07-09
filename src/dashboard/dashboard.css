@@ -1295,6 +1295,90 @@
 }
 @keyframes cdDrawerIn { from { transform: translateX(24px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
+/* cross-filter chip bar */
+.cd-crossbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 2px 12px;
+  padding: 8px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.cd-cross-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cd-crosschip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.cd-crosschip:hover { border-color: var(--accent); }
+.cd-crosschip b { font-weight: 650; }
+
+/* report library cards */
+.cd-lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+.cd-lib-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cd-lib-card-top { display: flex; align-items: center; gap: 8px; }
+.cd-lib-card-top .cd-card-title { flex: 1; }
+.cd-lib-card-meta { font-size: 12px; color: var(--muted); }
+.cd-lib-card-actions { display: flex; gap: 8px; margin-top: 2px; }
+.cd-lib-card-actions .cd-btn { font-size: 12.5px; padding: 6px 10px; }
+
+/* cohort heatmap */
+.cd-cohort { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 12px; }
+.cd-cohort th {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: left;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.cd-cohort th.num, .cd-cohort td.num { text-align: right; }
+.cd-cohort td { padding: 0; }
+.cd-cohort td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; padding-right: 6px; }
+.cd-cohort-cell { text-align: center; }
+.cd-cohort-fill {
+  display: block;
+  border-radius: 5px;
+  padding: 6px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+}
+.cd-cohort-empty { display: block; border-radius: 5px; padding: 6px 4px; background: var(--wash); min-height: 26px; }
+
 @media (max-width: 820px) {
   .cd-builder-split { grid-template-columns: 1fr; }
   .cd-builder-config { border-right: 0; border-bottom: 1px solid var(--border); }
