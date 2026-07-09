@@ -8,12 +8,14 @@ import type { FieldDef, FieldType, ObjectDef, ObjectRecord } from '@/types';
 import './import.css';
 
 /* ------------------------------------------------------------------ *
- * Import wizard — a full-screen, 6-step flow that maps an uploaded
- * file onto the workspace's real objects & properties, lets you clean
- * the data, then actually creates the records in the store.
+ * Import wizard — a full-screen, 4-step flow:
+ *   Start (what + where) → Data (map & clean) → Configure → Report.
+ * Columns map to the workspace's real object properties in the grid
+ * headers; on import it actually creates the records in the store.
  * ------------------------------------------------------------------ */
 
-const STEPS = ['Object', 'Source', 'Mapping', 'Data', 'Records & settings', 'Report'] as const;
+const STEPS = ['Start', 'Data', 'Configure', 'Report'] as const;
+const STEP_HINT = ['What & where', 'Map & clean', 'Review & settings', 'Done'] as const;
 
 type RuleAction = 'trim' | 'upper' | 'lower' | 'title' | 'sentence';
 const RULE_LABEL: Record<RuleAction, string> = {
@@ -109,8 +111,6 @@ const FIELD_TYPES: { k: FieldType; label: string }[] = [
   { k: 'currency', label: 'Currency' }, { k: 'date', label: 'Date' }, { k: 'select', label: 'Dropdown' },
   { k: 'checkbox', label: 'Checkbox' }, { k: 'url', label: 'URL' }, { k: 'longtext', label: 'Long text' },
 ];
-
-const TARGET_COUNT = 5842; // headline "file size" for flavour
 
 export function ImportWizard() {
   const objects = useStore((s) => s.objects);
@@ -211,7 +211,7 @@ export function ImportWizard() {
         window.clearInterval(t);
         runImport();
         setPhase('report');
-        setStep(5);
+        setStep(3);
       }
     }, 60);
     return () => window.clearInterval(t);
@@ -220,7 +220,10 @@ export function ImportWizard() {
 
   // ---- derived ----
   const mappedCols = cols.filter((c) => c.map && !('skip' in c.map));
+  const unmappedCount = cols.filter((c) => !c.map).length;
   const objsWithData = selected.filter((o) => mappedCols.some((c) => c.map && 'obj' in c.map && c.map.obj === o));
+  // One record per row, per object that has ≥1 column mapped into it.
+  const plannedCount = rows.length * Math.max(objsWithData.length, 0);
 
   const mapEncode = (m: MapTarget) => (m ? ('skip' in m ? 'skip' : `${m.obj}:::${m.field}`) : '');
 
@@ -372,7 +375,7 @@ export function ImportWizard() {
     <div className="dh-imp" role="dialog" aria-modal="true" aria-label="Import wizard">
       {/* top bar */}
       <div className="dh-imp-top">
-        <div className="dh-imp-brand"><span className="dh-imp-mark"><Icon name="upload" size={15} color="#fff" strokeWidth={2.2} /></span>Import</div>
+        <div className="dh-imp-brand"><span className="dh-imp-mark"><Icon name="upload" size={15} color="#fff" strokeWidth={2.2} /></span>Import data</div>
         <div className="dh-imp-stepper">
           {STEPS.map((s, i) => (
             <div key={s} className="dh-imp-stp-wrap">
@@ -380,38 +383,46 @@ export function ImportWizard() {
                 className={`dh-imp-stp ${i < step ? 'done' : i === step ? 'on' : ''}`}
                 onClick={() => goStep(i)}
                 disabled={i > step || phase !== 'wizard'}
+                title={STEP_HINT[i]}
               >
-                <span className="sn">{i < step ? <Icon name="check" size={13} strokeWidth={2.6} /> : i + 1}</span>
-                <span className="sl">{s}</span>
+                <span className="sn">{i < step ? <Icon name="check" size={13} strokeWidth={2.8} /> : i + 1}</span>
+                <span className="sl"><b>{s}</b><em>{STEP_HINT[i]}</em></span>
               </button>
               {i < STEPS.length - 1 && <span className={`dh-imp-bar ${i < step ? 'done' : ''}`} />}
             </div>
           ))}
         </div>
-        <button className="dh-imp-close" onClick={close} title="Close" aria-label="Close import">
+        <button className="dh-imp-close" onClick={close} title="Close (Esc)" aria-label="Close import">
           <Icon name="x" size={17} />
         </button>
       </div>
 
       {/* body */}
-      <div className={`dh-imp-body ${phase === 'processing' || phase === 'report' || (phase === 'wizard' && step === 0) ? 'is-center' : ''}`}>
+      <div className={`dh-imp-body ${phase === 'processing' || phase === 'report' ? 'is-center' : ''}`}>
         {phase === 'processing'
           ? renderProcessing()
           : phase === 'report'
             ? renderReport()
-            : [renderObject, renderSource, renderMapping, renderData, renderRecords][step]?.()}
+            : [renderStart, renderData, renderRecords][step]?.()}
       </div>
 
       {/* footer */}
       {phase === 'wizard' && (
         <div className="dh-imp-foot">
           {step > 0 && <Button variant="default" onClick={back}><Icon name="arrowLeft" size={15} /> Back</Button>}
-          <span className="dh-imp-foot-note">Step {step + 1} of {STEPS.length} · {STEPS[step]}</span>
+          <span className="dh-imp-foot-note">Step {step + 1} of {STEPS.length} · {STEP_HINT[step]}</span>
           <span className="dh-imp-grow" />
-          {step === 0 && <Button variant="primary" onClick={next} disabled={!selected.length}>Choose a source <Icon name="arrowRight" size={15} /></Button>}
-          {step === 2 && <Button variant="primary" onClick={next}>Review data <Icon name="arrowRight" size={15} /></Button>}
-          {step === 3 && <Button variant="primary" onClick={next}>Records &amp; settings <Icon name="arrowRight" size={15} /></Button>}
-          {step === 4 && <Button variant="primary" onClick={() => setPhase('processing')}>Import {TARGET_COUNT.toLocaleString()} records <Icon name="arrowRight" size={15} /></Button>}
+          {step === 0 && (
+            <Button className="dh-imp-cta" variant="primary" onClick={next} disabled={!selected.length || !source}>
+              {source ? 'Map & clean' : 'Pick a source to continue'} <Icon name="arrowRight" size={15} />
+            </Button>
+          )}
+          {step === 1 && <Button className="dh-imp-cta" variant="primary" onClick={next}>Review &amp; configure <Icon name="arrowRight" size={15} /></Button>}
+          {step === 2 && (
+            <Button className="dh-imp-cta" variant="primary" onClick={() => setPhase('processing')} disabled={plannedCount === 0}>
+              Import {plannedCount.toLocaleString()} record{plannedCount === 1 ? '' : 's'} <Icon name="arrowRight" size={15} />
+            </Button>
+          )}
         </div>
       )}
 
@@ -428,72 +439,61 @@ export function ImportWizard() {
   );
 
   // ---------------- step renderers ----------------
-  function renderObject() {
-    return (
-      <div className="dh-imp-center wide-center">
-        <h1 className="dh-imp-h1">What are you importing?</h1>
-        <p className="dh-imp-lead">Pick one or more objects. If your file holds several record types, import them together — mapping, data and rules adapt per object, and we link them automatically.</p>
-
-        <div className="dh-imp-objgrid">
-          {objects.map((o) => {
-            const on = selected.includes(o.k);
-            const recommended = o.k === 'contact';
-            return (
-              <button key={o.k} className={`dh-imp-objcard ${on ? 'on' : ''}`} onClick={() => toggleObj(o.k)} aria-pressed={on}>
-                <span className="dh-imp-objcard-corner">
-                  {on
-                    ? <span className="dh-imp-objcard-check"><Icon name="check" size={12} strokeWidth={3} /></span>
-                    : recommended ? <span className="dh-imp-objcard-badge">Recommended</span> : null}
-                </span>
-                <span className="dh-imp-objcard-ic"><Icon name={o.icon} size={20} /></span>
-                <span className="dh-imp-objcard-name">{o.plural}</span>
-                <span className="dh-imp-objcard-meta">{o.fields.length} properties</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {selected.length > 1 ? (
-          <div className="dh-imp-banner ok"><Icon name="check" size={15} /> {selected.map((k) => defOf(k)?.plural ?? k).join(' + ')} import together and link automatically.</div>
-        ) : (
-          <p className="dh-imp-lead sm">Importing <b>{defOf(selected[0])?.plural}</b>. Select more cards to bring in several record types at once.</p>
-        )}
-      </div>
-    );
-  }
-
-  function renderSource() {
-    const label = selected.map((k) => defOf(k)?.plural ?? k).join(' + ');
-    const pick = (id: string, title: string) => {
+  function renderStart() {
+    const pickSource = (id: string, title: string) => {
+      const first = !source;
       setSource(title);
-      setStep(2);
-      toast(id === 'file' ? 'contacts.csv uploaded · 5,842 rows' : `${title} connected · 5,842 records`, 'success');
+      if (first) toast(id === 'file' ? 'contacts.csv loaded · 8 sample rows' : `${title} connected · 8 sample rows`, 'success');
     };
     return (
-      <div className="dh-imp-center">
-        <h1 className="dh-imp-h1">Import into {label}</h1>
-        <p className="dh-imp-lead">Where's your data coming from? Everything after this is one connected flow — map, edit, review, and import without leaving.</p>
-        <div className="dh-imp-srcgrid">
-          {SOURCES.map((c) => (
-            <button key={c.id} className="dh-imp-src" onClick={() => pick(c.id, c.title)}>
-              <span className="dh-imp-si"><Icon name={c.icon} size={20} /></span>
-              <div>
-                <b>{c.title}</b>
-                <p>{c.sub}</p>
-                {c.tag && <span className="dh-imp-tag">{c.tag}</span>}
-              </div>
-            </button>
-          ))}
-        </div>
-        <div className="dh-imp-recent">
-          <div className="dh-imp-sub">Recent imports</div>
-          {[['Contacts', 'Yesterday · 8,200 records'], ['Leads', 'Last week · 3,310 records']].map((r) => (
-            <div key={r[0]} className="dh-imp-ri">
-              <span className="dh-imp-ric"><Icon name="fileText" size={16} /></span>
-              <b className="dh-imp-grow">{r[0]}</b>
-              <span>{r[1]}</span>
+      <div className="dh-imp-wide dh-imp-start">
+        <h1 className="dh-imp-h1">What are you importing, and from where?</h1>
+        <p className="dh-imp-lead">Pick your record types and a source. We map, clean and import them together in one flow — no back-and-forth.</p>
+
+        <div className="dh-imp-start-grid">
+          <section className="dh-imp-start-col">
+            <div className="dh-imp-sub"><span className="dh-imp-numdot">1</span> Record types</div>
+            <div className="dh-imp-objgrid compact">
+              {objects.map((o) => {
+                const on = selected.includes(o.k);
+                const recommended = o.k === 'contact';
+                return (
+                  <button key={o.k} className={`dh-imp-objcard ${on ? 'on' : ''}`} onClick={() => toggleObj(o.k)} aria-pressed={on}>
+                    <span className="dh-imp-objcard-corner">
+                      {on
+                        ? <span className="dh-imp-objcard-check"><Icon name="check" size={12} strokeWidth={3} /></span>
+                        : recommended ? <span className="dh-imp-objcard-badge">Rec.</span> : null}
+                    </span>
+                    <span className="dh-imp-objcard-ic"><Icon name={o.icon} size={19} /></span>
+                    <span className="dh-imp-objcard-name">{o.plural}</span>
+                    <span className="dh-imp-objcard-meta">{o.fields.length} properties</span>
+                  </button>
+                );
+              })}
             </div>
-          ))}
+            {selected.length > 1 && (
+              <div className="dh-imp-banner ok slim"><Icon name="check" size={14} /> {selected.map((k) => defOf(k)?.plural ?? k).join(' + ')} import together &amp; link automatically.</div>
+            )}
+          </section>
+
+          <section className="dh-imp-start-col">
+            <div className="dh-imp-sub"><span className="dh-imp-numdot">2</span> Source</div>
+            <div className="dh-imp-srclist">
+              {SOURCES.map((c) => {
+                const on = source === c.title;
+                return (
+                  <button key={c.id} className={`dh-imp-srcrow ${on ? 'on' : ''}`} onClick={() => pickSource(c.id, c.title)} aria-pressed={on}>
+                    <span className="dh-imp-si"><Icon name={c.icon} size={19} /></span>
+                    <div className="dh-imp-grow">
+                      <b>{c.title}{c.tag && <span className="dh-imp-tag">{c.tag}</span>}</b>
+                      <p>{c.sub}</p>
+                    </div>
+                    <span className={`dh-imp-srcradio ${on ? 'on' : ''}`}>{on && <Icon name="check" size={12} strokeWidth={3} />}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -517,71 +517,27 @@ export function ImportWizard() {
     );
   }
 
-  function renderMapping() {
-    return (
-      <div className="dh-imp-wide">
-        <h1 className="dh-imp-h1">Match columns to properties</h1>
-        <p className="dh-imp-lead">
-          {selected.length > 1
-            ? `Each column can go to any of your selected objects — pick the destination from the grouped list (${selected.map((k) => defOf(k)?.plural).join(', ')}).`
-            : 'Line up each column with a property. Missing one? Create it right here.'}
-        </p>
-        <div className="dh-imp-banner ok"><Icon name="check" size={15} /> {mappedCols.length} of {cols.length} columns mapped{selected.length > 1 ? ` across ${selected.length} objects` : ''}</div>
-        <div className="dh-imp-assocbar">
-          <span className="dh-imp-grow" />
-          <Button variant="default" size="sm" onClick={() => setPropModal({ colIdx: -1 })}><Icon name="plus" size={15} /> Create property</Button>
-        </div>
-        <div className="dh-imp-assoc">
-          <div className="dh-imp-arow head">
-            <div>Column in your file</div>
-            <div>Maps to (object · property)</div>
-            <div />
-            <div>Result</div>
-          </div>
-          {cols.map((c, i) => {
-            const m = c.map;
-            const target = m && 'obj' in m ? m : null;
-            const def = target ? defOf(target.obj) : undefined;
-            const field = def?.fields.find((f) => f.k === target?.field);
-            const samp = rows.slice(0, 2).map((r) => r[i] || '—').join(', ');
-            return (
-              <div key={i} className="dh-imp-arow">
-                <div className="dh-imp-acol"><b>{c.name}</b><div className="dh-imp-samp mono">{samp}</div></div>
-                <div className="dh-imp-acol">
-                  <div className="dh-imp-maptarget">
-                    {mapSelect(i, m, `dh-imp-sel ${!m ? 'unmapped' : ''}`)}
-                    <button className="dh-imp-newbtn" title="Create new property" onClick={() => setPropModal({ colIdx: i })}><Icon name="plus" size={16} /></button>
-                  </div>
-                </div>
-                <div className="dh-imp-aarrow"><Icon name="arrowRight" size={16} /></div>
-                <div className="dh-imp-acol">
-                  {target && field ? (
-                    <div className="dh-imp-result"><span className="dh-imp-objdot">{def?.plural}</span><span className="dh-imp-resfield">{field.label}</span></div>
-                  ) : m && 'skip' in m ? <span className="dh-imp-dim">Skipped</span>
-                    : <span className="dh-imp-warn">Choose where this goes →</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   function renderData() {
+    const ruleCount = cols.filter((c) => c.rule).length;
     return (
       <div className="dh-imp-wide">
-        <h1 className="dh-imp-h1">Review &amp; edit your data</h1>
-        <p className="dh-imp-lead">Your file, live. Double-click a cell to edit or a header to rename. Open a column's <b>⋯</b> menu to apply a one-click format rule — it cleans that column now <b>and</b> on every row at import.</p>
+        <div className="dh-imp-headrow">
+          <div>
+            <h1 className="dh-imp-h1">Map &amp; clean your data</h1>
+            <p className="dh-imp-lead">Each column maps to a property in its header — fix any marked <span className="dh-imp-inlwarn">unmapped</span>. Double-click cells to edit, or use a column's <b>⋯</b> menu for one-click format rules that also run on import.</p>
+          </div>
+        </div>
         <div className="dh-imp-xltoolbar">
-          <span className="dh-imp-banner ok" style={{ margin: 0 }}>
-            <Icon name="check" size={15} /> {rows.length} of {TARGET_COUNT.toLocaleString()} rows · {cols.length} columns
-            {cols.some((c) => c.rule) && <> · <Icon name="wand" size={13} /> {cols.filter((c) => c.rule).length} format rule{cols.filter((c) => c.rule).length > 1 ? 's' : ''}</>}
+          <span className={`dh-imp-banner ${unmappedCount ? 'warn' : 'ok'}`} style={{ margin: 0 }}>
+            <Icon name={unmappedCount ? 'alert' : 'check'} size={15} />
+            {mappedCols.length} of {cols.length} columns mapped{unmappedCount ? ` · ${unmappedCount} to fix` : ''} · {rows.length} rows
+            {ruleCount > 0 && <> · <Icon name="wand" size={13} /> {ruleCount} rule{ruleCount > 1 ? 's' : ''}</>}
           </span>
           <span className="dh-imp-grow" />
+          <Button variant="default" size="sm" onClick={() => setPropModal({ colIdx: -1 })}><Icon name="plus" size={15} /> Property</Button>
           <Button variant="default" size="sm" onClick={gridUndo}><Icon name="undo" size={15} /> Undo</Button>
-          <Button variant="default" size="sm" onClick={addColumn}><Icon name="plus" size={15} /> Add column</Button>
-          <Button variant="default" size="sm" onClick={addRow}><Icon name="plus" size={15} /> Add row</Button>
+          <Button variant="default" size="sm" onClick={addColumn}><Icon name="plus" size={15} /> Column</Button>
+          <Button variant="default" size="sm" onClick={addRow}><Icon name="plus" size={15} /> Row</Button>
         </div>
         <div className="dh-imp-xlwrap">
           <table className="dh-imp-xl">
@@ -691,8 +647,8 @@ export function ImportWizard() {
 
     return (
       <div className="dh-imp-wide">
-        <h1 className="dh-imp-h1">How records will look &amp; import</h1>
-        <p className="dh-imp-lead">A real preview per object, plus the rules applied to every record.{cols.some((c) => c.rule) && <> <b>{cols.filter((c) => c.rule).length} formatting rule{cols.filter((c) => c.rule).length > 1 ? 's' : ''}</b> will run on import.</>}</p>
+        <h1 className="dh-imp-h1">Review &amp; configure</h1>
+        <p className="dh-imp-lead">A live preview of each record, plus how they're assigned and handled on import.{cols.some((c) => c.rule) && <> <b>{cols.filter((c) => c.rule).length} format rule{cols.filter((c) => c.rule).length > 1 ? 's' : ''}</b> will run.</>}</p>
 
         {selected.length > 1 && (
           <div className="dh-imp-otabs">
