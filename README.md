@@ -36,6 +36,24 @@ npm run typecheck  # tsc --noEmit
 
 ---
 
+## 1b. Reporting dashboards (prototype)
+
+A second entry point, [`dashboard.html`](./dashboard.html), hosts a HubSpot-style
+**CRM reporting dashboard prototype** (`src/dashboard/`): three role-based saved
+dashboards (Sales Pipeline · Executive Overview · My Sales Desk) built from a
+widget registry, with global date/owner/pipeline filters that recompute every
+tile from one seeded in-memory dataset. Widgets can be added, removed,
+drag-reordered, and refreshed; thresholds render green/red (win rate, pipeline
+coverage, stuck deals).
+
+```bash
+npm run dev                # open http://localhost:5173/dashboard.html
+npm run build:dashboard    # bundle it into ONE self-contained HTML file
+                           # (dist-dashboard/dashboard.html — shareable anywhere)
+```
+
+---
+
 ## 2. What's inside
 
 ```
