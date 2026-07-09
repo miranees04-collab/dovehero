@@ -1358,8 +1358,8 @@ function matchDealCross(d: Deal, cross: CrossFilter[]): boolean {
 const crossFieldLabel = (field: string) => OBJECTS.deals.fields.find((f) => f.key === field)?.label ?? field;
 
 const VIZ_LABEL: Record<string, string> = {
-  kpi: 'Single value', gauge: 'Gauge', bar: 'Bar', hbar: 'Horizontal bar', line: 'Line', area: 'Area',
-  pie: 'Pie', donut: 'Donut', funnel: 'Funnel', table: 'Table', leaderboard: 'Leaderboard', scatter: 'Quadrant', cohort: 'Cohort',
+  kpi: 'Single value', gauge: 'Gauge', pace: 'Goal pacing', bar: 'Bar', hbar: 'Horizontal bar', line: 'Line', area: 'Area',
+  combo: 'Combination', pie: 'Pie', donut: 'Donut', funnel: 'Funnel', table: 'Table', leaderboard: 'Leaderboard', scatter: 'Quadrant', cohort: 'Cohort',
 };
 
 /** The reusable report library (the "Reports" workspace). */

@@ -731,7 +731,7 @@ export function drillRecords(cfg: ReportConfig, ctx: EngineCtx, bucketKey: strin
       const idx = STAGES.indexOf(bucketKey as (typeof STAGES)[number]);
       rows = rows.filter((r) => Number(r._stageIdx) >= idx);
     } else {
-      rows = rows.filter((r) => bucketKey === bucketKey && bucketKeyOf(r, cfg.dimension!, def) === bucketKey);
+      rows = rows.filter((r) => bucketKeyOf(r, cfg.dimension!, def) === bucketKey);
     }
   }
   return rows.slice(0, 60);

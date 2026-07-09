@@ -240,7 +240,7 @@ export function ReportBuilder({
   const showGoal = ['gauge', 'kpi', 'pace', 'combo'].includes(cfg.viz);
   const showCompare = cfg.viz === 'kpi';
   const showRules = cfg.viz === 'kpi' || cfg.viz === 'gauge' || cfg.viz === 'pace';
-  const showAnomalies = ['line', 'area', 'combo'].includes(cfg.viz) && dimField?.type === 'date';
+  const showAnomalies = ['line', 'area'].includes(cfg.viz) && dimField?.type === 'date';
   const needsFieldY = cfg.measureY && cfg.measureY.agg !== 'count' && cfg.measureY.agg !== 'winRate';
 
   // ----- Gallery -----

@@ -510,7 +510,9 @@ export function parseDealsCsv(text: string, now: number): ImportResult {
     const get = (k: string) => (col[k] !== undefined ? cells[col[k]] ?? '' : '');
     const rawAmount = get('amount').replace(/[$,\s]/g, '');
     const amount = Number(rawAmount) || 0;
-    const company = get('company') || `Deal ${i}`;
+    const rawCompany = get('company');
+    if (!rawCompany && amount <= 0) { dropped++; continue; } // skip blank/junk rows
+    const company = rawCompany || `Deal ${i}`;
     const createdAt = parseDate(get('createdAt')) ?? now - Math.round(daysIn(now) % 200) * DAY;
     const closedRaw = parseDate(get('closedAt'));
     let status: DealStatus;
@@ -519,7 +521,6 @@ export function parseDealsCsv(text: string, now: number): ImportResult {
     else if (/lost|closed lost/.test(rawStatus)) status = 'lost';
     else if (/open|new|active/.test(rawStatus)) status = 'open';
     else status = closedRaw ? 'won' : 'open';
-    if (amount <= 0 && !company) { dropped++; continue; }
     const stg = status === 'won' ? STAGES.length - 1 : get('stage') ? stageIndex(get('stage')) : status === 'lost' ? 2 : 1;
     deals.push({
       id: `imp${i}`,
