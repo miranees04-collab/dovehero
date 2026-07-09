@@ -246,6 +246,19 @@
   background: var(--wash);
 }
 
+.cd-btn.ghost.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cd-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cd-btn.primary:disabled:hover {
+  filter: none;
+}
+
 .cd-btn .chev {
   color: var(--muted);
   margin-left: -2px;

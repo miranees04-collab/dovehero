@@ -57,6 +57,7 @@ import {
   Table2,
   Target,
   Trash2,
+  Upload,
   TrendingUp,
   Trophy,
   UserPlus,
@@ -87,8 +88,11 @@ import {
   fmtPct,
   relTime,
   startOfDay,
+  parseDealsCsv,
+  SAMPLE_CSV,
   type ActivityEvent,
   type Bounds,
+  type Dataset,
   type Deal,
   type Filters,
   type RangeKey,
@@ -1202,6 +1206,85 @@ function AddWidgetModal({
   );
 }
 
+/** CSV import: paste or upload deals; every report recomputes from them. */
+function ImportModal({
+  now, imported, onApply, onReset, onClose,
+}: {
+  now: number;
+  imported: boolean;
+  onApply: (deals: Deal[]) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<ReturnType<typeof parseDealsCsv> | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const parse = (t: string) => {
+    setText(t);
+    setPreview(t.trim() ? parseDealsCsv(t, now) : null);
+  };
+  const onFile = (f: File | undefined) => {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => parse(String(reader.result ?? ''));
+    reader.readAsText(f);
+  };
+
+  const ok = preview && preview.deals.length > 0;
+  return (
+    <div className="cd-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cd-modal" role="dialog" aria-label="Import CSV" style={{ width: 'min(640px, 100%)' }}>
+        <div className="cd-modal-head">
+          <Upload size={17} style={{ color: 'var(--accent)' }} />
+          <h2>Import deals from CSV</h2>
+          <button className="cd-iconbtn" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        </div>
+        <div className="cd-modal-body">
+          <p className="cd-fnote" style={{ marginBottom: 10 }}>
+            Columns are matched by header — company, owner, amount, stage, source, status, created &amp; closed dates.
+            Everything on every dashboard recomputes from what you load.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            <button className="cd-btn" onClick={() => fileRef.current?.click()}><Upload size={14} /> Choose file</button>
+            <button className="cd-btn" onClick={() => parse(SAMPLE_CSV)}><Table2 size={14} /> Load sample CSV</button>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0])} />
+          </div>
+          <textarea
+            className="cd-input"
+            style={{ minHeight: 150, fontFamily: 'ui-monospace, monospace', fontSize: 12, resize: 'vertical' }}
+            placeholder="Paste CSV here — header row first…"
+            value={text}
+            onChange={(e) => parse(e.target.value)}
+          />
+          {preview && (
+            <div style={{ marginTop: 10, fontSize: 12.5 }}>
+              {ok ? (
+                <div className="cd-pill good" style={{ marginBottom: 6 }}><Check size={13} /> {preview.deals.length} deals parsed</div>
+              ) : (
+                <div className="cd-pill bad" style={{ marginBottom: 6 }}><X size={13} /> Nothing to import</div>
+              )}
+              {Object.keys(preview.mapped).length > 0 && (
+                <div style={{ color: 'var(--muted)' }}>
+                  Mapped: {Object.entries(preview.mapped).map(([k, v]) => `${k} ← ${v}`).join(' · ')}
+                </div>
+              )}
+              {preview.warnings.map((w, i) => <div key={i} style={{ color: 'var(--bad)', marginTop: 3 }}>⚠ {w}</div>)}
+            </div>
+          )}
+          <div className="cd-builder-actions" style={{ marginTop: 14 }}>
+            {imported && <button className="cd-btn" onClick={onReset}>Revert to sample data</button>}
+            <button className="cd-btn ghost" onClick={onClose}>Cancel</button>
+            <button className="cd-btn primary" disabled={!ok} onClick={() => ok && onApply(preview!.deals)}>
+              <Check size={15} /> Import {ok ? preview!.deals.length : ''} deals
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Drill-through slide-over: the underlying records behind a clicked data point. */
 function DrillPanel({ target, ctx, onClose }: { target: DrillTarget; ctx: EngineCtx; onClose: () => void }) {
   const rows = useMemo(() => drillRecords(target.config, ctx, target.bucketKey), [target, ctx]);
@@ -1332,7 +1415,9 @@ function ReportsLibrary({
 export default function CrmDashboard() {
   const now = useMemo(() => Date.now(), []);
   const [seed] = useState(1_337_042);
-  const data = useMemo(() => generateData(seed, now), [seed, now]);
+  const generated = useMemo(() => generateData(seed, now), [seed, now]);
+  const [imported, setImported] = useState<Dataset | null>(null);
+  const data = imported ?? generated;
 
   const [dashboards, setDashboards] = useState(INITIAL_DASHBOARDS);
   const [activeId, setActiveId] = useState('pipeline');
@@ -1345,6 +1430,7 @@ export default function CrmDashboard() {
   const [addMenu, setAddMenu] = useState(false);
   const [builder, setBuilder] = useState<{ initial?: ReportConfig; tileId?: string; libraryEdit?: boolean } | null>(null);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<ReportConfig[]>([]);
   const [cross, setCross] = useState<CrossFilter[]>([]);
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string }>>([]);
@@ -1451,6 +1537,20 @@ export default function CrmDashboard() {
     toast('Blank dashboard created — add your first report');
   };
 
+  const applyImport = (deals: Deal[]) => {
+    setImported({ deals, activities: generated.activities });
+    setCross([]);
+    holdFrame();
+    setImportOpen(false);
+    toast(`Imported ${deals.length} deals — every report now reads your data`);
+  };
+  const resetData = () => {
+    setImported(null);
+    holdFrame();
+    setImportOpen(false);
+    toast('Reverted to the sample dataset');
+  };
+
   const ownerOptions = [{ key: 'all', label: 'All owners' }, ...REPS.map((r) => ({ key: r.id, label: r.name }))];
   const pipelineOptions = [{ key: 'all', label: 'All pipelines' }, ...PIPELINES.map((p) => ({ key: p, label: p }))];
   const rangeOptions = (Object.keys(RANGE_LABELS) as RangeKey[]).map((k) => ({ key: k, label: RANGE_LABELS[k] }));
@@ -1540,6 +1640,9 @@ export default function CrmDashboard() {
             onCustom={() => { setAddMenu(false); setBuilder({}); }}
             onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
           />
+          <button className={`cd-btn ghost ${imported ? 'on' : ''}`} onClick={() => setImportOpen(true)} title="Import CSV data">
+            <Upload size={15} />
+          </button>
           <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
             <RefreshCw size={15} />
           </button>
@@ -1670,6 +1773,16 @@ export default function CrmDashboard() {
       )}
 
       {drill && <DrillPanel target={drill} ctx={engineCtx} onClose={() => setDrill(null)} />}
+
+      {importOpen && (
+        <ImportModal
+          now={now}
+          imported={!!imported}
+          onApply={applyImport}
+          onReset={resetData}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
 
       <div className="cd-toasts">
         {toasts.map((t) => (

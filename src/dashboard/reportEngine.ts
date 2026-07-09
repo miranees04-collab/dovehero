@@ -408,7 +408,7 @@ function bucketLabel(key: string, dim: Dimension, def: ObjectDef): string {
 // --- Report config + result -------------------------------------------------
 
 export type Viz =
-  | 'kpi' | 'gauge' | 'bar' | 'hbar' | 'line' | 'area' | 'pie' | 'donut'
+  | 'kpi' | 'gauge' | 'pace' | 'bar' | 'hbar' | 'line' | 'area' | 'combo' | 'pie' | 'donut'
   | 'funnel' | 'table' | 'leaderboard' | 'scatter' | 'cohort';
 
 export type RuleTone = 'good' | 'bad' | 'warn';
@@ -438,6 +438,7 @@ export interface ReportConfig {
   limit: number;
   goal?: number | null; // gauge / kpi target
   compare?: boolean; // vs previous period (kpi)
+  anomalies?: boolean; // rolling-band anomaly highlighting (time series)
   rules: ThresholdRule[];
   span: 3 | 4 | 5 | 6 | 7 | 8 | 12;
 }
@@ -447,6 +448,7 @@ export interface Point {
   label: string;
   value: number;
   series: Record<string, number>; // seriesKey -> value (for breakdown)
+  anomaly?: boolean; // flagged by rolling-band anomaly detection
 }
 
 export interface ScatterPoint {
@@ -636,6 +638,17 @@ export function runReport(cfg: ReportConfig, ctx: EngineCtx): ReportResult {
     points.sort((a, b) => a.label.localeCompare(b.label));
   } else {
     points.sort((a, b) => (cfg.sort === 'value-asc' ? a.value - b.value : b.value - a.value));
+  }
+
+  // Anomaly detection: flag points outside a trailing mean ± 1.8σ band.
+  if (cfg.anomalies && isDate && !cfg.breakdown && points.length >= 4) {
+    const win = 3;
+    for (let i = 2; i < points.length; i++) {
+      const prior = points.slice(Math.max(0, i - win), i).map((p) => p.value);
+      const mean = prior.reduce((s, x) => s + x, 0) / prior.length;
+      const sd = Math.sqrt(prior.reduce((s, x) => s + (x - mean) ** 2, 0) / prior.length);
+      if (sd > 0 && Math.abs(points[i].value - mean) > 1.8 * sd) points[i].anomaly = true;
+    }
   }
 
   // Limit (top N) — keep the tail as "Other" for part-to-whole vizzes.

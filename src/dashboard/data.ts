@@ -419,3 +419,140 @@ export function relTime(t: number, now: number): string {
 export function daysIn(ms: number): number {
   return Math.floor(ms / DAY);
 }
+
+// --- CSV import -------------------------------------------------------------
+
+export interface ImportResult {
+  deals: Deal[];
+  warnings: string[];
+  mapped: Record<string, string>; // canonical field -> matched header
+}
+
+/** Split one CSV line honoring double-quoted fields. */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') q = false;
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+const COLUMN_ALIASES: Record<string, string[]> = {
+  company: ['company', 'account', 'name', 'deal name', 'deal'],
+  contact: ['contact', 'person', 'primary contact'],
+  owner: ['owner', 'rep', 'sales rep', 'assigned', 'deal owner'],
+  amount: ['amount', 'value', 'deal value', 'acv', 'arr', 'revenue'],
+  stage: ['stage', 'deal stage', 'pipeline stage'],
+  source: ['source', 'lead source', 'original source', 'channel'],
+  pipeline: ['pipeline'],
+  status: ['status', 'outcome', 'state'],
+  createdAt: ['created', 'create date', 'created at', 'created date', 'start'],
+  closedAt: ['closed', 'close date', 'closed at', 'closed date', 'won date'],
+};
+
+function matchColumns(headers: string[]): Record<string, number> {
+  const lc = headers.map((h) => h.toLowerCase());
+  const map: Record<string, number> = {};
+  for (const [canon, aliases] of Object.entries(COLUMN_ALIASES)) {
+    let idx = lc.findIndex((h) => aliases.includes(h));
+    if (idx < 0) idx = lc.findIndex((h) => aliases.some((a) => h.includes(a)));
+    if (idx >= 0) map[canon] = idx;
+  }
+  return map;
+}
+
+function parseDate(s: string): number | null {
+  if (!s) return null;
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
+
+/** Parse a CSV of deals into the dataset shape; every report recomputes from it. */
+export function parseDealsCsv(text: string, now: number): ImportResult {
+  const warnings: string[] = [];
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return { deals: [], warnings: ['Need a header row and at least one data row.'], mapped: {} };
+  const headers = splitCsvLine(lines[0]);
+  const col = matchColumns(headers);
+  if (col.company === undefined && col.amount === undefined) {
+    return { deals: [], warnings: ['Could not find a company/name or amount column.'], mapped: {} };
+  }
+  const mapped: Record<string, string> = {};
+  for (const [k, i] of Object.entries(col)) mapped[k] = headers[i];
+
+  const stageIndex = (s: string): number => {
+    const i = STAGES.findIndex((x) => x.toLowerCase() === s.toLowerCase().trim());
+    return i >= 0 ? i : 0;
+  };
+  const normSource = (s: string): Source => {
+    const m = SOURCES.find((x) => x.toLowerCase() === s.toLowerCase().trim());
+    return m ?? 'Organic';
+  };
+  const ownerId = (s: string): string => {
+    const m = REPS.find((r) => r.name.toLowerCase() === s.toLowerCase().trim());
+    return m ? m.id : s.trim() || 'unassigned';
+  };
+
+  const deals: Deal[] = [];
+  let dropped = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const cells = splitCsvLine(lines[i]);
+    const get = (k: string) => (col[k] !== undefined ? cells[col[k]] ?? '' : '');
+    const rawAmount = get('amount').replace(/[$,\s]/g, '');
+    const amount = Number(rawAmount) || 0;
+    const company = get('company') || `Deal ${i}`;
+    const createdAt = parseDate(get('createdAt')) ?? now - Math.round(daysIn(now) % 200) * DAY;
+    const closedRaw = parseDate(get('closedAt'));
+    let status: DealStatus;
+    const rawStatus = get('status').toLowerCase();
+    if (/won|closed won|win/.test(rawStatus)) status = 'won';
+    else if (/lost|closed lost/.test(rawStatus)) status = 'lost';
+    else if (/open|new|active/.test(rawStatus)) status = 'open';
+    else status = closedRaw ? 'won' : 'open';
+    if (amount <= 0 && !company) { dropped++; continue; }
+    const stg = status === 'won' ? STAGES.length - 1 : get('stage') ? stageIndex(get('stage')) : status === 'lost' ? 2 : 1;
+    deals.push({
+      id: `imp${i}`,
+      name: company,
+      company,
+      contact: get('contact') || '—',
+      owner: get('owner') ? ownerId(get('owner')) : REPS[i % REPS.length].id,
+      source: get('source') ? normSource(get('source')) : 'Organic',
+      pipeline: (get('pipeline') as Pipeline) || 'New Business',
+      amount,
+      createdAt,
+      closedAt: status === 'open' ? null : closedRaw ?? createdAt + 30 * DAY,
+      status,
+      stage: stg,
+      stageEnteredAt: status === 'open' ? createdAt : (closedRaw ?? createdAt),
+    });
+  }
+  if (dropped) warnings.push(`Skipped ${dropped} row(s) with no company or amount.`);
+  if (deals.length === 0) warnings.push('No valid rows found.');
+  return { deals, warnings, mapped };
+}
+
+export const SAMPLE_CSV = `Company,Owner,Amount,Stage,Source,Status,Created,Closed
+Northwind Analytics,Aisha Patel,48000,Closed Won,Referral,won,2026-04-02,2026-05-14
+Cloudpeak,Marcus Webb,22000,Proposal,Outbound,open,2026-05-20,
+Datalore Systems,Sofia Reyes,64000,Closed Won,Organic,won,2026-03-11,2026-05-02
+Brightloop,Daniel Kowalski,17500,Negotiation,Paid,open,2026-06-01,
+Vectorly,Aisha Patel,91000,Closed Won,Partner,won,2026-02-18,2026-04-20
+Quanta Metrics,Priya Nair,33000,Demo,Organic,open,2026-06-10,
+Helios Software,Marcus Webb,28000,Qualified,Outbound,lost,2026-04-05,2026-05-19
+Fernwood Labs,Sofia Reyes,54000,Closed Won,Referral,won,2026-03-28,2026-05-30
+Optikon,Tomas Eriksen,12000,Prospect,Paid,open,2026-06-18,
+Streamside,Aisha Patel,76000,Closed Won,Organic,won,2026-01-22,2026-03-15
+Bluegrain,Priya Nair,19000,Proposal,Outbound,open,2026-05-25,
+Parallax One,Daniel Kowalski,41000,Closed Won,Partner,won,2026-02-09,2026-04-11
+`;

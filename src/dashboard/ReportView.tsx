@@ -13,6 +13,7 @@ import {
   Area,
   LineChart,
   Line,
+  ComposedChart,
   ScatterChart,
   Scatter,
   ZAxis,
@@ -94,6 +95,9 @@ export function ReportView({
       />
     );
   }
+
+  // ---- Goal pacing ----
+  if (config.viz === 'pace') return <PaceView config={config} res={res} ctx={ctx} fmt={fmt} />;
 
   // ---- Cohort retention heatmap ----
   if (config.viz === 'cohort') {
@@ -242,10 +246,40 @@ export function ReportView({
     );
   }
 
+  // ---- Combination: columns + moving-average trend line (single axis) ----
+  if (config.viz === 'combo') {
+    const win = 3;
+    const comboData = res.points.map((p, i) => {
+      const from = Math.max(0, i - win + 1);
+      const slice = res.points.slice(from, i + 1);
+      const ma = slice.reduce((s, q) => s + q.value, 0) / slice.length;
+      return { label: p.label, key: p.key, value: p.value, trend: Math.round(ma * 100) / 100 };
+    });
+    return (
+      <div>
+        <LegendChips items={[{ label: measureLabel(config), color: 'var(--s1)' }, { label: '3-pt moving average', color: 'var(--s5)', kind: 'line' }]} />
+        <ResponsiveContainer width="100%" height={224}>
+          <ComposedChart data={comboData} margin={{ left: -18, right: 8, top: 12, bottom: 0 }}>
+            <CartesianGrid stroke="var(--grid)" vertical={false} />
+            <XAxis dataKey="label" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} minTickGap={16} />
+            <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmt} width={44} />
+            <Tooltip cursor={{ fill: 'var(--wash)' }} content={<ChartTip fmt={fmtFull} />} />
+            {config.goal ? <ReferenceLine y={config.goal} stroke="var(--good)" strokeDasharray="4 3" /> : null}
+            <Bar dataKey="value" name={measureLabel(config)} fill="var(--s1)" maxBarSize={30} radius={[4, 4, 0, 0]} />
+            <Line type="monotone" dataKey="trend" name="3-pt moving average" stroke="var(--s5)" strokeWidth={2} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
   // ---- Bar / Horizontal bar / Line / Area ----
   const multi = config.breakdown && res.seriesKeys[0] !== 'value';
-  const chartData = res.points.map((p) => ({ label: p.label, key: p.key, ...(multi ? p.series : { value: p.value }) }));
+  const chartData = res.points.map((p) => ({ label: p.label, key: p.key, _anom: p.anomaly ? p.value : null, ...(multi ? p.series : { value: p.value }) }));
   const keys = multi ? res.seriesKeys : ['value'];
+  const anomCount = !multi ? res.points.filter((p) => p.anomaly).length : 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anomDot: any = config.anomalies && !multi ? AnomalyDot : false;
   const legendItems = multi
     ? keys.map((k, i) => ({ label: k, color: seriesColor(i), kind: (config.viz === 'line' || config.viz === 'area' ? 'line' : 'rect') as 'line' | 'rect' }))
     : [];
@@ -254,6 +288,11 @@ export function ReportView({
   return (
     <div>
       {multi && <LegendChips items={legendItems} />}
+      {config.anomalies && !multi && (
+        <div className="cd-legend">
+          <span className="key"><span className="swatch" style={{ background: 'var(--bad)', borderRadius: '50%' }} /> {anomCount} anomal{anomCount === 1 ? 'y' : 'ies'} vs trailing trend</span>
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={multi ? 208 : 224}>
         {config.viz === 'hbar' ? (
           <BarChart data={chartData} layout="vertical" margin={{ left: 4, right: 52, top: 4, bottom: 0 }}>
@@ -284,7 +323,7 @@ export function ReportView({
             <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmt} width={44} />
             <Tooltip cursor={{ stroke: 'var(--axis)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
-              <Line key={k} type="monotone" dataKey={k} name={multi ? k : measureLabel(config)} stroke={seriesColor(i)} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }} />
+              <Line key={k} type="monotone" dataKey={k} name={multi ? k : measureLabel(config)} stroke={seriesColor(i)} strokeWidth={2} dot={anomDot} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }} />
             ))}
           </LineChart>
         ) : (
@@ -294,7 +333,7 @@ export function ReportView({
             <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmt} width={44} />
             <Tooltip cursor={{ stroke: 'var(--axis)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
-              <Area key={k} type="monotone" dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} stroke={seriesColor(i)} strokeWidth={2} fill={seriesColor(i)} fillOpacity={0.1} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }} />
+              <Area key={k} type="monotone" dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} stroke={seriesColor(i)} strokeWidth={2} fill={seriesColor(i)} fillOpacity={0.1} dot={anomDot} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }} />
             ))}
           </AreaChart>
         )}
@@ -337,6 +376,60 @@ export function measureLabel(config: ReportConfig, m: typeof config.measure = co
   const f = OBJECTS[config.object].fields.find((x) => x.key === m.field);
   const aggWord: Record<string, string> = { sum: 'Total', avg: 'Average', min: 'Min', max: 'Max', median: 'Median', countUnique: 'Unique' };
   return `${aggWord[m.agg] ?? ''} ${f?.label ?? ''}`.trim();
+}
+
+// --- Anomaly dot (red marker for flagged points) ----------------------------
+
+function AnomalyDot(props: { cx?: number; cy?: number; payload?: { _anom?: number | null } }) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || payload?._anom == null) return null;
+  return <circle cx={cx} cy={cy} r={4.5} fill="var(--bad)" stroke="var(--surface)" strokeWidth={2} />;
+}
+
+// --- Goal pacing -------------------------------------------------------------
+
+function PaceView({
+  config, res, ctx, fmt,
+}: {
+  config: ReportConfig;
+  res: ReportResult;
+  ctx: EngineCtx;
+  fmt: (v: number) => string;
+}) {
+  const goal = config.goal ?? 0;
+  const range = ctx.filters.range;
+  const calendar = range === 'qtd' || range === 'ytd';
+  const fullDays = range === 'qtd' ? 91 : range === 'ytd' ? 365 : ctx.bounds.days;
+  const elapsed = Math.max(0.05, Math.min(1, ctx.bounds.days / fullDays));
+  const projected = calendar ? res.value / elapsed : res.value;
+  const attained = goal > 0 ? res.value / goal : 0;
+  const onPace = goal > 0 && projected >= goal;
+  const pct = Math.min(100, attained * 100);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.01em', lineHeight: 1.05 }}>{fmt(res.value)}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{goal > 0 ? `of ${fmt(goal)} target` : 'set a target in report settings'}</div>
+      </div>
+      <div style={{ width: '100%', height: 10, borderRadius: 5, background: 'var(--wash)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 5, background: onPace ? 'var(--good)' : 'var(--bad)' }} />
+      </div>
+      {goal > 0 && (
+        <span className={`cd-pill ${onPace ? 'good' : 'bad'}`}>
+          {calendar
+            ? onPace
+              ? `On pace — trending to ${fmt(projected)}`
+              : `Behind — pace ${fmt(projected)} vs ${fmt(goal)}`
+            : onPace
+              ? `Target met (${fmtPct(attained)})`
+              : `${fmtPct(attained)} of target`}
+        </span>
+      )}
+      {calendar && goal > 0 && (
+        <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{Math.round(elapsed * 100)}% of the period elapsed</div>
+      )}
+    </div>
+  );
 }
 
 // --- Scatter / quadrant ------------------------------------------------------

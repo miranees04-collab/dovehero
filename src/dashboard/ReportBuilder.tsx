@@ -23,10 +23,12 @@ import { measureLabel } from './ReportView';
 const VIZ_META: Array<{ key: Viz; label: string; icon: ReactNode }> = [
   { key: 'kpi', label: 'Single value', icon: <Hash size={16} /> },
   { key: 'gauge', label: 'Gauge', icon: <Gauge size={16} /> },
+  { key: 'pace', label: 'Goal pacing', icon: <Target size={16} /> },
   { key: 'bar', label: 'Vertical bar', icon: <BarChart3 size={16} /> },
   { key: 'hbar', label: 'Horizontal bar', icon: <BarChartHorizontal size={16} /> },
   { key: 'line', label: 'Line', icon: <LineChart size={16} /> },
   { key: 'area', label: 'Area', icon: <AreaChart size={16} /> },
+  { key: 'combo', label: 'Combination', icon: <TrendingUp size={16} /> },
   { key: 'pie', label: 'Pie', icon: <PieChart size={16} /> },
   { key: 'donut', label: 'Donut', icon: <CircleDashed size={16} /> },
   { key: 'funnel', label: 'Funnel', icon: <Filter size={16} /> },
@@ -40,7 +42,7 @@ const AGG_OPTIONS: Aggregation[] = ['count', 'sum', 'avg', 'median', 'min', 'max
 
 // A tile's grid width chosen to suit the viz.
 const DEFAULT_SPAN: Record<Viz, ReportConfig['span']> = {
-  kpi: 3, gauge: 4, bar: 6, hbar: 6, line: 8, area: 8, pie: 4, donut: 4, funnel: 4, table: 6, leaderboard: 7, scatter: 6, cohort: 8,
+  kpi: 3, gauge: 4, pace: 3, bar: 6, hbar: 6, line: 8, area: 8, combo: 8, pie: 4, donut: 4, funnel: 4, table: 6, leaderboard: 7, scatter: 6, cohort: 8,
 };
 
 export function blankConfig(): ReportConfig {
@@ -115,6 +117,18 @@ const TEMPLATES: Template[] = [
     key: 'cohort', name: 'Win-rate cohorts', desc: 'Cumulative win rate by create-month cohort', icon: <Grid3x3 size={16} />,
     make: () => ({ ...blankConfig(), title: 'Win-rate cohorts', viz: 'cohort', span: 8, measure: { agg: 'count' }, dimension: null, dateField: 'createdAt' }),
   },
+  {
+    key: 'pace', name: 'Revenue pace to goal', desc: 'Actual vs target with projected landing', icon: <Target size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Revenue pace to goal', viz: 'pace', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }] }),
+  },
+  {
+    key: 'combo', name: 'Revenue with trend', desc: 'Monthly columns plus a moving-average line', icon: <TrendingUp size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Monthly revenue with trend', viz: 'combo', span: 8, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'closedAt', grain: 'month' }, dateField: 'closedAt', filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }] }),
+  },
+  {
+    key: 'anomaly', name: 'Deal-flow anomalies', desc: 'Weekly deals created with outliers flagged', icon: <AreaChart size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Weekly deals created (anomalies)', viz: 'area', span: 8, measure: { agg: 'count' }, dimension: { field: 'createdAt', grain: 'week' }, dateField: 'createdAt', anomalies: true }),
+  },
 ];
 
 // --- Small styled form controls --------------------------------------------
@@ -167,15 +181,27 @@ export function ReportBuilder({
   };
 
   const setViz = (viz: Viz) => {
-    const wantsDim = viz !== 'kpi' && viz !== 'gauge' && viz !== 'cohort';
+    const wantsDim = viz !== 'kpi' && viz !== 'gauge' && viz !== 'cohort' && viz !== 'pace';
     const firstEnum = def.fields.find((f) => f.groupable && f.type === 'enum');
+    const firstDate = def.fields.find((f) => f.type === 'date');
     const firstGroup = def.fields.find((f) => f.groupable);
     const p: Partial<ReportConfig> = {
       viz,
       span: DEFAULT_SPAN[viz],
-      dimension: viz === 'funnel' ? { field: 'stage' } : viz === 'cohort' ? null : wantsDim ? (cfg.dimension ?? (firstGroup ? { field: firstGroup.key } : null)) : null,
-      breakdown: viz === 'funnel' || viz === 'pie' || viz === 'donut' || viz === 'scatter' ? null : cfg.breakdown,
+      dimension:
+        viz === 'funnel' ? { field: 'stage' }
+        : viz === 'cohort' || viz === 'pace' ? null
+        : viz === 'combo' ? { field: (firstDate ?? firstGroup)?.key ?? 'createdAt', grain: 'month' }
+        : wantsDim ? (cfg.dimension ?? (firstGroup ? { field: firstGroup.key } : null)) : null,
+      breakdown: viz === 'funnel' || viz === 'pie' || viz === 'donut' || viz === 'scatter' || viz === 'combo' ? null : cfg.breakdown,
     };
+    if (viz === 'pace') {
+      p.measure = { agg: 'sum', field: def.fields.find((f) => f.measurable)?.key };
+    }
+    if (viz === 'combo') {
+      p.measure = cfg.measure.agg === 'winRate' ? { agg: 'count' } : cfg.measure;
+      p.anomalies = false;
+    }
     if (viz === 'scatter') {
       // Two measures per entity; default to amount vs win-rate/count per owner.
       p.measure = { agg: 'avg', field: def.fields.find((f) => f.measurable)?.key };
@@ -208,12 +234,13 @@ export function ReportBuilder({
   const isScatter = cfg.viz === 'scatter';
   const isCohort = cfg.viz === 'cohort';
   const showMeasure = !isCohort;
-  const showDim = cfg.viz !== 'kpi' && cfg.viz !== 'gauge' && cfg.viz !== 'funnel' && !isCohort;
+  const showDim = cfg.viz !== 'kpi' && cfg.viz !== 'gauge' && cfg.viz !== 'funnel' && cfg.viz !== 'pace' && !isCohort;
   const showBreakdown = ['bar', 'hbar', 'line', 'area', 'table'].includes(cfg.viz);
-  const showSortLimit = showDim && !isScatter && dimField?.type !== 'date';
-  const showGoal = cfg.viz === 'gauge' || cfg.viz === 'kpi';
+  const showSortLimit = showDim && !isScatter && cfg.viz !== 'combo' && dimField?.type !== 'date';
+  const showGoal = ['gauge', 'kpi', 'pace', 'combo'].includes(cfg.viz);
   const showCompare = cfg.viz === 'kpi';
-  const showRules = cfg.viz === 'kpi' || cfg.viz === 'gauge';
+  const showRules = cfg.viz === 'kpi' || cfg.viz === 'gauge' || cfg.viz === 'pace';
+  const showAnomalies = ['line', 'area', 'combo'].includes(cfg.viz) && dimField?.type === 'date';
   const needsFieldY = cfg.measureY && cfg.measureY.agg !== 'count' && cfg.measureY.agg !== 'winRate';
 
   // ----- Gallery -----
@@ -376,6 +403,13 @@ export function ReportBuilder({
               <label className="cd-check">
                 <input type="checkbox" checked={!!cfg.compare} onChange={(e) => patch({ compare: e.target.checked })} />
                 Compare to previous period
+              </label>
+            )}
+
+            {showAnomalies && (
+              <label className="cd-check">
+                <input type="checkbox" checked={!!cfg.anomalies} onChange={(e) => patch({ anomalies: e.target.checked })} />
+                Highlight anomalies (trailing mean ± 1.8σ)
               </label>
             )}
 
