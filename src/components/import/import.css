@@ -10,9 +10,7 @@
   flex-direction: column;
   background: var(--bg);
   color: var(--ink);
-  animation: dh-imp-in 0.2s var(--ease);
 }
-@keyframes dh-imp-in { from { opacity: 0; } to { opacity: 1; } }
 .dh-imp .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .dh-imp-grow { flex: 1; }
 
@@ -58,7 +56,10 @@
 
 /* ---- body / layout ---- */
 .dh-imp-body { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+.dh-imp-body.is-center { justify-content: center; }
+@media (max-height: 760px) { .dh-imp-body.is-center { justify-content: flex-start; } }
 .dh-imp-center { max-width: 640px; margin: 0 auto; width: 100%; padding: 34px 24px 30px; animation: dh-imp-rise 0.26s var(--ease); }
+.dh-imp-center.wide-center { max-width: 760px; }
 .dh-imp-wide { max-width: 1040px; margin: 0 auto; width: 100%; padding: 30px 24px; animation: dh-imp-rise 0.26s var(--ease); }
 @keyframes dh-imp-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 .dh-imp-h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
@@ -112,6 +113,28 @@
 .dh-imp-cbx.on { background: var(--accent-600); border-color: var(--accent-600); }
 .dh-imp-tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--accent-700); background: var(--accent-soft); padding: 2px 8px; border-radius: 6px; }
 [data-theme='dark'] .dh-imp-tag { color: var(--accent); }
+
+/* ---- object card grid (step 1) ---- */
+.dh-imp-objgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0 4px; }
+.dh-imp-objcard {
+  position: relative; text-align: left; border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--shadow-xs); padding: 16px; cursor: pointer;
+  display: flex; flex-direction: column; min-height: 116px;
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), border-color var(--t) var(--ease), background var(--t) var(--ease);
+}
+.dh-imp-objcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--accent-300); }
+.dh-imp-objcard.on { border-color: var(--accent-500); background: var(--accent-soft); }
+.dh-imp-objcard-ic { width: 40px; height: 40px; border-radius: 11px; background: var(--accent-soft); color: var(--accent-600); display: grid; place-items: center; margin-bottom: 10px; transition: all var(--t) var(--ease); }
+[data-theme='dark'] .dh-imp-objcard-ic { color: var(--accent); }
+.dh-imp-objcard.on .dh-imp-objcard-ic { background: var(--accent-600); color: #fff; }
+[data-theme='dark'] .dh-imp-objcard.on .dh-imp-objcard-ic { background: var(--accent-500); }
+.dh-imp-objcard-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.dh-imp-objcard-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
+.dh-imp-objcard-corner { position: absolute; top: 12px; right: 12px; }
+.dh-imp-objcard-check { width: 20px; height: 20px; border-radius: 50%; background: var(--accent-600); color: #fff; display: grid; place-items: center; }
+[data-theme='dark'] .dh-imp-objcard-check { background: var(--accent-500); }
+.dh-imp-objcard-badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-700); background: var(--surface); border: 1px solid var(--accent-200); padding: 2px 7px; border-radius: 6px; }
+[data-theme='dark'] .dh-imp-objcard-badge { color: var(--accent); border-color: var(--border-strong); background: var(--surface-2); }
 
 /* ---- source cards ---- */
 .dh-imp-srcgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; }
@@ -294,6 +317,11 @@ table.dh-imp-xl thead th { position: sticky; top: 0; z-index: 3; background: var
 .dh-imp-modal-body label { display: block; font-size: 12.5px; font-weight: 600; color: var(--sub); margin: 14px 0 7px; }
 .dh-imp-modal-body label:first-child { margin-top: 0; }
 .dh-imp-modal-input { width: 100%; border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 10px 12px; font-size: 14px; background: var(--surface); color: var(--ink); font-family: inherit; }
+.dh-imp-modal-select {
+  cursor: pointer; padding-right: 34px; -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23969cb0' stroke-width='1.7'><path d='M3 5l4 4 4-4'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
 .dh-imp-typegrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .dh-imp-typ { border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 10px; font-size: 12.5px; font-weight: 600; text-align: center; color: var(--sub); background: var(--surface); cursor: pointer; }
 .dh-imp-typ.on { border-color: var(--accent-400); background: var(--accent-soft); color: var(--accent-700); }

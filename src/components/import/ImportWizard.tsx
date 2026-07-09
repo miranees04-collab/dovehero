@@ -131,7 +131,6 @@ export function ImportWizard() {
     return [isObj ? navObj : 'contact'];
   });
   const [activeObj, setActiveObj] = useState<string>(selected[0]);
-  const [objMenuOpen, setObjMenuOpen] = useState(false);
   const [source, setSource] = useState<string | null>(null);
 
   const [cols, setCols] = useState<Col[]>(() => SAMPLE_COLS.map((name) => ({ name, map: null })));
@@ -187,10 +186,17 @@ export function ImportWizard() {
 
   // esc to close
   useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && phase !== 'processing') setImport(false); };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || phase === 'processing') return;
+      // Let inner layers (create-property modal, column/row popovers) close first —
+      // don't tear down the whole wizard when a sub-layer is open.
+      if (propModal) { setPropModal(null); return; }
+      if (document.querySelector('.dh-modal-scrim, .dh-pop')) return;
+      setImport(false);
+    };
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
-  }, [setImport, phase]);
+  }, [setImport, phase, propModal]);
 
   // processing animation
   useEffect(() => {
@@ -388,7 +394,7 @@ export function ImportWizard() {
       </div>
 
       {/* body */}
-      <div className="dh-imp-body">
+      <div className={`dh-imp-body ${phase === 'processing' || phase === 'report' || (phase === 'wizard' && step === 0) ? 'is-center' : ''}`}>
         {phase === 'processing'
           ? renderProcessing()
           : phase === 'report'
@@ -424,51 +430,34 @@ export function ImportWizard() {
   // ---------------- step renderers ----------------
   function renderObject() {
     return (
-      <div className="dh-imp-center">
+      <div className="dh-imp-center wide-center">
         <h1 className="dh-imp-h1">What are you importing?</h1>
         <p className="dh-imp-lead">Pick one or more objects. If your file holds several record types, import them together — mapping, data and rules adapt per object, and we link them automatically.</p>
 
-        <div className="dh-imp-sub">Objects to import</div>
-        <div className="dh-imp-msel">
-          <button className="dh-imp-multibtn" onClick={() => setObjMenuOpen((v) => !v)}>
-            {selected.length ? (
-              <div className="dh-imp-chips">
-                {selected.map((k) => (
-                  <span key={k} className="dh-imp-chip">
-                    {defOf(k)?.plural ?? k}
-                    <span className="x" onClick={(e) => { e.stopPropagation(); toggleObj(k); }}><Icon name="x" size={13} /></span>
-                  </span>
-                ))}
-              </div>
-            ) : <span className="dh-imp-ph">Select objects…</span>}
-            <span className="dh-imp-grow" />
-            <Icon name="chevronDown" size={16} className={objMenuOpen ? 'dh-imp-cv up' : 'dh-imp-cv'} />
-          </button>
-          {objMenuOpen && (
-            <>
-              <div className="dh-imp-mselscrim" onClick={() => setObjMenuOpen(false)} />
-              <div className="dh-imp-mseldrop">
-                {objects.map((o) => (
-                  <button key={o.k} className="dh-imp-mselitem" onClick={() => toggleObj(o.k)}>
-                    <span className={`dh-imp-cbx ${selected.includes(o.k) ? 'on' : ''}`}>{selected.includes(o.k) && <Icon name="check" size={13} strokeWidth={2.6} />}</span>
-                    <span className="dh-imp-mselic"><Icon name={o.icon} size={16} /></span>
-                    <div className="dh-imp-grow">
-                      <b>{o.plural}</b>
-                      <span>{o.fields.length} properties</span>
-                    </div>
-                    {o.k === 'contact' && <span className="dh-imp-tag">recommended</span>}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+        <div className="dh-imp-objgrid">
+          {objects.map((o) => {
+            const on = selected.includes(o.k);
+            const recommended = o.k === 'contact';
+            return (
+              <button key={o.k} className={`dh-imp-objcard ${on ? 'on' : ''}`} onClick={() => toggleObj(o.k)} aria-pressed={on}>
+                <span className="dh-imp-objcard-corner">
+                  {on
+                    ? <span className="dh-imp-objcard-check"><Icon name="check" size={12} strokeWidth={3} /></span>
+                    : recommended ? <span className="dh-imp-objcard-badge">Recommended</span> : null}
+                </span>
+                <span className="dh-imp-objcard-ic"><Icon name={o.icon} size={20} /></span>
+                <span className="dh-imp-objcard-name">{o.plural}</span>
+                <span className="dh-imp-objcard-meta">{o.fields.length} properties</span>
+              </button>
+            );
+          })}
         </div>
 
         {selected.length > 1 ? (
-          <div className="dh-imp-banner ok"><Icon name="check" size={15} /> {selected.map((k) => defOf(k)?.plural ?? k).join(' + ')} will be imported together and associated automatically.</div>
-        ) : selected.length === 1 ? (
-          <p className="dh-imp-lead sm">Importing <b>{defOf(selected[0])?.plural}</b>. Add more objects any time from the dropdown.</p>
-        ) : null}
+          <div className="dh-imp-banner ok"><Icon name="check" size={15} /> {selected.map((k) => defOf(k)?.plural ?? k).join(' + ')} import together and link automatically.</div>
+        ) : (
+          <p className="dh-imp-lead sm">Importing <b>{defOf(selected[0])?.plural}</b>. Select more cards to bring in several record types at once.</p>
+        )}
       </div>
     );
   }
@@ -893,7 +882,7 @@ function PropModal({
     >
       <div className="dh-imp-modal-body">
         <label>Add to object</label>
-        <select className="dh-imp-modal-input" value={objKey} onChange={(e) => setObjKey(e.target.value)}>
+        <select className="dh-imp-modal-input dh-imp-modal-select" value={objKey} onChange={(e) => setObjKey(e.target.value)}>
           {objects.map((o) => <option key={o.k} value={o.k}>{o.plural}</option>)}
         </select>
         <label>Property name</label>
