@@ -34,8 +34,6 @@ import {
 } from 'recharts';
 import {
   Activity,
-  ArrowDownRight,
-  ArrowUpRight,
   BarChart3,
   Briefcase,
   CalendarDays,
@@ -48,13 +46,14 @@ import {
   LayoutDashboard,
   LineChart as LineChartIcon,
   Mail,
-  Minus,
   MoreHorizontal,
+  Pencil,
   Phone,
   PieChart as PieChartIcon,
   Plus,
   RefreshCw,
   Share2,
+  Sparkles,
   Table2,
   Target,
   TrendingUp,
@@ -94,10 +93,30 @@ import {
   type RangeKey,
   type Rep,
 } from './data';
+import {
+  AXIS_TICK,
+  AXIS_LINE,
+  ChartTip,
+  Delta,
+  Empty,
+  Gauge,
+  LegendChips,
+  StatTile as Tile,
+} from './chartKit';
+import { ReportView, measureLabel, type DrillTarget } from './ReportView';
+import { ReportBuilder } from './ReportBuilder';
+import {
+  drillRecords,
+  fmtByUnit,
+  OBJECTS,
+  type ReportConfig,
+  type EngineCtx,
+  type Row,
+} from './reportEngine';
 import './dashboard.css';
 
 // ---------------------------------------------------------------------------
-// Shared context every widget renders from
+// Shared context every preset widget renders from
 // ---------------------------------------------------------------------------
 
 interface Ctx {
@@ -109,185 +128,6 @@ interface Ctx {
   rep: Rep; // focused rep for the individual dashboard
   jit: number; // per-tile jitter counter ("refresh" wobble)
   seed: number;
-}
-
-// ---------------------------------------------------------------------------
-// Small shared pieces
-// ---------------------------------------------------------------------------
-
-function Delta({
-  cur,
-  prev,
-  hasPrev,
-  upIsGood = true,
-  suffix = 'vs prev period',
-}: {
-  cur: number;
-  prev: number;
-  hasPrev: boolean;
-  upIsGood?: boolean;
-  suffix?: string;
-}) {
-  if (!hasPrev || prev === 0) {
-    return (
-      <span className="cd-delta flat">
-        <Minus size={12} /> <span className="vs">{hasPrev ? suffix : 'no prior period'}</span>
-      </span>
-    );
-  }
-  const change = (cur - prev) / Math.abs(prev);
-  if (!isFinite(change) || Math.abs(change) < 0.001) {
-    return (
-      <span className="cd-delta flat">
-        <Minus size={12} /> 0% <span className="vs">{suffix}</span>
-      </span>
-    );
-  }
-  const up = change > 0;
-  const good = up === upIsGood;
-  return (
-    <span className={`cd-delta ${good ? 'up' : 'down'}`}>
-      {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-      {Math.abs(change * 100).toFixed(0)}% <span className="vs">{suffix}</span>
-    </span>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  small,
-  children,
-}: {
-  label: string;
-  value: string;
-  small?: boolean;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="cd-tile">
-      <div className="lbl">{label}</div>
-      <div className={`val ${small ? 'sm' : ''}`}>{value}</div>
-      {children}
-    </div>
-  );
-}
-
-function LegendChips({
-  items,
-}: {
-  items: Array<{ label: string; color: string; kind?: 'line' | 'rect' }>;
-}) {
-  return (
-    <div className="cd-legend">
-      {items.map((it) => (
-        <span className="key" key={it.label}>
-          {it.kind === 'line' ? (
-            <span className="stroke" style={{ borderTopColor: it.color }} />
-          ) : (
-            <span className="swatch" style={{ background: it.color }} />
-          )}
-          {it.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/** Recharts tooltip: value leads, series name follows, line-keys not boxes. */
-function ChartTip(props: {
-  active?: boolean;
-  label?: string | number;
-  payload?: Array<{ name?: string; value?: number; color?: string; stroke?: string; fill?: string }>;
-  fmt?: (v: number) => string;
-}) {
-  const { active, payload, label, fmt = (v: number) => String(v) } = props;
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="cd-tip">
-      {label !== undefined && <div className="t">{label}</div>}
-      {payload.map((p, i) => (
-        <div className="row" key={i}>
-          <span className="k" style={{ borderTopColor: p.stroke || p.fill || p.color }} />
-          <b>{fmt(p.value ?? 0)}</b>
-          <span>{p.name}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Empty({ msg = 'No data matches the current filters' }: { msg?: string }) {
-  return <div className="cd-empty">{msg}</div>;
-}
-
-const AXIS_TICK = { fill: 'var(--muted)', fontSize: 11 } as const;
-const AXIS_LINE = { stroke: 'var(--axis)' } as const;
-
-/** Semicircle gauge with target + projected-landing marker. */
-function Gauge({
-  value,
-  target,
-  projected,
-  fmt = fmtMoney,
-  caption,
-}: {
-  value: number;
-  target: number;
-  projected: number | null;
-  fmt?: (n: number) => string;
-  caption: string;
-}) {
-  const cx = 110;
-  const cy = 104;
-  const r = 86;
-  const pt = (t: number, rad = r) => {
-    const a = Math.PI * (1 - Math.min(1, Math.max(0, t)));
-    return [cx + rad * Math.cos(a), cy - rad * Math.sin(a)] as const;
-  };
-  const arc = (t0: number, t1: number, rad = r) => {
-    const [x0, y0] = pt(t0, rad);
-    const [x1, y1] = pt(t1, rad);
-    // Max sweep is 180°, so the large-arc flag is always 0.
-    return `M ${x0} ${y0} A ${rad} ${rad} 0 0 1 ${x1} ${y1}`;
-  };
-  const frac = target > 0 ? Math.min(1, value / target) : 0;
-  const projFrac = projected !== null && target > 0 ? Math.min(1, projected / target) : null;
-  const onPace = projected !== null && projected >= target;
-  const attained = target > 0 ? value / target : 0;
-  const [mx0, my0] = projFrac !== null ? pt(projFrac, r - 13) : [0, 0];
-  const [mx1, my1] = projFrac !== null ? pt(projFrac, r + 13) : [0, 0];
-  return (
-    <div className="cd-gauge" style={{ height: '100%', justifyContent: 'center' }}>
-      <svg viewBox="0 0 220 118" width="100%" style={{ maxWidth: 250 }} role="img" aria-label={`${fmt(value)} of ${fmt(target)} target`}>
-        <path d={arc(0, 1)} fill="none" stroke="var(--track)" strokeWidth={14} strokeLinecap="round" />
-        {frac > 0.01 && (
-          <path d={arc(0, frac)} fill="none" stroke="var(--accent)" strokeWidth={14} strokeLinecap="round" />
-        )}
-        {projFrac !== null && (
-          <line x1={mx0} y1={my0} x2={mx1} y2={my1} stroke={onPace ? 'var(--good)' : 'var(--bad)'} strokeWidth={3} strokeLinecap="round" />
-        )}
-        <text x={cx} y={cy - 26} textAnchor="middle" fontSize={27} fontWeight={650} fill="var(--ink)">
-          {fmt(value)}
-        </text>
-        <text x={cx} y={cy - 6} textAnchor="middle" fontSize={12} fill="var(--muted)">
-          of {fmt(target)} target
-        </text>
-      </svg>
-      {projected !== null ? (
-        <span className={`cd-pill ${onPace ? 'good' : 'bad'}`}>
-          {onPace ? <TrendingUp size={13} /> : <ArrowDownRight size={13} />}
-          Projected landing {fmt(projected)}
-        </span>
-      ) : (
-        <span className={`cd-pill ${attained >= 0.85 ? 'good' : 'bad'}`}>
-          {attained >= 0.85 ? <TrendingUp size={13} /> : <ArrowDownRight size={13} />}
-          {fmtPct(attained)} of quota attained
-        </span>
-      )}
-      <span className="of" style={{ marginTop: 4 }}>{caption}</span>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1093,31 +933,40 @@ const WIDGETS: Record<string, WidgetDef> = {
   },
 };
 
+// A tile is either a curated preset widget or a fully user-built custom report.
+type Tile =
+  | { id: string; kind: 'preset'; preset: string }
+  | { id: string; kind: 'custom'; report: ReportConfig };
+
 interface DashboardConfig {
   id: string;
   name: string;
   role: string;
-  widgets: string[];
+  tiles: Tile[];
 }
+
+let _tid = 0;
+const tid = () => `t${(_tid += 1)}`;
+const presetTile = (k: string): Tile => ({ id: tid(), kind: 'preset', preset: k });
 
 const INITIAL_DASHBOARDS: DashboardConfig[] = [
   {
     id: 'pipeline',
     name: 'Sales Pipeline',
     role: 'Team view',
-    widgets: ['kpis', 'revenueGauge', 'funnel', 'stageValue', 'createdClosed', 'sourceDonut', 'leaderboard', 'activityFeed'],
+    tiles: ['kpis', 'revenueGauge', 'funnel', 'stageValue', 'createdClosed', 'sourceDonut', 'leaderboard', 'activityFeed'].map(presetTile),
   },
   {
     id: 'exec',
     name: 'Executive Overview',
     role: 'Leadership view',
-    widgets: ['revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'],
+    tiles: ['revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'].map(presetTile),
   },
   {
     id: 'rep',
     name: 'My Sales Desk',
     role: 'Individual rep view',
-    widgets: ['repQuota', 'todayStats', 'myActivity', 'repVsTeam', 'myDeals'],
+    tiles: ['repQuota', 'todayStats', 'myActivity', 'repVsTeam', 'myDeals'].map(presetTile),
   },
 ];
 
@@ -1181,25 +1030,69 @@ function SelectPop({
   );
 }
 
-function WidgetCard({
-  widgetKey,
-  def,
-  ctx,
+/** Split "Add" control: build a custom report, or add a prebuilt one. */
+function AddMenu({
+  open,
+  setOpen,
+  onCustom,
+  onLibrary,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  onCustom: () => void;
+  onLibrary: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open, setOpen]);
+  return (
+    <div className="cd-popwrap" ref={ref}>
+      <button className="cd-btn primary" onClick={() => setOpen(!open)}>
+        <Plus size={15} /> Add report <ChevronDown size={14} className="chev" style={{ color: '#fff', opacity: 0.8 }} />
+      </button>
+      {open && (
+        <div className="cd-pop right">
+          <button className="cd-pop-row" onClick={onCustom}>
+            <Sparkles size={15} style={{ color: 'var(--accent)' }} /> Create custom report
+          </button>
+          <button className="cd-pop-row" onClick={onLibrary}>
+            <BarChart3 size={15} /> Add from library
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TileCard({
+  tile,
+  presetCtx,
+  engineCtx,
   onRemove,
   onRefresh,
   onExport,
+  onEdit,
+  onDrill,
   dragging,
   dropTarget,
   onDragStart,
   onDragEnter,
   onDragEnd,
 }: {
-  widgetKey: string;
-  def: WidgetDef;
-  ctx: Ctx;
+  tile: Tile;
+  presetCtx: Ctx;
+  engineCtx: EngineCtx;
   onRemove: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  onEdit: () => void;
+  onDrill: (t: DrillTarget) => void;
   dragging: boolean;
   dropTarget: boolean;
   onDragStart: () => void;
@@ -1208,57 +1101,44 @@ function WidgetCard({
 }) {
   const { open, setOpen, ref } = usePop();
   const [flash, setFlash] = useState(0);
-  const sub = def.sub?.(ctx);
+
+  const isCustom = tile.kind === 'custom';
+  const def = tile.kind === 'preset' ? WIDGETS[tile.preset] : null;
+  const title = isCustom ? tile.report.title : def?.title ?? 'Report';
+  const span = isCustom ? tile.report.span : def?.span ?? 6;
+  const sub = isCustom ? measureLabel(tile.report) : def?.sub?.(presetCtx) ?? null;
+
   return (
     <section
-      className={`cd-card w-${def.span} ${dragging ? 'dragging' : ''} ${dropTarget ? 'dropTarget' : ''}`}
+      className={`cd-card w-${span} ${dragging ? 'dragging' : ''} ${dropTarget ? 'dropTarget' : ''}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
     >
       <div className="cd-card-head">
-        <span
-          className="cd-drag"
-          draggable
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          title="Drag to reorder"
-        >
+        <span className="cd-drag" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} title="Drag to reorder">
           <GripVertical size={14} />
         </span>
-        <span className="cd-card-title">{def.title}</span>
+        <span className="cd-card-title">{title}</span>
+        {isCustom && <span className="cd-customtag">Custom</span>}
         <div className="cd-popwrap" ref={ref}>
-          <button className="cd-iconbtn" onClick={() => setOpen(!open)} aria-label={`${def.title} menu`}>
+          <button className="cd-iconbtn" onClick={() => setOpen(!open)} aria-label={`${title} menu`}>
             <MoreHorizontal size={16} />
           </button>
           {open && (
             <div className="cd-pop right">
-              <button
-                className="cd-pop-row"
-                onClick={() => {
-                  setOpen(false);
-                  setFlash((f) => f + 1);
-                  onRefresh();
-                }}
-              >
+              <button className="cd-pop-row" onClick={() => { setOpen(false); setFlash((f) => f + 1); onRefresh(); }}>
                 <RefreshCw size={14} /> Refresh
               </button>
-              <button
-                className="cd-pop-row"
-                onClick={() => {
-                  setOpen(false);
-                  onExport();
-                }}
-              >
+              {isCustom && (
+                <button className="cd-pop-row" onClick={() => { setOpen(false); onEdit(); }}>
+                  <Pencil size={14} /> Edit report
+                </button>
+              )}
+              <button className="cd-pop-row" onClick={() => { setOpen(false); onExport(); }}>
                 <Download size={14} /> Export CSV
               </button>
               <div className="cd-pop-sep" />
-              <button
-                className="cd-pop-row danger"
-                onClick={() => {
-                  setOpen(false);
-                  onRemove();
-                }}
-              >
+              <button className="cd-pop-row danger" onClick={() => { setOpen(false); onRemove(); }}>
                 <X size={14} /> Remove from dashboard
               </button>
             </div>
@@ -1266,19 +1146,19 @@ function WidgetCard({
         </div>
       </div>
       {sub && <div className="cd-card-sub">{sub}</div>}
-      <div className="cd-card-body cd-refreshing" key={`${widgetKey}-${flash}-${ctx.jit}`}>
-        {def.render(ctx)}
+      <div className="cd-card-body cd-refreshing" key={`${tile.id}-${flash}-${presetCtx.jit}`}>
+        {isCustom ? <ReportView config={tile.report} ctx={engineCtx} onDrill={onDrill} /> : def?.render(presetCtx)}
       </div>
     </section>
   );
 }
 
 function AddWidgetModal({
-  current,
+  present,
   onAdd,
   onClose,
 }: {
-  current: string[];
+  present: Set<string>;
   onAdd: (key: string) => void;
   onClose: () => void;
 }) {
@@ -1286,7 +1166,7 @@ function AddWidgetModal({
     <div className="cd-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="cd-modal" role="dialog" aria-label="Add widget">
         <div className="cd-modal-head">
-          <h2>Add a report to this dashboard</h2>
+          <h2>Add a prebuilt report</h2>
           <button className="cd-iconbtn" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
@@ -1294,7 +1174,7 @@ function AddWidgetModal({
         <div className="cd-modal-body">
           <div className="cd-widget-lib">
             {Object.entries(WIDGETS).map(([key, def]) => {
-              const added = current.includes(key);
+              const added = present.has(key);
               return (
                 <button key={key} className="cd-lib-item" disabled={added} onClick={() => onAdd(key)}>
                   <span className="nm">
@@ -1308,6 +1188,53 @@ function AddWidgetModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Drill-through slide-over: the underlying records behind a clicked data point. */
+function DrillPanel({ target, ctx, onClose }: { target: DrillTarget; ctx: EngineCtx; onClose: () => void }) {
+  const rows = useMemo(() => drillRecords(target.config, ctx, target.bucketKey), [target, ctx]);
+  const def = OBJECTS[target.config.object];
+  const cols = def.fields.filter((f) => ['stage', 'source', 'owner', 'status', 'type', 'lifecycle', 'amount', 'company', 'name', 'contact', 'daysInStage'].includes(f.key)).slice(0, 5);
+  const cell = (r: Row, key: string, type: string) => {
+    const v = r[key];
+    if (v === null || v === undefined || v === '') return '—';
+    if (type === 'currency') return fmtByUnit(Number(v), 'money', false);
+    if (type === 'duration') return `${v}d`;
+    return String(v);
+  };
+  return (
+    <div className="cd-scrim right" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <aside className="cd-drawer" role="dialog" aria-label="Underlying records">
+        <div className="cd-modal-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>{target.bucketLabel}</h2>
+            <div className="cd-card-sub" style={{ padding: 0 }}>{rows.length} {def.singular}{rows.length === 1 ? '' : 's'} · drill-through from “{target.config.title}”</div>
+          </div>
+          <button className="cd-iconbtn" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        </div>
+        <div className="cd-modal-body">
+          {rows.length === 0 ? (
+            <Empty msg="No underlying records." />
+          ) : (
+            <div className="cd-tablewrap">
+              <table className="cd-table">
+                <thead>
+                  <tr>{cols.map((c) => <th key={c.key} className={c.measurable ? 'num' : ''}>{c.label}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i}>
+                      {cols.map((c) => <td key={c.key} className={c.measurable ? 'num' : ''}>{cell(r, c.key, c.type)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -1336,6 +1263,9 @@ export default function CrmDashboard() {
   const [globalJit, setGlobalJit] = useState(0);
   const [pending, setPending] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [addMenu, setAddMenu] = useState(false);
+  const [builder, setBuilder] = useState<{ initial?: ReportConfig; tileId?: string } | null>(null);
+  const [drill, setDrill] = useState<DrillTarget | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string }>>([]);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -1345,6 +1275,13 @@ export default function CrmDashboard() {
   const bounds = useMemo(() => periodBounds(filters.range, now), [filters.range, now]);
   const deals = useMemo(() => sliceDeals(data.deals, filters), [data, filters]);
   const rep = REPS.find((r) => r.id === filters.owner) ?? REPS[0];
+
+  // Engine context for custom reports (full dataset; global owner/pipeline/date
+  // applied inside the engine) and drill-through.
+  const engineCtx: EngineCtx = useMemo(
+    () => ({ data, filters, bounds, now, jitter: globalJit }),
+    [data, filters, bounds, now, globalJit],
+  );
 
   // Refetch keeps the frame: dim the previous render briefly, no skeleton.
   const holdFrame = () => {
@@ -1368,20 +1305,41 @@ export default function CrmDashboard() {
     setGlobalJit((g) => g + 1);
   };
 
-  const mutateDash = (fn: (widgets: string[]) => string[]) => {
-    setDashboards((ds) => ds.map((d) => (d.id === dash.id ? { ...d, widgets: fn(d.widgets) } : d)));
+  const mutateDash = (fn: (tiles: Tile[]) => Tile[]) => {
+    setDashboards((ds) => ds.map((d) => (d.id === dash.id ? { ...d, tiles: fn(d.tiles) } : d)));
   };
 
   const reorder = (from: string, to: string) => {
-    mutateDash((w) => {
-      const a = w.indexOf(from);
-      const b = w.indexOf(to);
-      if (a < 0 || b < 0 || a === b) return w;
-      const next = [...w];
-      next.splice(a, 1);
-      next.splice(b, 0, from);
+    mutateDash((tiles) => {
+      const a = tiles.findIndex((t) => t.id === from);
+      const b = tiles.findIndex((t) => t.id === to);
+      if (a < 0 || b < 0 || a === b) return tiles;
+      const next = [...tiles];
+      const [moved] = next.splice(a, 1);
+      next.splice(b, 0, moved);
       return next;
     });
+  };
+
+  const saveReport = (cfg: ReportConfig) => {
+    if (builder?.tileId) {
+      const id = builder.tileId;
+      mutateDash((tiles) => tiles.map((t) => (t.id === id ? { id, kind: 'custom', report: cfg } : t)));
+      toast(`Saved “${cfg.title}”`);
+    } else {
+      mutateDash((tiles) => [...tiles, { id: tid(), kind: 'custom', report: cfg }]);
+      toast(`“${cfg.title}” added to ${dash.name}`);
+    }
+    setBuilder(null);
+  };
+
+  const createDashboard = () => {
+    const n = dashboards.filter((d) => d.role === 'Custom dashboard').length + 1;
+    const id = `dash${dashboards.length + 1}-${n}`;
+    setDashboards((ds) => [...ds, { id, name: `New dashboard ${n}`, role: 'Custom dashboard', tiles: [] }]);
+    setActiveId(id);
+    setNav('dashboards');
+    toast('Blank dashboard created — add your first report');
   };
 
   const ownerOptions = [{ key: 'all', label: 'All owners' }, ...REPS.map((r) => ({ key: r.id, label: r.name }))];
@@ -1426,8 +1384,12 @@ export default function CrmDashboard() {
               </>
             }
             value={dash.id}
-            options={dashboards.map((d) => ({ key: d.id, label: `${d.name} — ${d.role}` }))}
+            options={[
+              ...dashboards.map((d) => ({ key: d.id, label: `${d.name} — ${d.role}` })),
+              { key: '__new', label: '＋ New blank dashboard' },
+            ]}
             onChange={(id) => {
+              if (id === '__new') { createDashboard(); return; }
               holdFrame();
               setActiveId(id);
               setNav('dashboards');
@@ -1463,9 +1425,12 @@ export default function CrmDashboard() {
 
           <div className="cd-topbar-spacer" />
 
-          <button className="cd-btn primary" onClick={() => setAddOpen(true)}>
-            <Plus size={15} /> Add widget
-          </button>
+          <AddMenu
+            open={addMenu}
+            setOpen={setAddMenu}
+            onCustom={() => { setAddMenu(false); setBuilder({}); }}
+            onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
+          />
           <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
             <RefreshCw size={15} />
           </button>
@@ -1490,46 +1455,53 @@ export default function CrmDashboard() {
                 <h1>{dash.name}</h1>
                 <span className="sub">{sliceLabel}</span>
               </div>
-              {dash.widgets.length === 0 ? (
+              {dash.tiles.length === 0 ? (
                 <div className="cd-placeholder">
                   <LayoutDashboard size={28} style={{ color: 'var(--axis)' }} />
                   <h2>This dashboard is empty</h2>
-                  <p>Add your first report to start tracking the numbers that matter.</p>
-                  <button className="cd-btn primary" onClick={() => setAddOpen(true)}>
-                    <Plus size={15} /> Add widget
-                  </button>
+                  <p>Build a report from scratch, or add one from the prebuilt library.</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="cd-btn primary" onClick={() => setBuilder({})}>
+                      <Sparkles size={15} /> Create report
+                    </button>
+                    <button className="cd-btn" onClick={() => setAddOpen(true)}>
+                      <Plus size={15} /> Add from library
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className={`cd-grid ${pending ? 'pending' : ''}`}>
-                  {dash.widgets.map((key) => {
-                    const def = WIDGETS[key];
-                    if (!def) return null;
-                    const ctx: Ctx = {
+                  {dash.tiles.map((tile) => {
+                    const presetCtx: Ctx = {
                       deals,
                       activities: data.activities,
                       bounds,
                       filters,
                       now,
                       rep,
-                      jit: (jitters[key] ?? 0) + globalJit,
+                      jit: (jitters[tile.id] ?? 0) + globalJit,
                       seed,
                     };
+                    const tileCtx: EngineCtx = { ...engineCtx, jitter: (jitters[tile.id] ?? 0) + globalJit };
+                    const label = tile.kind === 'custom' ? tile.report.title : WIDGETS[tile.preset]?.title ?? 'Report';
                     return (
-                      <WidgetCard
-                        key={key}
-                        widgetKey={key}
-                        def={def}
-                        ctx={ctx}
-                        onRemove={() => mutateDash((w) => w.filter((k) => k !== key))}
-                        onRefresh={() => setJitters((j) => ({ ...j, [key]: (j[key] ?? 0) + 1 }))}
-                        onExport={() => toast(`Export queued (mock) — ${def.title}.csv`)}
-                        dragging={dragKey === key}
-                        dropTarget={dropKey === key && dragKey !== key}
-                        onDragStart={() => setDragKey(key)}
+                      <TileCard
+                        key={tile.id}
+                        tile={tile}
+                        presetCtx={presetCtx}
+                        engineCtx={tileCtx}
+                        onRemove={() => mutateDash((ts) => ts.filter((t) => t.id !== tile.id))}
+                        onRefresh={() => setJitters((j) => ({ ...j, [tile.id]: (j[tile.id] ?? 0) + 1 }))}
+                        onExport={() => toast(`Export queued (mock) — ${label}.csv`)}
+                        onEdit={() => tile.kind === 'custom' && setBuilder({ initial: tile.report, tileId: tile.id })}
+                        onDrill={(t) => setDrill(t)}
+                        dragging={dragKey === tile.id}
+                        dropTarget={dropKey === tile.id && dragKey !== tile.id}
+                        onDragStart={() => setDragKey(tile.id)}
                         onDragEnter={() => {
-                          if (dragKey && dragKey !== key) {
-                            setDropKey(key);
-                            reorder(dragKey, key);
+                          if (dragKey && dragKey !== tile.id) {
+                            setDropKey(tile.id);
+                            reorder(dragKey, tile.id);
                           }
                         }}
                         onDragEnd={() => {
@@ -1548,15 +1520,26 @@ export default function CrmDashboard() {
 
       {addOpen && (
         <AddWidgetModal
-          current={dash.widgets}
+          present={new Set(dash.tiles.filter((t) => t.kind === 'preset').map((t) => (t as { preset: string }).preset))}
           onClose={() => setAddOpen(false)}
           onAdd={(key) => {
-            mutateDash((w) => [...w, key]);
+            mutateDash((ts) => [...ts, presetTile(key)]);
             setAddOpen(false);
             toast(`${WIDGETS[key].title} added to ${dash.name}`);
           }}
         />
       )}
+
+      {builder && (
+        <ReportBuilder
+          ctx={engineCtx}
+          initial={builder.initial}
+          onSave={saveReport}
+          onClose={() => setBuilder(null)}
+        />
+      )}
+
+      {drill && <DrillPanel target={drill} ctx={engineCtx} onClose={() => setDrill(null)} />}
 
       <div className="cd-toasts">
         {toasts.map((t) => (
