@@ -7,3 +7,5 @@ dist-ssr/
 .env
 .vite/
 .claude/
+
+dist-dashboard/
