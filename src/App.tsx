@@ -22,6 +22,7 @@ import { Peek } from './components/deals/Peek';
 import { CommPanel } from './components/deals/CommPanel';
 import { ColorRulesModal } from './components/deals/ColorRules';
 import { DocBuilder } from './components/docs/DocBuilder';
+import { ImportWizard } from './components/import/ImportWizard';
 import { Toasts } from './components/ui/Toasts';
 import { Icon } from './components/ui/Icon';
 
@@ -35,6 +36,7 @@ export default function App() {
   const redo = useStore((s) => s.redo);
   const focusMode = useStore((s) => s.focusMode);
   const setFocusMode = useStore((s) => s.setFocusMode);
+  const importOpen = useStore((s) => s.importOpen);
 
   // global keyboard shortcuts
   useEffect(() => {
@@ -106,6 +108,7 @@ export default function App() {
       <CommPanel />
       <ColorRulesModal />
       <DocBuilder />
+      {importOpen && <ImportWizard />}
       <Confetti />
       <Toasts />
     </div>

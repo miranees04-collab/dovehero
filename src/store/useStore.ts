@@ -212,6 +212,7 @@ export interface AppState {
   mobileNavOpen: boolean;
   tasksOpen: boolean;
   hubOpen: boolean;
+  importOpen: boolean;
 
   // deal interactions
   cardMenuId: string | null;
@@ -355,6 +356,7 @@ export interface AppState {
   setMobileNav: (open: boolean) => void;
   setTasks: (open: boolean) => void;
   setHub: (open: boolean) => void;
+  setImport: (open: boolean) => void;
   undo: () => void;
   redo: () => void;
 
@@ -365,6 +367,8 @@ export interface AppState {
 
   addObjectRecord: (objKey: string, rec: ObjectRecord) => void;
   updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
+  importObjectRecords: (byObject: Record<string, ObjectRecord[]>) => void;
+  removeObjectRecordsBatch: (byObject: Record<string, string[]>) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
@@ -488,6 +492,7 @@ export const useStore = create<AppState>()(
   mobileNavOpen: false,
   tasksOpen: false,
   hubOpen: false,
+  importOpen: false,
   cardMenuId: null,
   peekId: null,
   commDealId: null,
@@ -1174,6 +1179,7 @@ export const useStore = create<AppState>()(
   setMobileNav: (mobileNavOpen) => set({ mobileNavOpen }),
   setTasks: (tasksOpen) => set({ tasksOpen }),
   setHub: (hubOpen) => set({ hubOpen }),
+  setImport: (importOpen) => set({ importOpen }),
 
   sendNova: (text) => {
     const userMsg: NovaMessage = { id: uid('nova'), role: 'user', text, ts: Date.now() };
@@ -1354,6 +1360,25 @@ export const useStore = create<AppState>()(
         [objKey]: (s.objectRecords[objKey] || []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
       },
     })),
+  importObjectRecords: (byObject) =>
+    set((s) => {
+      const next = { ...s.objectRecords };
+      for (const [objKey, recs] of Object.entries(byObject)) {
+        if (!recs.length) continue;
+        next[objKey] = [...recs, ...(next[objKey] || [])];
+      }
+      return { objectRecords: next };
+    }),
+  removeObjectRecordsBatch: (byObject) =>
+    set((s) => {
+      const next = { ...s.objectRecords };
+      for (const [objKey, ids] of Object.entries(byObject)) {
+        if (!ids.length) continue;
+        const drop = new Set(ids);
+        next[objKey] = (next[objKey] || []).filter((r) => !drop.has(r.id));
+      }
+      return { objectRecords: next };
+    }),
 
   toast: (text, tone = 'default', undoable = false) => {
     const id = uid('t');

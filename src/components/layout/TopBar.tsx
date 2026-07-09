@@ -20,6 +20,7 @@ export function TopBar() {
   const setTasks = useStore((s) => s.setTasks);
   const setHub = useStore((s) => s.setHub);
   const setAuto = useStore((s) => s.setAuto);
+  const setImport = useStore((s) => s.setImport);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
@@ -87,6 +88,10 @@ export function TopBar() {
           </button>
         </div>
       )}
+
+      <button className="dh-icon-btn hide-sm" onClick={() => setImport(true)} aria-label="Import data" title="Import data">
+        <Icon name="upload" size={17} />
+      </button>
 
       <button className="dh-icon-btn hide-sm" onClick={() => setAuto(true)} aria-label="Automations" title="Automations">
         <Icon name="zap" size={17} />

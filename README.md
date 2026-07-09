@@ -63,6 +63,7 @@ src/
     nova/                 # Nova assistant panel
     composer/             # Email / WhatsApp / SMS composer
     command/              # ⌘K command palette
+    import/               # full-screen Import wizard
     panels/               # Notifications
     ui/                   # Button, Badge, Avatar, Ring, Modal, Toasts, Icon
 ```
@@ -85,6 +86,12 @@ src/
   a **Customize** hub (theme + reset), **undo/redo**, **multi-object
   records** (Companies, Contacts, Products, Leads, Tickets, Invoices),
   **light/dark** theme, and a responsive layout with a mobile nav drawer.
+- **Import wizard** — a full-screen, six-step flow (object → source →
+  mapping → data → records & settings → report). Import one or more
+  objects at once, auto-map file columns to real properties (or create
+  new ones inline), clean the data in a live spreadsheet with one-click
+  format rules that run on every row at import, preview each record, then
+  create the records for real — with undo/redo on the finished import.
 - **Persistence** — your deals, records, and changes are saved to
   `localStorage` and survive reloads; reset anytime from **Customize**.
 

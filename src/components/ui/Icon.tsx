@@ -62,6 +62,12 @@ import {
   Sparkle,
   Minus,
   Maximize2,
+  Upload,
+  Table2,
+  Database,
+  Clipboard,
+  RefreshCw,
+  Wand2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -132,6 +138,12 @@ const MAP: Record<string, LucideIcon> = {
   sparkle: Sparkle,
   minus: Minus,
   expand: Maximize2,
+  upload: Upload,
+  sheet: Table2,
+  database: Database,
+  clipboard: Clipboard,
+  refresh: RefreshCw,
+  wand: Wand2,
 };
 
 // Map activity types to icons

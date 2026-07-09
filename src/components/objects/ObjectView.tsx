@@ -14,6 +14,7 @@ export function ObjectView() {
   const openObject = useStore((s) => s.openObject);
   const addObjectRecord = useStore((s) => s.addObjectRecord);
   const addCustomObject = useStore((s) => s.addCustomObject);
+  const setImport = useStore((s) => s.setImport);
   const role = useStore((s) => s.role);
   const toast = useStore((s) => s.toast);
 
@@ -45,6 +46,9 @@ export function ObjectView() {
             <Icon name="box" size={15} /> New object
           </Button>
         )}
+        <Button variant="ghost" size="sm" onClick={() => setImport(true)} title={`Import ${def.plural.toLowerCase()}`}>
+          <Icon name="upload" size={15} /> Import
+        </Button>
         <Button variant="primary" size="sm" onClick={addNew}>
           <Icon name="plus" size={15} /> New {def.name.toLowerCase()}
         </Button>
