@@ -8,14 +8,30 @@
   z-index: 80;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
   color: var(--ink);
+  /* Layered backdrop: dot grid + soft indigo/violet/cyan glows over the base. */
+  background-image:
+    radial-gradient(rgba(26, 29, 41, 0.055) 1px, transparent 1.5px),
+    radial-gradient(860px 480px at 88% -12%, rgba(139, 92, 246, 0.10), transparent 62%),
+    radial-gradient(780px 460px at -8% -4%, rgba(99, 102, 241, 0.10), transparent 58%),
+    radial-gradient(720px 420px at 55% 116%, rgba(6, 182, 212, 0.07), transparent 60%);
+  background-size: 22px 22px, auto, auto, auto;
+  background-color: var(--bg);
+}
+[data-theme='dark'] .dh-imp {
+  background-image:
+    radial-gradient(rgba(236, 238, 245, 0.045) 1px, transparent 1.5px),
+    radial-gradient(860px 480px at 88% -12%, rgba(139, 92, 246, 0.16), transparent 62%),
+    radial-gradient(780px 460px at -8% -4%, rgba(99, 102, 241, 0.15), transparent 58%),
+    radial-gradient(720px 420px at 55% 116%, rgba(6, 182, 212, 0.10), transparent 60%);
+  background-size: 22px 22px, auto, auto, auto;
 }
 .dh-imp .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .dh-imp-grow { flex: 1; }
 
 /* ---- top bar ---- */
 .dh-imp-top {
+  position: relative;
   height: 60px;
   flex: none;
   display: flex;
@@ -25,7 +41,17 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
-.dh-imp-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; }
+/* gradient hairline under the top bar — indigo → violet → cyan, fading out */
+.dh-imp-top::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 34%, #06b6d4 68%, transparent 100%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.dh-imp-brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15.5px; font-family: var(--font-display); letter-spacing: -0.01em; }
 .dh-imp-mark { width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; }
 .dh-imp-close {
   margin-left: auto; width: 34px; height: 34px; border-radius: 9px; border: none; background: none;
@@ -47,7 +73,7 @@
   transition: all var(--t) var(--ease);
 }
 .dh-imp-stp .sl { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
-.dh-imp-stp .sl b { font-size: 13px; font-weight: 650; letter-spacing: -0.01em; }
+.dh-imp-stp .sl b { font-family: var(--font-display); font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; }
 .dh-imp-stp .sl em { font-size: 10.5px; font-style: normal; color: var(--faint); font-weight: 500; }
 .dh-imp-stp.done { color: var(--ink); }
 .dh-imp-stp.done .sn { background: var(--green); border-color: var(--green); color: #fff; }
@@ -66,7 +92,7 @@
 .dh-imp-center { max-width: 660px; margin: 0 auto; width: 100%; padding: 28px 28px 26px; animation: dh-imp-rise 0.26s var(--ease); }
 .dh-imp-wide { max-width: 1180px; margin: 0 auto; width: 100%; padding: 26px 32px; animation: dh-imp-rise 0.26s var(--ease); }
 @keyframes dh-imp-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
-.dh-imp-h1 { font-size: 23px; font-weight: 680; letter-spacing: -0.025em; margin: 0; line-height: 1.15; }
+.dh-imp-h1 { font-family: var(--font-display); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin: 0; line-height: 1.15; }
 .dh-imp-lead { color: var(--sub); font-size: 14px; margin-top: 7px; line-height: 1.55; max-width: 760px; }
 .dh-imp-lead.sm { font-size: 13px; margin-top: 14px; }
 .dh-imp-sub { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 22px 0 12px; }
@@ -321,7 +347,7 @@ table.dh-imp-xl thead th { position: sticky; top: 0; z-index: 3; background: var
 .dh-imp-reccard { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-md); overflow: hidden; }
 .dh-imp-rechead { background: var(--grad); padding: 22px; color: #fff; display: flex; align-items: center; gap: 14px; }
 .dh-imp-recav { width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,0.22); display: grid; place-items: center; font-weight: 700; font-size: 19px; flex: none; }
-.dh-imp-rechead .rn { font-size: 17px; font-weight: 650; }
+.dh-imp-rechead .rn { font-family: var(--font-display); font-size: 17.5px; font-weight: 600; letter-spacing: -0.01em; }
 .dh-imp-rechead .rt { font-size: 12.5px; opacity: 0.85; margin-top: 1px; }
 .dh-imp-recfields { padding: 8px 20px 16px; }
 .dh-imp-recf { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
@@ -365,7 +391,7 @@ table.dh-imp-xl thead th { position: sticky; top: 0; z-index: 3; background: var
 .dh-imp-procwrap { max-width: 440px; margin: 40px auto 0; text-align: center; }
 .dh-imp-ring { position: relative; width: 130px; height: 130px; margin: 0 auto 22px; }
 .dh-imp-ring circle { transition: stroke-dashoffset 0.1s linear; }
-.dh-imp-ring .pn { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 650; font-size: 28px; }
+.dh-imp-ring .pn { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 29px; letter-spacing: -0.02em; }
 .dh-imp-stages { max-width: 320px; margin: 22px auto 0; text-align: left; }
 .dh-imp-stg { display: flex; align-items: center; gap: 11px; padding: 8px 0; color: var(--faint); font-size: 13.5px; font-weight: 600; }
 .dh-imp-stg .sd { width: 19px; height: 19px; border-radius: 50%; border: 2px solid var(--border-2); display: grid; place-items: center; font-size: 10px; font-family: var(--font-mono); }
@@ -380,11 +406,11 @@ table.dh-imp-xl thead th { position: sticky; top: 0; z-index: 3; background: var
 .dh-imp-rpttop.undone { border-color: var(--amber); background: var(--amber-soft); }
 .dh-imp-rpttop .rm { width: 52px; height: 52px; border-radius: 15px; background: var(--green); display: grid; place-items: center; flex: none; }
 .dh-imp-rpttop.undone .rm { background: var(--amber); }
-.dh-imp-rpttop h2 { font-size: 19px; font-weight: 650; margin: 0; }
+.dh-imp-rpttop h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.015em; }
 .dh-imp-rpttop p { font-size: 13.5px; margin: 2px 0 0; color: var(--ink-2); }
 .dh-imp-rptgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
 .dh-imp-rc { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; background: var(--surface); box-shadow: var(--shadow-xs); }
-.dh-imp-rc .n { font-weight: 700; font-size: 24px; }
+.dh-imp-rc .n { font-family: var(--font-display); font-weight: 700; font-size: 27px; letter-spacing: -0.02em; }
 .dh-imp-rc .l { color: var(--faint); font-size: 12.5px; margin-top: 3px; }
 .dh-imp-rc.green .n { color: var(--green); }
 .dh-imp-rc.blue .n { color: var(--accent-600); }
