@@ -59,6 +59,25 @@ const SOURCES: { id: string; icon: string; title: string; sub: string; tag?: str
   { id: 'db', icon: 'database', title: 'Database / API', sub: 'Postgres, MySQL, REST' },
 ];
 
+const CRM_PROVIDERS = ['HubSpot', 'Salesforce', 'Zoho', 'Pipedrive'];
+const ZAP_HOOK = 'https://hooks.dovehero.app/z/8f3k2m1';
+
+/** Parse pasted spreadsheet text (tab / comma / semicolon separated, first line = headers). */
+function parsePasted(text: string): { cols: string[]; rows: string[][] } | null {
+  const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return null;
+  const delim = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+  const split = (l: string) => l.split(delim).map((s) => s.trim());
+  const cols = split(lines[0]);
+  if (cols.length < 2) return null;
+  const rows = lines.slice(1).map((l) => {
+    const c = split(l);
+    while (c.length < cols.length) c.push('');
+    return c.slice(0, cols.length);
+  });
+  return { cols, rows };
+}
+
 /* ---- helpers ---- */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 const SYN: string[][] = [
@@ -112,6 +131,11 @@ const FIELD_TYPES: { k: FieldType; label: string }[] = [
   { k: 'checkbox', label: 'Checkbox' }, { k: 'url', label: 'URL' }, { k: 'longtext', label: 'Long text' },
 ];
 
+/** What one import run actually did — kept so undo/redo can faithfully reverse it. */
+interface AppliedUpdate { id: string; patch: Partial<ObjectRecord>; prevPatch: Partial<ObjectRecord> }
+interface AppliedObj { created: ObjectRecord[]; updates: AppliedUpdate[]; skipped: number }
+type Applied = Record<string, AppliedObj>;
+
 export function ImportWizard() {
   const objects = useStore((s) => s.objects);
   const navObj = useStore((s) => s.nav);
@@ -119,6 +143,8 @@ export function ImportWizard() {
   const addField = useStore((s) => s.addField);
   const importRecords = useStore((s) => s.importObjectRecords);
   const removeRecords = useStore((s) => s.removeObjectRecordsBatch);
+  const updateObjectRecord = useStore((s) => s.updateObjectRecord);
+  const objectRecords = useStore((s) => s.objectRecords);
   const setNav = useStore((s) => s.setNav);
   const toast = useStore((s) => s.toast);
 
@@ -131,7 +157,16 @@ export function ImportWizard() {
     return [isObj ? navObj : 'contact'];
   });
   const [activeObj, setActiveObj] = useState<string>(selected[0]);
-  const [source, setSource] = useState<string | null>(null);
+
+  // source selection + per-source connection state
+  const [source, setSource] = useState<string | null>(null); // SOURCES id
+  const [connected, setConnected] = useState<{ id: string; label: string; rows: number } | null>(null);
+  const [srcDraft, setSrcDraft] = useState({
+    sheetUrl: '',
+    paste: '',
+    dbHost: 'postgres://readonly@db.prod.dovehero:5432/crm',
+    dbQuery: 'SELECT name, email, company FROM contacts LIMIT 500;',
+  });
 
   const [cols, setCols] = useState<Col[]>(() => SAMPLE_COLS.map((name) => ({ name, map: null })));
   const [rows, setRows] = useState<string[][]>(() => SAMPLE_ROWS.map((r) => [...r]));
@@ -142,6 +177,7 @@ export function ImportWizard() {
   const [recIdx, setRecIdx] = useState(0);
 
   const [propModal, setPropModal] = useState<null | { colIdx: number }>(null);
+  const [tagDraft, setTagDraft] = useState<string | null>(null); // null = not adding a tag
 
   const [settings, setSettings] = useState({
     owner: 'Round-robin (Sales team)',
@@ -154,8 +190,7 @@ export function ImportWizard() {
 
   const [phase, setPhase] = useState<'wizard' | 'processing' | 'report'>('wizard');
   const [progress, setProgress] = useState(0);
-  const [imported, setImported] = useState<Record<string, string[]> | null>(null);
-  const [builtPayload, setBuiltPayload] = useState<Record<string, ObjectRecord[]> | null>(null);
+  const [applied, setApplied] = useState<Applied | null>(null);
   const [undone, setUndone] = useState(false);
 
   /* keep activeObj valid; re-seed automatic (non-user) mappings when the
@@ -164,23 +199,26 @@ export function ImportWizard() {
     if (!selected.includes(activeObj)) setActiveObj(selected[0] ?? '');
   }, [selected, activeObj]);
 
+  /** Best destination for a column across the selected objects. A column named
+      like an object itself ("Company") wins that object's Name property — it
+      identifies the record, not a text field on another object. */
+  const bestTarget = (colName: string): MapTarget => {
+    let best: MapTarget = null;
+    let bestScore = 0;
+    for (const objKey of selected) {
+      const def = defOf(objKey);
+      if (!def) continue;
+      for (const f of def.fields) {
+        let sc = matchScore(colName, f.label);
+        if (f.k === 'name' && (norm(colName) === norm(def.name) || norm(colName) === norm(def.plural))) sc = 4;
+        if (sc > bestScore) { bestScore = sc; best = { obj: objKey, field: f.k }; }
+      }
+    }
+    return best;
+  };
+
   useEffect(() => {
-    setCols((prev) =>
-      prev.map((c) => {
-        if (c.userSet) return c;
-        let best: MapTarget = null;
-        let bestScore = 0;
-        for (const objKey of selected) {
-          const def = defOf(objKey);
-          if (!def) continue;
-          for (const f of def.fields) {
-            const sc = matchScore(c.name, f.label);
-            if (sc > bestScore) { bestScore = sc; best = { obj: objKey, field: f.k }; }
-          }
-        }
-        return { ...c, map: best };
-      }),
-    );
+    setCols((prev) => prev.map((c) => (c.userSet ? c : { ...c, map: bestTarget(c.name) })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
@@ -248,6 +286,58 @@ export function ImportWizard() {
       }
       return [...prev, k];
     });
+  };
+
+  // ---- source connection ----
+  const automapCols = (names: string[]): Col[] => names.map((name) => ({ name, map: bestTarget(name) }));
+
+  /** Every source lands here: load the dataset into the grid and mark the source connected. */
+  const loadDataset = (id: string, label: string, colNames: string[], data: string[][]) => {
+    setCols(automapCols(colNames));
+    setRows(data.map((r) => [...r]));
+    setGridHist([]);
+    setRecIdx(0);
+    setConnected({ id, label, rows: data.length });
+  };
+
+  const pickSource = (id: string) => {
+    if (id === source) return;
+    setSource(id);
+    setConnected(null); // a different source must be connected before continuing
+  };
+
+  const connectFile = () => {
+    loadDataset('file', 'contacts.csv · 12 KB', SAMPLE_COLS, SAMPLE_ROWS);
+    toast('contacts.csv loaded · 8 rows', 'success');
+  };
+  const connectSheets = () => {
+    if (!srcDraft.sheetUrl.trim()) return toast('Paste the sheet URL first', 'warn');
+    loadDataset('sheets', 'Q2 pipeline · Sheet1', SAMPLE_COLS, SAMPLE_ROWS);
+    toast('Sheet connected — stays in sync', 'success');
+  };
+  const connectCrm = (provider: string) => {
+    loadDataset('crm', `${provider} · Contacts`, SAMPLE_COLS, SAMPLE_ROWS);
+    toast(`Authorized with ${provider} via OAuth`, 'success');
+  };
+  const connectZapier = () => {
+    loadDataset('zapier', 'Zap sample received', SAMPLE_COLS, SAMPLE_ROWS);
+    toast('Sample payload received from your Zap', 'success');
+  };
+  const connectPaste = () => {
+    const parsed = parsePasted(srcDraft.paste);
+    if (!parsed) return toast('Need a header line + at least one data row', 'warn');
+    loadDataset('paste', `Pasted · ${parsed.rows.length} rows`, parsed.cols, parsed.rows);
+    toast(`Parsed ${parsed.rows.length} rows · ${parsed.cols.length} columns`, 'success');
+  };
+  const connectDb = () => {
+    if (!srcDraft.dbQuery.trim()) return toast('Write a query first', 'warn');
+    loadDataset('db', 'crm.contacts · query', SAMPLE_COLS, SAMPLE_ROWS);
+    toast('Query ran · 8 rows returned', 'success');
+  };
+
+  const copyHook = async () => {
+    try { await navigator.clipboard.writeText(ZAP_HOOK); toast('Webhook URL copied', 'success'); }
+    catch { toast('Copy blocked — select the URL manually', 'warn'); }
   };
 
   const commitCell = (r: number, c: number, value: string) => {
@@ -334,29 +424,91 @@ export function ImportWizard() {
     return out;
   };
 
+  /** Duplicate identity: contacts match by email (fallback name), everything else by name. */
+  const keyOf = (objKey: string, rec: ObjectRecord): string => {
+    const email = typeof rec.email === 'string' ? rec.email.trim().toLowerCase() : '';
+    if (objKey === 'contact' && email) return 'e:' + email;
+    return 'n:' + String(rec.name ?? '').trim().toLowerCase();
+  };
+
   const runImport = () => {
     const payload = buildRecords();
-    importRecords(payload);
-    setBuiltPayload(payload);
-    const ids: Record<string, string[]> = {};
-    for (const [k, recs] of Object.entries(payload)) ids[k] = recs.map((r) => r.id);
-    setImported(ids);
+    const out: Applied = {};
+    for (const [objKey, recs] of Object.entries(payload)) {
+      const index = new Map((objectRecords[objKey] ?? []).map((r) => [keyOf(objKey, r), r]));
+      const seen = new Set<string>();
+      const o: AppliedObj = { created: [], updates: [], skipped: 0 };
+      for (const rec of recs) {
+        const k = keyOf(objKey, rec);
+        if (seen.has(k)) { // duplicate row inside the file itself
+          if (settings.dedupe === 'create') o.created.push(rec); else o.skipped++;
+          continue;
+        }
+        seen.add(k);
+        const existing = index.get(k);
+        if (!existing || settings.dedupe === 'create') { o.created.push(rec); continue; }
+        if (settings.dedupe === 'skip') { o.skipped++; continue; }
+        // update: patch the existing record, remembering prior values for undo
+        const patch: Partial<ObjectRecord> = {};
+        const prevPatch: Partial<ObjectRecord> = {};
+        for (const key of Object.keys(rec)) {
+          if (key === 'id') continue;
+          patch[key] = rec[key];
+          prevPatch[key] = existing[key] ?? '';
+        }
+        o.updates.push({ id: existing.id, patch, prevPatch });
+      }
+      out[objKey] = o;
+    }
+    importRecords(Object.fromEntries(Object.entries(out).map(([k, o]) => [k, o.created])));
+    for (const [k, o] of Object.entries(out)) o.updates.forEach((u) => updateObjectRecord(k, u.id, u.patch));
+    setApplied(out);
     setUndone(false);
   };
 
-  const totalCreated = imported ? Object.values(imported).reduce((n, a) => n + a.length, 0) : 0;
+  const counts = (() => {
+    let created = 0, updated = 0, skipped = 0;
+    if (applied) for (const o of Object.values(applied)) { created += o.created.length; updated += o.updates.length; skipped += o.skipped; }
+    return { created, updated, skipped, total: created + updated + skipped };
+  })();
 
   const undoImport = () => {
-    if (!imported) return;
-    removeRecords(imported);
+    if (!applied) return;
+    removeRecords(Object.fromEntries(Object.entries(applied).map(([k, o]) => [k, o.created.map((r) => r.id)])));
+    for (const [k, o] of Object.entries(applied)) o.updates.forEach((u) => updateObjectRecord(k, u.id, u.prevPatch));
     setUndone(true);
-    toast('Import undone — records rolled back', 'warn');
+    toast('Import undone — created records removed, updates reverted', 'warn');
   };
   const redoImport = () => {
-    if (!builtPayload) return;
-    importRecords(builtPayload);
+    if (!applied) return;
+    importRecords(Object.fromEntries(Object.entries(applied).map(([k, o]) => [k, o.created])));
+    for (const [k, o] of Object.entries(applied)) o.updates.forEach((u) => updateObjectRecord(k, u.id, u.patch));
     setUndone(false);
     toast('Import re-applied', 'success');
+  };
+
+  const downloadReport = () => {
+    if (!applied) return;
+    const esc = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const lines = ['object,record id,name,action'];
+    for (const [k, o] of Object.entries(applied)) {
+      const plural = defOf(k)?.plural ?? k;
+      o.created.forEach((r) => lines.push([esc(plural), esc(r.id), esc(r.name), 'created'].join(',')));
+      o.updates.forEach((u) => lines.push([esc(plural), esc(u.id), esc(u.patch.name), 'updated'].join(',')));
+    }
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import_report.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('import_report.csv downloaded', 'success');
+  };
+
+  const saveTemplate = () => {
+    const tpl = { selected, mappings: cols.map((c) => ({ name: c.name, map: c.map, rule: c.rule })), settings };
+    try { localStorage.setItem('dh-import-template', JSON.stringify(tpl)); } catch { /* storage full — template stays session-only */ }
+    toast(`Template saved — mappings, rules & settings`, 'success');
   };
 
   const close = () => setImport(false);
@@ -413,8 +565,8 @@ export function ImportWizard() {
           <span className="dh-imp-foot-note">Step {step + 1} of {STEPS.length} · {STEP_HINT[step]}</span>
           <span className="dh-imp-grow" />
           {step === 0 && (
-            <Button className="dh-imp-cta" variant="primary" onClick={next} disabled={!selected.length || !source}>
-              {source ? 'Map & clean' : 'Pick a source to continue'} <Icon name="arrowRight" size={15} />
+            <Button className="dh-imp-cta" variant="primary" onClick={next} disabled={!selected.length || !connected}>
+              {connected ? <>Map &amp; clean {connected.rows} rows</> : 'Connect a source to continue'} <Icon name="arrowRight" size={15} />
             </Button>
           )}
           {step === 1 && <Button className="dh-imp-cta" variant="primary" onClick={next}>Review &amp; configure <Icon name="arrowRight" size={15} /></Button>}
@@ -439,16 +591,93 @@ export function ImportWizard() {
   );
 
   // ---------------- step renderers ----------------
+  function renderSourceConfig(id: string) {
+    const isConn = connected?.id === id;
+    if (id === 'file') {
+      return (
+        <div className="dh-imp-srccfg">
+          <button className="dh-imp-drop" onClick={connectFile}>
+            <Icon name="upload" size={20} />
+            <div><b>{isConn ? 'Replace contacts.csv' : 'Drop your file here'}</b><span>or click to browse — CSV, Excel, TSV</span></div>
+          </button>
+        </div>
+      );
+    }
+    if (id === 'sheets') {
+      return (
+        <div className="dh-imp-srccfg">
+          <label>Sheet URL</label>
+          <div className="dh-imp-cfgrow">
+            <input className="dh-imp-cfginput" placeholder="https://docs.google.com/spreadsheets/d/…"
+              value={srcDraft.sheetUrl} onChange={(e) => setSrcDraft((d) => ({ ...d, sheetUrl: e.target.value }))} />
+            <Button variant="primary" size="sm" onClick={connectSheets} disabled={!srcDraft.sheetUrl.trim()}>Connect</Button>
+          </div>
+          <p className="dh-imp-cfghint">Read-only access · re-syncs on every import run</p>
+        </div>
+      );
+    }
+    if (id === 'crm') {
+      return (
+        <div className="dh-imp-srccfg">
+          <label>Choose your CRM — we'll open its OAuth consent</label>
+          <div className="dh-imp-providers">
+            {CRM_PROVIDERS.map((pr) => (
+              <button key={pr} className={`dh-imp-provider ${isConn && connected?.label.startsWith(pr) ? 'on' : ''}`} onClick={() => connectCrm(pr)}>{pr}</button>
+            ))}
+          </div>
+          <p className="dh-imp-cfghint">We only request read scopes on contacts &amp; companies</p>
+        </div>
+      );
+    }
+    if (id === 'zapier') {
+      return (
+        <div className="dh-imp-srccfg">
+          <label>Point your Zap's webhook action at</label>
+          <div className="dh-imp-cfgrow">
+            <code className="dh-imp-hook mono">{ZAP_HOOK}</code>
+            <Button variant="default" size="sm" onClick={copyHook}><Icon name="clipboard" size={14} /> Copy</Button>
+          </div>
+          <div className="dh-imp-cfgrow" style={{ marginTop: 8 }}>
+            <Button variant="primary" size="sm" onClick={connectZapier}>I've sent a sample</Button>
+            {!isConn && <span className="dh-imp-cfghint" style={{ margin: 0 }}>waiting for a sample payload…</span>}
+          </div>
+        </div>
+      );
+    }
+    if (id === 'paste') {
+      return (
+        <div className="dh-imp-srccfg">
+          <label>Paste rows — first line is treated as headers (tabs or commas)</label>
+          <textarea className="dh-imp-cfginput area mono" rows={4}
+            placeholder={'Name\tEmail\tCompany\nJane Doe\tjane@acme.com\tAcme Inc'}
+            value={srcDraft.paste} onChange={(e) => setSrcDraft((d) => ({ ...d, paste: e.target.value }))} />
+          <div className="dh-imp-cfgrow">
+            <Button variant="primary" size="sm" onClick={connectPaste} disabled={!srcDraft.paste.trim()}>Parse &amp; load</Button>
+            <span className="dh-imp-cfghint" style={{ margin: 0 }}>your columns replace the sample grid</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="dh-imp-srccfg">
+        <label>Connection</label>
+        <input className="dh-imp-cfginput mono" value={srcDraft.dbHost} onChange={(e) => setSrcDraft((d) => ({ ...d, dbHost: e.target.value }))} />
+        <label style={{ marginTop: 8 }}>Query</label>
+        <textarea className="dh-imp-cfginput area mono" rows={2}
+          value={srcDraft.dbQuery} onChange={(e) => setSrcDraft((d) => ({ ...d, dbQuery: e.target.value }))} />
+        <div className="dh-imp-cfgrow">
+          <Button variant="primary" size="sm" onClick={connectDb} disabled={!srcDraft.dbQuery.trim()}>Run query</Button>
+          <span className="dh-imp-cfghint" style={{ margin: 0 }}>read-only · results become your import rows</span>
+        </div>
+      </div>
+    );
+  }
+
   function renderStart() {
-    const pickSource = (id: string, title: string) => {
-      const first = !source;
-      setSource(title);
-      if (first) toast(id === 'file' ? 'contacts.csv loaded · 8 sample rows' : `${title} connected · 8 sample rows`, 'success');
-    };
     return (
       <div className="dh-imp-wide dh-imp-start">
         <h1 className="dh-imp-h1">What are you importing, and from where?</h1>
-        <p className="dh-imp-lead">Pick your record types and a source. We map, clean and import them together in one flow — no back-and-forth.</p>
+        <p className="dh-imp-lead">Pick your record types, then connect a source. The connected data flows straight into the next step for mapping and cleanup.</p>
 
         <div className="dh-imp-start-grid">
           <section className="dh-imp-start-col">
@@ -477,19 +706,25 @@ export function ImportWizard() {
           </section>
 
           <section className="dh-imp-start-col">
-            <div className="dh-imp-sub"><span className="dh-imp-numdot">2</span> Source</div>
+            <div className="dh-imp-sub"><span className="dh-imp-numdot">2</span> Connect a source</div>
             <div className="dh-imp-srclist">
               {SOURCES.map((c) => {
-                const on = source === c.title;
+                const on = source === c.id;
+                const isConn = connected?.id === c.id;
                 return (
-                  <button key={c.id} className={`dh-imp-srcrow ${on ? 'on' : ''}`} onClick={() => pickSource(c.id, c.title)} aria-pressed={on}>
-                    <span className="dh-imp-si"><Icon name={c.icon} size={19} /></span>
-                    <div className="dh-imp-grow">
-                      <b>{c.title}{c.tag && <span className="dh-imp-tag">{c.tag}</span>}</b>
-                      <p>{c.sub}</p>
-                    </div>
-                    <span className={`dh-imp-srcradio ${on ? 'on' : ''}`}>{on && <Icon name="check" size={12} strokeWidth={3} />}</span>
-                  </button>
+                  <div key={c.id} className={`dh-imp-srcitem ${on ? 'open' : ''}`}>
+                    <button className={`dh-imp-srcrow ${on ? 'on' : ''}`} onClick={() => pickSource(c.id)} aria-pressed={on} aria-expanded={on}>
+                      <span className="dh-imp-si"><Icon name={c.icon} size={19} /></span>
+                      <div className="dh-imp-grow">
+                        <b>{c.title}{c.tag && <span className="dh-imp-tag">{c.tag}</span>}</b>
+                        {isConn
+                          ? <p className="dh-imp-connline"><Icon name="check" size={12} strokeWidth={3} /> Connected · {connected.label} · {connected.rows} rows</p>
+                          : <p>{c.sub}</p>}
+                      </div>
+                      <span className={`dh-imp-srcradio ${isConn ? 'conn' : on ? 'on' : ''}`}>{(on || isConn) && <Icon name="check" size={12} strokeWidth={3} />}</span>
+                    </button>
+                    {on && renderSourceConfig(c.id)}
+                  </div>
                 );
               })}
             </div>
@@ -703,17 +938,44 @@ export function ImportWizard() {
             </div>
             <div className="dh-imp-sub">Import behaviour</div>
             <div className="dh-imp-setcard">
-              <SetRow label="If a record already exists" sub="Matched by email">
+              <SetRow label="If a record already exists" sub="Contacts match by email · others by name">
                 <div className="dh-imp-seg">
                   {(['update', 'skip', 'create'] as const).map((m) => (
-                    <button key={m} className={settings.dedupe === m ? 'on' : ''} onClick={() => setSettings((s) => ({ ...s, dedupe: m }))}>{m === 'update' ? 'Update' : m === 'skip' ? 'Skip' : 'Create new'}</button>
+                    <button key={m} className={settings.dedupe === m ? 'on' : ''}
+                      title={m === 'update' ? 'Existing record gets the new values' : m === 'skip' ? 'Duplicate rows are not imported' : 'Import everything, even duplicates'}
+                      onClick={() => setSettings((s) => ({ ...s, dedupe: m }))}>{m === 'update' ? 'Update' : m === 'skip' ? 'Skip' : 'Create new'}</button>
                   ))}
                 </div>
               </SetRow>
               <SetRow label="Tags" sub="Added to every record">
                 <div className="dh-imp-tags">
-                  {settings.tags.map((t) => <span key={t} className="dh-imp-tag2">{t}</span>)}
-                  <button className="dh-imp-tag2 add" onClick={() => toast('Add a tag')}>+ Tag</button>
+                  {settings.tags.map((t) => (
+                    <span key={t} className="dh-imp-tag2">
+                      {t}
+                      <button className="dh-imp-tagx" aria-label={`Remove tag ${t}`}
+                        onClick={() => setSettings((s) => ({ ...s, tags: s.tags.filter((x) => x !== t) }))}>
+                        <Icon name="x" size={11} />
+                      </button>
+                    </span>
+                  ))}
+                  {tagDraft !== null ? (
+                    <input
+                      className="dh-imp-taginput" autoFocus value={tagDraft} placeholder="Tag name"
+                      onChange={(e) => setTagDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                          const t = tagDraft.trim();
+                          if (t && !settings.tags.includes(t)) setSettings((s) => ({ ...s, tags: [...s.tags, t] }));
+                          setTagDraft(null);
+                        }
+                        if (e.key === 'Escape') setTagDraft(null);
+                      }}
+                      onBlur={() => setTagDraft(null)}
+                    />
+                  ) : (
+                    <button className="dh-imp-tag2 add" onClick={() => setTagDraft('')}>+ Tag</button>
+                  )}
                 </div>
               </SetRow>
               <SetRow label="Run automations" sub="Fire workflows & emails for imported records">
@@ -743,7 +1005,7 @@ export function ImportWizard() {
             <div className="pn mono">{Math.round(progress * 100)}%</div>
           </div>
           <h1 className="dh-imp-h1">Importing…</h1>
-          <p className="dh-imp-lead">Applying your mappings, edits and rules to {rows.length} records across {selected.map((k) => defOf(k)?.plural).join(', ')}.</p>
+          <p className="dh-imp-lead">Applying your mappings, edits and rules to {plannedCount.toLocaleString()} records across {objsWithData.map((k) => defOf(k)?.plural).join(', ')}.</p>
           <div className="dh-imp-stages">
             {stages.map((s, i) => (
               <div key={s} className={`dh-imp-stg ${i < si ? 'done' : i === si ? 'active' : ''}`}>
@@ -757,10 +1019,10 @@ export function ImportWizard() {
   }
 
   function renderReport() {
-    const dup = Math.round(totalCreated * 0.04);
-    const created = settings.dedupe === 'create' ? totalCreated : totalCreated - dup;
-    const updated = settings.dedupe === 'update' ? dup : 0;
-    const skipped = settings.dedupe === 'skip' ? dup : 0;
+    const objKeys = applied ? Object.keys(applied).filter((k) => {
+      const o = applied[k];
+      return o.created.length + o.updates.length + o.skipped > 0;
+    }) : [];
     return (
       <div className="dh-imp-wide">
         <div className={`dh-imp-rpttop ${undone ? 'undone' : ''}`}>
@@ -768,23 +1030,29 @@ export function ImportWizard() {
           <div>
             <h2>{undone ? 'Import undone' : 'Import complete'}</h2>
             <p>{undone
-              ? `All ${totalCreated.toLocaleString()} records were rolled back — created records removed.`
-              : `${totalCreated.toLocaleString()} record${totalCreated === 1 ? '' : 's'} imported across ${objsWithData.map((k) => defOf(k)?.plural).join(', ') || 'your objects'}.`}</p>
+              ? `Rolled back — ${counts.created.toLocaleString()} created record${counts.created === 1 ? '' : 's'} removed and ${counts.updated.toLocaleString()} update${counts.updated === 1 ? '' : 's'} reverted.`
+              : `${counts.total.toLocaleString()} rows processed: ${counts.created.toLocaleString()} created, ${counts.updated.toLocaleString()} updated, ${counts.skipped.toLocaleString()} duplicate${counts.skipped === 1 ? '' : 's'} skipped — per your "${settings.dedupe === 'update' ? 'Update' : settings.dedupe === 'skip' ? 'Skip' : 'Create new'}" duplicate rule.`}</p>
           </div>
         </div>
         <div className="dh-imp-rptgrid">
-          <div className="dh-imp-rc green"><div className="n mono">{undone ? '0' : created.toLocaleString()}</div><div className="l">Created</div></div>
-          <div className="dh-imp-rc blue"><div className="n mono">{undone ? '0' : updated.toLocaleString()}</div><div className="l">Updated</div></div>
-          <div className="dh-imp-rc amber"><div className="n mono">{skipped.toLocaleString()}</div><div className="l">Skipped (dupes)</div></div>
+          <div className="dh-imp-rc green"><div className="n mono">{undone ? '0' : counts.created.toLocaleString()}</div><div className="l">Created</div></div>
+          <div className="dh-imp-rc blue"><div className="n mono">{undone ? '0' : counts.updated.toLocaleString()}</div><div className="l">Updated (matched)</div></div>
+          <div className="dh-imp-rc amber"><div className="n mono">{counts.skipped.toLocaleString()}</div><div className="l">Skipped (dupes)</div></div>
           <div className="dh-imp-rc grey"><div className="n mono">0</div><div className="l">Errors</div></div>
         </div>
-        {objsWithData.length > 1 && (
+        {objKeys.length > 1 && (
           <>
             <div className="dh-imp-sub">By object</div>
             <div className="dh-imp-obreaks">
-              {objsWithData.map((k) => (
-                <div key={k} className="dh-imp-obreak"><span className="ob">{defOf(k)?.plural}</span><span className="on mono">{undone ? '0' : (imported?.[k]?.length ?? 0).toLocaleString()}</span></div>
-              ))}
+              {objKeys.map((k) => {
+                const o = applied![k];
+                return (
+                  <div key={k} className="dh-imp-obreak">
+                    <span className="ob">{defOf(k)?.plural}</span>
+                    <span className="on mono">{undone ? '0' : `${o.created.length + o.updates.length}`}</span>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
@@ -794,8 +1062,8 @@ export function ImportWizard() {
             ? <Button variant="primary" onClick={redoImport}><Icon name="redo" size={15} /> Redo import</Button>
             : <Button variant="default" onClick={undoImport}><Icon name="undo" size={15} /> Undo import</Button>}
           <Button variant="default" onClick={viewRecords}><Icon name="eye" size={15} /> View records</Button>
-          <Button variant="default" onClick={() => toast('import_report.csv downloaded', 'success')}><Icon name="download" size={15} /> Download report</Button>
-          <Button variant="default" onClick={() => toast(`Saved as template “${source ?? 'Import'}”`, 'success')}>Save as template</Button>
+          <Button variant="default" onClick={downloadReport}><Icon name="download" size={15} /> Download report</Button>
+          <Button variant="default" onClick={saveTemplate}>Save as template</Button>
           <Button variant="ghost" onClick={close}>Done</Button>
         </div>
       </div>
