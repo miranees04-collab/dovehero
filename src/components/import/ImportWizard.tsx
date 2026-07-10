@@ -223,6 +223,26 @@ export function ImportWizard() {
     return best;
   };
 
+  /** Nova infers which objects a file holds by scoring its column names against every object. */
+  const novaDetectObjects = (names: string[]): string[] =>
+    objects
+      .map((o) => {
+        let strong = 0;
+        for (const nm of names) {
+          let best = 0;
+          for (const f of o.fields) {
+            let sc = matchScore(nm, f.label);
+            if (f.k === 'name' && (norm(nm) === norm(o.name) || norm(nm) === norm(o.plural))) sc = 4;
+            best = Math.max(best, sc);
+          }
+          if (best >= 2) strong++;
+        }
+        return { k: o.k, strong };
+      })
+      .filter((s) => s.strong >= 2)
+      .sort((a, b) => b.strong - a.strong)
+      .map((s) => s.k);
+
   useEffect(() => {
     setCols((prev) => prev.map((c) => (c.userSet ? c : { ...c, map: bestTarget(c.name) })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -380,6 +400,28 @@ export function ImportWizard() {
     toast(`${cols[ci].name} → ${RULE_LABEL[action]} · runs on import`, 'success');
   };
   const clearRule = (ci: number) => { setCols((prev) => prev.map((c, i) => (i === ci ? { ...c, rule: undefined } : c))); toast('Format rule removed'); };
+
+  /** Nova picks the single best format rule for a column from its content. */
+  const novaBestRule = (ci: number): RuleAction | null => {
+    const c = cols[ci];
+    const vals = rows.map((r) => r[ci]).filter((v) => v && v.trim());
+    if (!vals.length) return null;
+    const m = c.map;
+    const f = m && 'obj' in m ? defOf(m.obj)?.fields.find((x) => x.k === m.field) : undefined;
+    if (f?.type === 'email' || /email/.test(norm(c.name))) { if (vals.some((v) => /[A-Z]/.test(v))) return 'lower'; }
+    if (rows.some((r) => { const v = r[ci] || ''; return v !== v.trim() || /\s{2,}/.test(v); })) return 'trim';
+    if (!f || f.type === 'text' || f.type === 'longtext') {
+      const upper = vals.filter((v) => v === v.toUpperCase() && /[a-z]/i.test(v)).length;
+      const lower = vals.filter((v) => v === v.toLowerCase() && /[a-z]/.test(v)).length;
+      if (upper > vals.length / 2 || lower > vals.length / 2) return 'title';
+    }
+    return null;
+  };
+  const novaCleanColumn = (ci: number) => {
+    const rule = novaBestRule(ci);
+    if (!rule) { toast(`Nova: “${cols[ci].name}” already looks clean`); return; }
+    applyRule(ci, rule);
+  };
 
   const gridUndo = () => {
     setGridHist((h) => {
@@ -738,6 +780,19 @@ export function ImportWizard() {
             {selected.length > 1 && (
               <div className="dh-imp-banner ok slim"><Icon name="check" size={14} /> {selected.map((k) => defOf(k)?.plural ?? k).join(' + ')} import together &amp; link automatically.</div>
             )}
+            {(() => {
+              if (!connected) return null;
+              // Suggest the single strongest object we're not yet importing; it re-suggests the next after you add one.
+              const next = novaDetectObjects(cols.map((c) => c.name)).find((k) => !selected.includes(k));
+              if (!next) return null;
+              return (
+                <div className="dh-imp-nova-rec slim">
+                  <span className="dh-imp-nova-badge"><Icon name="sparkles" size={12} /></span>
+                  <span className="dh-imp-grow"><b>Nova</b> · your columns also look like <b>{defOf(next)?.plural}</b> — import them too?</span>
+                  <button className="dh-imp-nova-cta" onClick={() => setSelected((prev) => [...new Set([...prev, next])])}>Add {defOf(next)?.plural}</button>
+                </div>
+              );
+            })()}
           </section>
 
           <section className="dh-imp-start-col">
@@ -961,6 +1016,8 @@ export function ImportWizard() {
                           >
                             {(cls) => (
                               <>
+                                <MenuItem icon={<span className="dh-imp-menu-nova"><Icon name="sparkles" size={12} /></span>} onClick={() => { novaCleanColumn(ci); cls(); }}>Clean with Nova</MenuItem>
+                                <div className="dh-imp-msep" />
                                 <div className="dh-imp-mlabel"><Icon name="wand" size={12} /> Format rule · runs on import</div>
                                 {(['trim', 'upper', 'sentence', 'lower', 'title'] as RuleAction[]).map((a) => (
                                   <MenuItem key={a} active={c.rule === a} onClick={() => { applyRule(ci, a); cls(); }}>{RULE_LABEL[a]}</MenuItem>

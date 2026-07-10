@@ -332,7 +332,7 @@
 .dh-imp-nova.clean { display: flex; align-items: center; gap: 9px; padding: 10px 13px; font-size: 13px; }
 .dh-imp-nova.clean b { font-family: var(--font-display); font-weight: 600; color: var(--ink); }
 .dh-imp-nova-clean-txt { color: var(--sub); }
-/* inline recommendation line (Configure + Report) */
+/* inline recommendation line (Start / Configure / Report) */
 .dh-imp-nova-rec {
   display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2);
   border: 1px solid var(--accent-200); border-radius: var(--r-md); background: var(--accent-soft);
@@ -340,6 +340,10 @@
 }
 [data-theme='dark'] .dh-imp-nova-rec { border-color: rgba(129, 140, 248, 0.32); background: rgba(129, 140, 248, 0.10); }
 .dh-imp-nova-rec b { font-weight: 650; color: var(--ink); }
+.dh-imp-nova-rec.slim { margin: 12px 0 0; padding: 8px 11px; font-size: 12.5px; }
+.dh-imp-nova-rec.slim .dh-imp-nova-cta { padding: 4px 10px; }
+/* gradient sparkle inside the column ⋯ menu */
+.dh-imp-menu-nova { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: #fff; background: var(--grad); }
 
 /* ---- data grid ---- */
 .dh-imp-xltoolbar { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
