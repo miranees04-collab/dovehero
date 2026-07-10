@@ -130,6 +130,10 @@ const FIELD_TYPES: { k: FieldType; label: string }[] = [
   { k: 'currency', label: 'Currency' }, { k: 'date', label: 'Date' }, { k: 'select', label: 'Dropdown' },
   { k: 'checkbox', label: 'Checkbox' }, { k: 'url', label: 'URL' }, { k: 'longtext', label: 'Long text' },
 ];
+const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.k === t)?.label ?? 'Text';
+
+/** A Nova (AI assistant) suggestion computed from the real grid — each has a one-click fix. */
+interface NovaSug { id: string; tone: 'map' | 'clean' | 'dupe'; title: ReactNode; cta: string; apply: () => void }
 
 /** What one import run actually did — kept so undo/redo can faithfully reverse it. */
 interface AppliedUpdate { id: string; patch: Partial<ObjectRecord>; prevPatch: Partial<ObjectRecord> }
@@ -178,6 +182,8 @@ export function ImportWizard() {
 
   const [propModal, setPropModal] = useState<null | { colIdx: number }>(null);
   const [tagDraft, setTagDraft] = useState<string | null>(null); // null = not adding a tag
+  const [novaDone, setNovaDone] = useState<Set<string>>(new Set()); // dismissed/applied Nova suggestions
+  const novaDismiss = (id: string) => setNovaDone((s) => new Set(s).add(id));
 
   const [settings, setSettings] = useState({
     owner: 'Round-robin (Sales team)',
@@ -383,6 +389,35 @@ export function ImportWizard() {
       setRows(last.rows.map((r) => [...r]));
       return h.slice(0, -1);
     });
+  };
+
+  /** Nova guesses a property type from a column's actual values + its name. */
+  const inferType = (ci: number, name: string): FieldType => {
+    const nm = norm(name);
+    if (/phone|mobile|tel|fax/.test(nm)) return 'text'; // no phone type in the model
+    const vals = rows.map((r) => r[ci]).filter((v) => v && v.trim());
+    if (!vals.length) return 'text';
+    if (vals.every((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()))) return 'email';
+    if (vals.every((v) => /^https?:\/\//.test(v.trim()))) return 'url';
+    if (vals.every((v) => /^\d{4}-\d{2}-\d{2}/.test(v.trim()) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v.trim()))) return 'date';
+    if (vals.every((v) => /^[-+]?[\d.,\s]+$/.test(v.trim()))) return /value|price|amount|revenue|deal|cost|salary/.test(nm) ? 'currency' : 'number';
+    // low-cardinality short strings → a dropdown
+    const uniq = new Set(vals.map((v) => v.trim().toLowerCase()));
+    if (uniq.size <= Math.max(2, Math.floor(vals.length / 2)) && [...uniq].every((v) => v.length < 24)) return 'select';
+    return 'text';
+  };
+
+  const propKey = (name: string) => norm(name).replace(/(^[0-9]+)/, 'f$1') || 'f' + idSeqSuffix();
+
+  /** Nova one-click: create a property (type inferred) on an object and map the column to it. */
+  const novaCreateAndMap = (ci: number, objKey: string, type: FieldType) => {
+    const name = cols[ci].name;
+    const k = propKey(name);
+    const field: FieldDef = { k, label: name, type };
+    if (type === 'select') field.opts = [...new Set(rows.map((r) => (r[ci] || '').trim()).filter(Boolean))].slice(0, 12);
+    addField(objKey, field);
+    setCols((prev) => prev.map((c, i) => (i === ci ? { ...c, map: { obj: objKey, field: k }, userSet: true } : c)));
+    toast(`Nova created “${name}” (${type}) on ${defOf(objKey)?.name} and mapped it`, 'success');
   };
 
   const createProperty = (objKey: string, name: string, type: FieldType, opts: string) => {
@@ -752,16 +787,140 @@ export function ImportWizard() {
     );
   }
 
+  /** Nova's read of the current grid — real analysis, each finding one-click fixable. */
+  function novaScan(): NovaSug[] {
+    const out: NovaSug[] = [];
+    // 1) unmapped columns — map to a match, or create a property with an inferred type
+    cols.forEach((c, ci) => {
+      if (c.map) return;
+      const id = 'unmap-' + ci + '-' + norm(c.name);
+      if (novaDone.has(id)) return;
+      const t = bestTarget(c.name);
+      if (t && 'obj' in t) {
+        const def = defOf(t.obj);
+        const f = def?.fields.find((x) => x.k === t.field);
+        out.push({ id, tone: 'map', cta: 'Map it',
+          title: <>Map <b>{c.name}</b> to {def?.plural} · {f?.label}</>,
+          apply: () => { setMap(ci, `${t.obj}:::${t.field}`); novaDismiss(id); } });
+      } else {
+        const objKey = selected[0];
+        const type = inferType(ci, c.name);
+        out.push({ id, tone: 'map', cta: `Create ${typeLabel(type)}`,
+          title: <>No match for <b>{c.name}</b> — create it as a <b>{typeLabel(type).toLowerCase()}</b> on {defOf(objKey)?.plural}</>,
+          apply: () => { novaCreateAndMap(ci, objKey, type); novaDismiss(id); } });
+      }
+    });
+    // 2) stray whitespace on a mapped column
+    cols.forEach((c, ci) => {
+      if (!c.map || 'skip' in c.map || c.rule) return;
+      const id = 'ws-' + ci + '-' + norm(c.name);
+      if (novaDone.has(id)) return;
+      if (rows.some((r) => { const v = r[ci] || ''; return v !== v.trim() || /\s{2,}/.test(v); }))
+        out.push({ id, tone: 'clean', cta: 'Trim',
+          title: <><b>{c.name}</b> has stray spaces — trim on import</>,
+          apply: () => { applyRule(ci, 'trim'); novaDismiss(id); } });
+    });
+    // 3) uppercase in an email column
+    cols.forEach((c, ci) => {
+      if (!c.map || 'skip' in c.map || c.rule) return;
+      const def = defOf(c.map.obj);
+      const f = def?.fields.find((x) => x.k === (c.map as { field: string }).field);
+      if (!(f?.type === 'email' || /email/.test(norm(c.name)))) return;
+      const id = 'lc-' + ci;
+      if (novaDone.has(id)) return;
+      if (rows.some((r) => /[A-Z]/.test(r[ci] || '')))
+        out.push({ id, tone: 'clean', cta: 'Lowercase',
+          title: <><b>{c.name}</b> has mixed-case emails — lowercase them</>,
+          apply: () => { applyRule(ci, 'lower'); novaDismiss(id); } });
+    });
+    // 4) duplicate rows within the file — check every object that has data
+    if (settings.dedupe !== 'skip') {
+      for (const dobj of objsWithData) {
+        const id = 'dupe-' + dobj;
+        if (novaDone.has(id)) continue;
+        const def = defOf(dobj);
+        const mapped = cols.map((c, ci) => ({ c, ci })).filter(({ c }) => c.map && 'obj' in c.map && c.map.obj === dobj);
+        const seen = new Set<string>();
+        let dupes = 0;
+        rows.forEach((row) => {
+          const rec: ObjectRecord = { id: 'x' };
+          mapped.forEach(({ c, ci }) => { const f = def?.fields.find((x) => x.k === (c.map as { field: string }).field); if (f) rec[f.k] = coerce(transformVal(row[ci] || '', c.rule), f.type); });
+          const k = keyOf(dobj, rec);
+          if (seen.has(k)) dupes++; else seen.add(k);
+        });
+        if (dupes > 0) out.push({ id, tone: 'dupe', cta: 'Skip dupes',
+          title: <>Found <b>{dupes} duplicate {def?.name.toLowerCase()} row{dupes > 1 ? 's' : ''}</b> — skip {dupes > 1 ? 'them' : 'it'} on import</>,
+          apply: () => { setSettings((s) => ({ ...s, dedupe: 'skip' })); novaDismiss(id); } });
+      }
+    }
+    return out.slice(0, 6);
+  }
+
+  /** How many import rows already exist in the store (drives the "use Update" nudge). */
+  function existingMatchCount(): number {
+    let n = 0;
+    const payload = buildRecords();
+    for (const [objKey, recs] of Object.entries(payload)) {
+      const idx = new Set((objectRecords[objKey] ?? []).map((r) => keyOf(objKey, r)));
+      const seen = new Set<string>();
+      for (const rec of recs) { const k = keyOf(objKey, rec); if (idx.has(k) || seen.has(k)) n++; seen.add(k); }
+    }
+    return n;
+  }
+
+  /** One subtle Nova nudge for the Configure step, if the data warrants it. */
+  function novaConfigRec(): { text: ReactNode; cta: string; apply: () => void } | null {
+    const ownerMapped = cols.some((c) => c.map && 'obj' in c.map && (
+      defOf(c.map.obj)?.fields.find((f) => f.k === (c.map as { field: string }).field)?.k === 'owner' || /owner|assigned|rep/.test(norm(c.name))
+    ));
+    if (ownerMapped && settings.owner !== 'From “Owner” column')
+      return { text: <>Your file has an <b>Owner</b> column — assign records from it instead of round-robin?</>, cta: 'Use it', apply: () => setSettings((s) => ({ ...s, owner: 'From “Owner” column' })) };
+    const m = existingMatchCount();
+    if (m > 0 && settings.dedupe !== 'update')
+      return { text: <><b>{m}</b> row{m > 1 ? 's' : ''} match an existing record — <b>Update</b> keeps them fresh instead of duplicating.</>, cta: 'Use Update', apply: () => setSettings((s) => ({ ...s, dedupe: 'update' })) };
+    return null;
+  }
+
   function renderData() {
     const ruleCount = cols.filter((c) => c.rule).length;
+    const sugs = novaScan();
     return (
       <div className="dh-imp-wide">
         <div className="dh-imp-headrow">
           <div>
             <h1 className="dh-imp-h1">Map &amp; clean your data</h1>
-            <p className="dh-imp-lead">Each column maps to a property in its header — fix any marked <span className="dh-imp-inlwarn">unmapped</span>. Double-click cells to edit, or use a column's <b>⋯</b> menu for one-click format rules that also run on import.</p>
+            <p className="dh-imp-lead">Nova auto-mapped your columns and reviewed the values. Accept its fixes below, or edit by hand — double-click cells, or use a column's <b>⋯</b> menu for format rules.</p>
           </div>
         </div>
+
+        {sugs.length > 0 ? (
+          <div className="dh-imp-nova">
+            <div className="dh-imp-nova-head">
+              <span className="dh-imp-nova-badge"><Icon name="sparkles" size={13} /></span>
+              <b>Nova reviewed {rows.length} rows</b>
+              <span className="dh-imp-nova-count">{sugs.length} suggestion{sugs.length > 1 ? 's' : ''}</span>
+              <span className="dh-imp-grow" />
+              <button className="dh-imp-nova-all" onClick={() => sugs.forEach((s) => s.apply())}>Apply all</button>
+              <button className="dh-imp-nova-x" title="Dismiss all" onClick={() => setNovaDone((prev) => { const n = new Set(prev); sugs.forEach((s) => n.add(s.id)); return n; })}><Icon name="x" size={14} /></button>
+            </div>
+            <div className="dh-imp-nova-list">
+              {sugs.map((s) => (
+                <div key={s.id} className={`dh-imp-nova-item t-${s.tone}`}>
+                  <span className="dh-imp-nova-dot" />
+                  <span className="dh-imp-grow">{s.title}</span>
+                  <button className="dh-imp-nova-cta" onClick={s.apply}>{s.cta}</button>
+                  <button className="dh-imp-nova-x sm" title="Dismiss" onClick={() => novaDismiss(s.id)}><Icon name="x" size={13} /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="dh-imp-nova clean">
+            <span className="dh-imp-nova-badge"><Icon name="sparkles" size={13} /></span>
+            <b>Nova reviewed your data</b><span className="dh-imp-nova-clean-txt">— mapping &amp; formatting look good.</span>
+          </div>
+        )}
+
         <div className="dh-imp-xltoolbar">
           <span className={`dh-imp-banner ${unmappedCount ? 'warn' : 'ok'}`} style={{ margin: 0 }}>
             <Icon name={unmappedCount ? 'alert' : 'check'} size={15} />
@@ -918,6 +1077,16 @@ export function ImportWizard() {
           </div>
 
           <div>
+            {(() => {
+              const rec = novaConfigRec();
+              return rec ? (
+                <div className="dh-imp-nova-rec">
+                  <span className="dh-imp-nova-badge"><Icon name="sparkles" size={12} /></span>
+                  <span className="dh-imp-grow"><b>Nova</b> · {rec.text}</span>
+                  <button className="dh-imp-nova-cta" onClick={rec.apply}>{rec.cta}</button>
+                </div>
+              ) : null;
+            })()}
             <div className="dh-imp-sub" style={{ marginTop: 0 }}>Assignment rules</div>
             <div className="dh-imp-setcard">
               <SetRow label="Record owner" sub="Who these records get assigned to">
@@ -1034,6 +1203,13 @@ export function ImportWizard() {
               : `${counts.total.toLocaleString()} rows processed: ${counts.created.toLocaleString()} created, ${counts.updated.toLocaleString()} updated, ${counts.skipped.toLocaleString()} duplicate${counts.skipped === 1 ? '' : 's'} skipped — per your "${settings.dedupe === 'update' ? 'Update' : settings.dedupe === 'skip' ? 'Skip' : 'Create new'}" duplicate rule.`}</p>
           </div>
         </div>
+        {!undone && counts.created > 0 && (
+          <div className="dh-imp-nova-rec">
+            <span className="dh-imp-nova-badge"><Icon name="sparkles" size={12} /></span>
+            <span className="dh-imp-grow"><b>Nova</b> · {counts.created.toLocaleString()} new record{counts.created === 1 ? ' is' : 's are'} ready — review them, or set up a recurring sync to keep this source fresh.</span>
+            <button className="dh-imp-nova-cta" onClick={viewRecords}>Review</button>
+          </div>
+        )}
         <div className="dh-imp-rptgrid">
           <div className="dh-imp-rc green"><div className="n mono">{undone ? '0' : counts.created.toLocaleString()}</div><div className="l">Created</div></div>
           <div className="dh-imp-rc blue"><div className="n mono">{undone ? '0' : counts.updated.toLocaleString()}</div><div className="l">Updated (matched)</div></div>
