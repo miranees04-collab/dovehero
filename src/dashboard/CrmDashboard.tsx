@@ -45,6 +45,9 @@ import {
   GripVertical,
   LayoutDashboard,
   LineChart as LineChartIcon,
+  CheckCircle2,
+  Circle,
+  ListChecks,
   Mail,
   Maximize2,
   Monitor,
@@ -120,7 +123,7 @@ import { ReportView, measureLabel, type DrillTarget } from './ReportView';
 import { ReportBuilder } from './ReportBuilder';
 import { AiPanel } from './AiPanel';
 import { CommandPalette, type Command } from './CommandPalette';
-import { morningBrief } from './ai';
+import { morningBrief, recommendations } from './ai';
 import {
   drillRecords,
   fmtByUnit,
@@ -805,6 +808,62 @@ function RepVsTeam({ ctx }: { ctx: Ctx }) {
 }
 
 // ---------------------------------------------------------------------------
+// AI / productivity widgets (the command-center layer, in-grid)
+// ---------------------------------------------------------------------------
+
+function AiInsights({ ctx }: { ctx: Ctx }) {
+  const items = morningBrief(ctx.deals, ctx.bounds, ctx.now).slice(0, 5);
+  if (!items.length) return <Empty msg="No insights for this slice" />;
+  const Icon = { good: TrendingUp, warn: Target, bad: X, info: Sparkles } as const;
+  return (
+    <div className="cd-ai-brief">
+      {items.map((it, i) => {
+        const I = Icon[it.tone];
+        return (
+          <div key={i} className={`cd-brief-item ${it.tone}`}>
+            <I size={15} className="ic" />
+            <span>{it.text}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorkQueue({ ctx }: { ctx: Ctx }) {
+  const recs = useMemo(() => recommendations(ctx.deals, ctx.now), [ctx.deals, ctx.now]);
+  const [done, setDone] = useState<Set<string>>(new Set());
+  if (!recs.length) return <Empty msg="Nothing urgent — you're clear" />;
+  const remaining = recs.filter((r) => !done.has(r.id)).length;
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', padding: '0 2px 8px' }}>{remaining} of {recs.length} open</div>
+      <div className="cd-ai-recs">
+        {recs.map((r) => {
+          const isDone = done.has(r.id);
+          return (
+            <div className="cd-rec" key={r.id} style={{ opacity: isDone ? 0.55 : 1 }}>
+              <button
+                className="cd-check-btn"
+                onClick={() => setDone((s) => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })}
+                aria-label={isDone ? 'Mark not done' : 'Mark done'}
+              >
+                {isDone ? <CheckCircle2 size={18} style={{ color: 'var(--good)' }} /> : <Circle size={18} style={{ color: 'var(--muted)' }} />}
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="cd-rec-text" style={{ textDecoration: isDone ? 'line-through' : 'none' }}>{r.text}</div>
+                <div className="cd-rec-sub">{r.sub}</div>
+              </div>
+              <span className="cd-rec-tag">{r.action}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Widget registry + saved dashboards
 // ---------------------------------------------------------------------------
 
@@ -873,6 +932,20 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 5,
     icon: <Activity size={15} />,
     render: (ctx) => <ActivityFeed ctx={ctx} />,
+  },
+  aiInsights: {
+    title: 'AI insights',
+    desc: 'Nova’s headline read on the current slice',
+    span: 5,
+    icon: <Sparkles size={15} />,
+    render: (ctx) => <AiInsights ctx={ctx} />,
+  },
+  workQueue: {
+    title: 'Work queue',
+    desc: 'Prioritised next actions you can check off',
+    span: 7,
+    icon: <ListChecks size={15} />,
+    render: (ctx) => <WorkQueue ctx={ctx} />,
   },
   coverage: {
     title: 'Pipeline coverage',
@@ -982,7 +1055,7 @@ const INITIAL_DASHBOARDS: DashboardConfig[] = [
     id: 'exec',
     name: 'Executive Overview',
     role: 'Leadership view',
-    tiles: ['revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'].map(presetTile),
+    tiles: ['aiInsights', 'workQueue', 'revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'].map(presetTile),
   },
   {
     id: 'rep',
@@ -1046,6 +1119,45 @@ function SelectPop({
               {o.label}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** HubSpot-style dashboard title with an inline switcher dropdown. */
+function DashSwitcher({
+  dash, dashboards, onPick, onNew,
+}: {
+  dash: DashboardConfig;
+  dashboards: DashboardConfig[];
+  onPick: (id: string) => void;
+  onNew: () => void;
+}) {
+  const { open, setOpen, ref } = usePop();
+  return (
+    <div className="cd-dash-title" ref={ref}>
+      <div className="cd-breadcrumb">Reporting · Dashboards</div>
+      <button className="cd-dash-switcher" onClick={() => setOpen(!open)}>
+        <b>{dash.name}</b>
+        <ChevronDown size={18} className="chev" />
+      </button>
+      {open && (
+        <div className="cd-pop" style={{ top: '100%', minWidth: 260 }}>
+          <div className="cd-pop-title">Switch dashboard</div>
+          {dashboards.map((d) => (
+            <button key={d.id} className="cd-pop-row" onClick={() => { onPick(d.id); setOpen(false); }}>
+              <span className="check">{d.id === dash.id && <Check size={16} strokeWidth={3} />}</span>
+              <span style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>{d.name}</span>
+                <small style={{ color: 'var(--muted)', fontSize: 11 }}>{d.role}</small>
+              </span>
+            </button>
+          ))}
+          <div className="cd-pop-sep" />
+          <button className="cd-pop-row" onClick={() => { onNew(); setOpen(false); }}>
+            <span className="check"><Plus size={15} /></span> New blank dashboard
+          </button>
         </div>
       )}
     </div>
@@ -1706,12 +1818,6 @@ export default function CrmDashboard() {
   const pipelineOptions = [{ key: 'all', label: 'All pipelines' }, ...PIPELINES.map((p) => ({ key: p, label: p }))];
   const rangeOptions = (Object.keys(RANGE_LABELS) as RangeKey[]).map((k) => ({ key: k, label: RANGE_LABELS[k] }));
 
-  const sliceLabel = [
-    RANGE_LABELS[filters.range],
-    filters.owner === 'all' ? 'all owners' : rep.name,
-    filters.pipeline === 'all' ? 'all pipelines' : filters.pipeline,
-  ].join(' · ');
-
   return (
     <div className={`cd-app ${theme === 'dark' ? 'force-dark' : theme === 'light' ? 'force-light' : ''} ${density === 'compact' ? 'dense' : ''} ${tv ? 'tv' : ''}`}>
       <aside className="cd-side">
@@ -1734,31 +1840,51 @@ export default function CrmDashboard() {
       </aside>
 
       <div className="cd-main">
+        <div className="cd-header">
         <header className="cd-topbar">
-          <SelectPop
-            title="Saved dashboards"
-            label={
-              <>
-                <LayoutDashboard size={15} style={{ color: 'var(--accent)' }} />
-                <b>{dash.name}</b>
-              </>
-            }
-            value={dash.id}
-            options={[
-              ...dashboards.map((d) => ({ key: d.id, label: `${d.name} — ${d.role}` })),
-              { key: '__new', label: '＋ New blank dashboard' },
-            ]}
-            onChange={(id) => {
-              if (id === '__new') { createDashboard(); return; }
-              holdFrame();
-              setActiveId(id);
-              setNav('dashboards');
-            }}
-          />
+          {nav === 'dashboards' ? (
+            <DashSwitcher
+              dash={dash}
+              dashboards={dashboards}
+              onPick={(id) => { holdFrame(); setActiveId(id); setNav('dashboards'); }}
+              onNew={createDashboard}
+            />
+          ) : (
+            <div className="cd-dash-title">
+              <div className="cd-breadcrumb">Reporting</div>
+              <b className="cd-section-title">{NAV_ITEMS.find((n) => n.key === nav)?.label}</b>
+            </div>
+          )}
 
           <div className="cd-topbar-spacer" />
 
-          <div className="cd-filters">
+          <AddMenu
+            open={addMenu}
+            setOpen={setAddMenu}
+            onCustom={() => { setAddMenu(false); setBuilder({}); }}
+            onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
+          />
+          <button className="cd-btn ghost cd-search-btn" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
+            <Search size={15} /> <span className="cd-search-txt">Search</span> <kbd className="cd-kbd">⌘K</kbd>
+          </button>
+          <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
+            <Sparkles size={15} /> Nova
+          </button>
+          <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
+            <RefreshCw size={15} />
+          </button>
+          <ViewMenu
+            theme={theme} setTheme={setTheme}
+            density={density} setDensity={setDensity}
+            tv={tv} setTv={setTv}
+            imported={!!imported}
+            onImport={() => setImportOpen(true)}
+            onShare={() => toast('Share link copied to clipboard (mock)')}
+          />
+        </header>
+
+        {nav === 'dashboards' && (
+          <div className="cd-filterbar">
             <span className="cd-filter-label">Filters</span>
             <SelectPop
               title="Date range"
@@ -1781,34 +1907,11 @@ export default function CrmDashboard() {
               options={pipelineOptions}
               onChange={(pipeline) => setFilters({ pipeline })}
             />
+            <div className="cd-topbar-spacer" />
+            <span className="cd-filterbar-meta">{dash.tiles.length} report{dash.tiles.length === 1 ? '' : 's'}{imported ? ' · imported data' : ''}</span>
           </div>
-
-          <div className="cd-topbar-spacer" />
-
-          <AddMenu
-            open={addMenu}
-            setOpen={setAddMenu}
-            onCustom={() => { setAddMenu(false); setBuilder({}); }}
-            onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
-          />
-          <button className="cd-btn ghost" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
-            <Search size={15} /> <kbd className="cd-kbd">⌘K</kbd>
-          </button>
-          <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
-            <Sparkles size={15} /> Nova
-          </button>
-          <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
-            <RefreshCw size={15} />
-          </button>
-          <ViewMenu
-            theme={theme} setTheme={setTheme}
-            density={density} setDensity={setDensity}
-            tv={tv} setTv={setTv}
-            imported={!!imported}
-            onImport={() => setImportOpen(true)}
-            onShare={() => toast('Share link copied to clipboard (mock)')}
-          />
-        </header>
+        )}
+        </div>
 
         <main className="cd-canvas">
           {nav === 'reports' ? (
@@ -1831,10 +1934,6 @@ export default function CrmDashboard() {
             </div>
           ) : (
             <>
-              <div className="cd-canvas-head">
-                <h1>{dash.name}</h1>
-                <span className="sub">{sliceLabel}</span>
-              </div>
               {brief.length > 0 && (
                 <button className="cd-aistrip" onClick={() => setAiOpen(true)}>
                   <span className="cd-aistrip-mark"><Sparkles size={15} /></span>

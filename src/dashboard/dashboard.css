@@ -5,18 +5,18 @@
 --------------------------------------------------------------------------- */
 
 .cd-app {
-  /* surfaces & ink */
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
-  --ink: #0b0b0b;
-  --ink-2: #52514e;
-  --muted: #898781;
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
-  --wash: rgba(11, 11, 11, 0.045);
-  --shadow: 0 1px 2px rgba(11, 11, 11, 0.05);
-  --pop-shadow: 0 8px 28px rgba(11, 11, 11, 0.14);
+  /* surfaces & ink — cool blue-grey neutrals (HubSpot-family), own blue accent */
+  --page: #f5f8fa;
+  --surface: #ffffff;
+  --ink: #2a3f54;
+  --ink-2: #516f90;
+  --muted: #7c98b6;
+  --grid: #e5edf5;
+  --axis: #cbd6e2;
+  --border: rgba(45, 62, 80, 0.13);
+  --wash: rgba(45, 62, 80, 0.05);
+  --shadow: 0 1px 2px rgba(45, 62, 80, 0.09);
+  --pop-shadow: 0 6px 24px rgba(45, 62, 80, 0.16);
   /* categorical slots (validated) */
   --s1: #2a78d6;
   --s2: #1baf7a;
@@ -172,18 +172,71 @@
   flex-direction: column;
 }
 
-.cd-topbar {
+/* sticky header wrapper holds the title row + filter row together */
+.cd-header {
   position: sticky;
   top: 0;
   z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+
+.cd-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+}
+
+/* HubSpot-style dashboard title + switcher */
+.cd-dash-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: relative;
+  min-width: 0;
+}
+.cd-breadcrumb {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.cd-dash-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 7px;
+}
+.cd-dash-switcher b,
+.cd-section-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.cd-dash-switcher .chev { color: var(--muted); }
+.cd-dash-switcher:hover,
+.cd-dash-switcher:hover .chev { color: var(--accent); }
+
+/* filter bar row */
+.cd-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border);
+}
+.cd-filterbar-meta { font-size: 12px; color: var(--muted); }
+
+.cd-search-btn .cd-search-txt { color: var(--muted); }
+@media (max-width: 1000px) { .cd-search-txt { display: none; } }
 
 .cd-topbar-spacer {
   flex: 1;
@@ -390,7 +443,7 @@
   grid-column: span 12;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
@@ -1533,6 +1586,11 @@
   border: 0; border-radius: 8px; padding: 6px 9px; cursor: pointer;
 }
 .cd-rec-btn:hover { filter: brightness(0.97); }
+.cd-check-btn { flex: none; border: 0; background: none; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.cd-rec-tag {
+  flex: none; font-size: 11px; font-weight: 600; color: var(--ink-2);
+  background: var(--wash); border-radius: 6px; padding: 3px 8px; white-space: nowrap;
+}
 
 .cd-ai-chat { display: flex; flex-direction: column; gap: 10px; }
 .cd-chat-q { font-size: 12.5px; font-weight: 600; color: var(--ink); }
@@ -1630,9 +1688,9 @@
 
 /* explicit theme override classes (in-app toggle beats system) */
 .cd-app.force-light {
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.1); --wash: rgba(11,11,11,0.045);
-  --shadow: 0 1px 2px rgba(11,11,11,0.05); --pop-shadow: 0 8px 28px rgba(11,11,11,0.14);
+  --page: #f5f8fa; --surface: #ffffff; --ink: #2a3f54; --ink-2: #516f90; --muted: #7c98b6;
+  --grid: #e5edf5; --axis: #cbd6e2; --border: rgba(45,62,80,0.13); --wash: rgba(45,62,80,0.05);
+  --shadow: 0 1px 2px rgba(45,62,80,0.09); --pop-shadow: 0 6px 24px rgba(45,62,80,0.16);
   --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300; --s5: #4a3aa7; --s6: #e34948;
   --f1: #86b6ef; --f2: #4f95e6; --f3: #2a78d6; --f4: #1e60b2; --f5: #14498c; --f6: #0d366b;
   --accent: #2a78d6; --accent-soft: rgba(42,120,214,0.1); --track: #cde2fb; --good-text: #006300;
