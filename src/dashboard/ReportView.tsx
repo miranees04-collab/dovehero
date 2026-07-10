@@ -36,6 +36,7 @@ import {
   StatTile,
   Delta,
   Gauge,
+  CountUp,
   FUNNEL,
   seriesColor,
 } from './chartKit';
@@ -354,7 +355,7 @@ function KpiView({
   const rule = evalRules(res.value, config.rules);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <StatTile label={measureLabel(config)} value={fmt(res.value)}>
+      <StatTile label={measureLabel(config)} value={<CountUp value={res.value} format={fmt} />}>
         {config.compare && res.prevValue !== null ? (
           <Delta cur={res.value} prev={res.prevValue} hasPrev suffix="vs prev period" />
         ) : (
@@ -408,7 +409,7 @@ function PaceView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
-        <div style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.01em', lineHeight: 1.05 }}>{fmt(res.value)}</div>
+        <div style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.01em', lineHeight: 1.05 }}><CountUp value={res.value} format={fmt} /></div>
         <div style={{ fontSize: 12, color: 'var(--muted)' }}>{goal > 0 ? `of ${fmt(goal)} target` : 'set a target in report settings'}</div>
       </div>
       <div style={{ width: '100%', height: 10, borderRadius: 5, background: 'var(--wash)', overflow: 'hidden' }}>

@@ -2,9 +2,35 @@
 // Shared chart primitives used by both the preset widgets and the custom
 // report renderer: validated palette, tooltip, legend, stat tile, gauge, delta.
 // ---------------------------------------------------------------------------
-import { type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDownRight, ArrowUpRight, Minus, TrendingUp } from 'lucide-react';
 import { fmtMoney, fmtPct } from './data';
+
+/** Animated count-up from the previous value to the new one (eased, ~480ms). */
+export function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const rafRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const from = fromRef.current;
+    const to = value;
+    if (reduce || from === to) { setDisplay(to); fromRef.current = to; return; }
+    let start: number | undefined;
+    const dur = 480;
+    const tick = (t: number) => {
+      start ??= t;
+      const p = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(from + (to - from) * eased);
+      if (p < 1) rafRef.current = requestAnimationFrame(tick);
+      else fromRef.current = to;
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [value]);
+  return <>{format(display)}</>;
+}
 
 // Categorical slots (validated CVD-safe) as CSS vars — colour follows entity.
 export const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)'];
@@ -107,7 +133,7 @@ export function StatTile({
   children,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   small?: boolean;
   children?: ReactNode;
 }) {

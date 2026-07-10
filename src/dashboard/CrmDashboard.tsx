@@ -46,17 +46,25 @@ import {
   LayoutDashboard,
   LineChart as LineChartIcon,
   Mail,
+  Maximize2,
+  Monitor,
   MoreHorizontal,
+  Moon,
   Pencil,
   Phone,
   PieChart as PieChartIcon,
   Plus,
+  Copy,
   RefreshCw,
+  Search,
+  Settings2,
   Share2,
   Sparkles,
+  Sun,
   Table2,
   Target,
   Trash2,
+  Tv,
   Upload,
   TrendingUp,
   Trophy,
@@ -110,6 +118,9 @@ import {
 } from './chartKit';
 import { ReportView, measureLabel, type DrillTarget } from './ReportView';
 import { ReportBuilder } from './ReportBuilder';
+import { AiPanel } from './AiPanel';
+import { CommandPalette, type Command } from './CommandPalette';
+import { morningBrief } from './ai';
 import {
   drillRecords,
   fmtByUnit,
@@ -941,9 +952,10 @@ const WIDGETS: Record<string, WidgetDef> = {
 };
 
 // A tile is either a curated preset widget or a fully user-built custom report.
+// `span` optionally overrides the default grid width (widget resize).
 type Tile =
-  | { id: string; kind: 'preset'; preset: string }
-  | { id: string; kind: 'custom'; report: ReportConfig };
+  | { id: string; kind: 'preset'; preset: string; span?: ReportConfig['span'] }
+  | { id: string; kind: 'custom'; report: ReportConfig; span?: ReportConfig['span'] };
 
 interface DashboardConfig {
   id: string;
@@ -955,6 +967,9 @@ interface DashboardConfig {
 let _tid = 0;
 const tid = () => `t${(_tid += 1)}`;
 const presetTile = (k: string): Tile => ({ id: tid(), kind: 'preset', preset: k });
+
+const tileSpan = (t: Tile): ReportConfig['span'] =>
+  t.span ?? (t.kind === 'custom' ? t.report.span : WIDGETS[t.preset]?.span ?? 6);
 
 const INITIAL_DASHBOARDS: DashboardConfig[] = [
   {
@@ -1077,16 +1092,77 @@ function AddMenu({
   );
 }
 
+/** Top-bar "view" popover: theme, density, focus mode, import, share. */
+function ViewMenu({
+  theme, setTheme, density, setDensity, tv, setTv, imported, onImport, onShare,
+}: {
+  theme: 'system' | 'light' | 'dark';
+  setTheme: (t: 'system' | 'light' | 'dark') => void;
+  density: 'cozy' | 'compact';
+  setDensity: (d: 'cozy' | 'compact') => void;
+  tv: boolean;
+  setTv: (v: boolean) => void;
+  imported: boolean;
+  onImport: () => void;
+  onShare: () => void;
+}) {
+  const { open, setOpen, ref } = usePop();
+  const themes: Array<{ k: 'system' | 'light' | 'dark'; label: string; icon: ReactNode }> = [
+    { k: 'system', label: 'System', icon: <Monitor size={15} /> },
+    { k: 'light', label: 'Light', icon: <Sun size={15} /> },
+    { k: 'dark', label: 'Dark', icon: <Moon size={15} /> },
+  ];
+  return (
+    <div className="cd-popwrap" ref={ref}>
+      <button className="cd-iconbtn" onClick={() => setOpen(!open)} title="View options" aria-label="View options">
+        <Settings2 size={16} />
+      </button>
+      {open && (
+        <div className="cd-pop right" style={{ minWidth: 210 }}>
+          <div className="cd-pop-title">Theme</div>
+          <div className="cd-seg" style={{ margin: '2px 6px 6px', width: 'calc(100% - 12px)' }}>
+            {themes.map((t) => (
+              <button key={t.k} className={theme === t.k ? 'on' : ''} onClick={() => setTheme(t.k)} style={{ flex: 1, justifyContent: 'center', display: 'flex', gap: 5, alignItems: 'center' }}>
+                {t.icon}{t.label}
+              </button>
+            ))}
+          </div>
+          <div className="cd-pop-sep" />
+          <button className="cd-pop-row" onClick={() => setDensity(density === 'cozy' ? 'compact' : 'cozy')}>
+            <span className="check">{density === 'compact' && <Check size={16} strokeWidth={3} />}</span>
+            Compact density
+          </button>
+          <button className="cd-pop-row" onClick={() => { setTv(!tv); setOpen(false); }}>
+            <span className="check">{tv && <Check size={16} strokeWidth={3} />}</span>
+            <Tv size={14} /> Focus / TV mode
+          </button>
+          <div className="cd-pop-sep" />
+          <button className="cd-pop-row" onClick={() => { onImport(); setOpen(false); }}>
+            <Upload size={14} /> Import CSV{imported ? ' (active)' : ''}
+          </button>
+          <button className="cd-pop-row" onClick={() => { onShare(); setOpen(false); }}>
+            <Share2 size={14} /> Share dashboard
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TileCard({
   tile,
   presetCtx,
   engineCtx,
+  span,
   onRemove,
   onRefresh,
   onExport,
   onEdit,
   onCross,
   onViewRecords,
+  onDuplicate,
+  onResize,
+  onMaximize,
   dragging,
   dropTarget,
   onDragStart,
@@ -1096,12 +1172,16 @@ function TileCard({
   tile: Tile;
   presetCtx: Ctx;
   engineCtx: EngineCtx;
+  span: ReportConfig['span'];
   onRemove: () => void;
   onRefresh: () => void;
   onExport: () => void;
   onEdit: () => void;
   onCross: (field: string, value: string, label: string) => void;
   onViewRecords: () => void;
+  onDuplicate: () => void;
+  onResize: (span: ReportConfig['span']) => void;
+  onMaximize: () => void;
   dragging: boolean;
   dropTarget: boolean;
   onDragStart: () => void;
@@ -1114,8 +1194,10 @@ function TileCard({
   const isCustom = tile.kind === 'custom';
   const def = tile.kind === 'preset' ? WIDGETS[tile.preset] : null;
   const title = isCustom ? tile.report.title : def?.title ?? 'Report';
-  const span = isCustom ? tile.report.span : def?.span ?? 6;
   const sub = isCustom ? measureLabel(tile.report) : def?.sub?.(presetCtx) ?? null;
+  const WIDTHS: Array<{ s: ReportConfig['span']; label: string }> = [
+    { s: 3, label: 'S' }, { s: 4, label: 'M' }, { s: 6, label: 'L' }, { s: 8, label: 'XL' }, { s: 12, label: 'Full' },
+  ];
 
   return (
     <section
@@ -1129,14 +1211,30 @@ function TileCard({
         </span>
         <span className="cd-card-title">{title}</span>
         {isCustom && <span className="cd-customtag">Custom</span>}
+        <button className="cd-iconbtn cd-card-max" onClick={onMaximize} title="Maximize" aria-label="Maximize">
+          <Maximize2 size={14} />
+        </button>
         <div className="cd-popwrap" ref={ref}>
           <button className="cd-iconbtn" onClick={() => setOpen(!open)} aria-label={`${title} menu`}>
             <MoreHorizontal size={16} />
           </button>
           {open && (
             <div className="cd-pop right">
+              <div className="cd-pop-title">Width</div>
+              <div className="cd-width-row">
+                {WIDTHS.map((w) => (
+                  <button key={w.s} className={`cd-width-btn ${span === w.s ? 'on' : ''}`} onClick={() => { onResize(w.s); }}>{w.label}</button>
+                ))}
+              </div>
+              <div className="cd-pop-sep" />
+              <button className="cd-pop-row" onClick={() => { setOpen(false); onMaximize(); }}>
+                <Maximize2 size={14} /> Maximize
+              </button>
               <button className="cd-pop-row" onClick={() => { setOpen(false); setFlash((f) => f + 1); onRefresh(); }}>
                 <RefreshCw size={14} /> Refresh
+              </button>
+              <button className="cd-pop-row" onClick={() => { setOpen(false); onDuplicate(); }}>
+                <Copy size={14} /> Duplicate
               </button>
               {isCustom && (
                 <>
@@ -1350,6 +1448,7 @@ function matchDealCross(d: Deal, cross: CrossFilter[]): boolean {
     if (c.field === 'source' && d.source !== c.value) return false;
     if (c.field === 'status' && d.status !== c.value) return false;
     if (c.field === 'pipeline' && d.pipeline !== c.value) return false;
+    if (c.field === 'company' && d.company !== c.value) return false;
     if (c.field === 'owner' && (REPS.find((r) => r.id === d.owner)?.name ?? '') !== c.value) return false;
   }
   return true;
@@ -1433,6 +1532,24 @@ export default function CrmDashboard() {
   const [importOpen, setImportOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<ReportConfig[]>([]);
   const [cross, setCross] = useState<CrossFilter[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [maximized, setMaximized] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
+  const [density, setDensity] = useState<'cozy' | 'compact'>('cozy');
+  const [tv, setTv] = useState(false);
+
+  // ⌘K / Ctrl+K opens the command palette anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string }>>([]);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -1551,6 +1668,40 @@ export default function CrmDashboard() {
     toast('Reverted to the sample dataset');
   };
 
+  const brief = useMemo(() => morningBrief(deals, bounds, now), [deals, bounds, now]);
+
+  // Universal command list for ⌘K.
+  const commands: Command[] = useMemo(() => {
+    const cmds: Command[] = [];
+    dashboards.forEach((d) =>
+      cmds.push({ id: `dash-${d.id}`, group: 'Dashboards', label: d.name, sub: d.role, icon: <LayoutDashboard size={15} />, run: () => { holdFrame(); setActiveId(d.id); setNav('dashboards'); } }),
+    );
+    savedReports.forEach((r) =>
+      cmds.push({ id: `rep-${r.id}`, group: 'Saved reports', label: r.title, sub: `Add to ${dash.name}`, icon: <BarChart3 size={15} />, run: () => addLibraryToDash(r) }),
+    );
+    Object.entries(WIDGETS).forEach(([key, def]) =>
+      cmds.push({ id: `w-${key}`, group: 'Prebuilt widgets', label: def.title, sub: `Add to ${dash.name}`, icon: def.icon, run: () => { mutateDash((ts) => [...ts, presetTile(key)]); setNav('dashboards'); toast(`${def.title} added to ${dash.name}`); } }),
+    );
+    const companies = [...new Set(data.deals.map((d) => d.company))].slice(0, 24);
+    companies.forEach((c) =>
+      cmds.push({ id: `co-${c}`, group: 'Companies', label: c, sub: 'Focus dashboard on this company', icon: <Briefcase size={15} />, run: () => { setNav('dashboards'); toggleCross('company', c, c); } }),
+    );
+    const A = (id: string, label: string, icon: ReactNode, run: () => void, sub?: string): Command => ({ id, group: 'Actions', label, sub, icon, run });
+    cmds.push(
+      A('act-new', 'Create custom report', <Sparkles size={15} />, () => setBuilder({})),
+      A('act-lib', 'Add report from library', <Plus size={15} />, () => setAddOpen(true)),
+      A('act-dash', 'New blank dashboard', <LayoutDashboard size={15} />, createDashboard),
+      A('act-import', 'Import CSV data', <Upload size={15} />, () => setImportOpen(true)),
+      A('act-ai', 'Open Nova AI assistant', <Sparkles size={15} />, () => setAiOpen(true)),
+      A('act-refresh', 'Refresh all widgets', <RefreshCw size={15} />, refreshAll),
+      A('act-theme', 'Cycle theme (system / light / dark)', <Sun size={15} />, () => setTheme((t) => (t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system'))),
+      A('act-density', 'Toggle compact density', <Settings2 size={15} />, () => setDensity((d) => (d === 'cozy' ? 'compact' : 'cozy'))),
+      A('act-tv', 'Toggle focus / TV mode', <Tv size={15} />, () => setTv((v) => !v)),
+    );
+    return cmds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboards, savedReports, data, dash.name]);
+
   const ownerOptions = [{ key: 'all', label: 'All owners' }, ...REPS.map((r) => ({ key: r.id, label: r.name }))];
   const pipelineOptions = [{ key: 'all', label: 'All pipelines' }, ...PIPELINES.map((p) => ({ key: p, label: p }))];
   const rangeOptions = (Object.keys(RANGE_LABELS) as RangeKey[]).map((k) => ({ key: k, label: RANGE_LABELS[k] }));
@@ -1562,7 +1713,7 @@ export default function CrmDashboard() {
   ].join(' · ');
 
   return (
-    <div className="cd-app">
+    <div className={`cd-app ${theme === 'dark' ? 'force-dark' : theme === 'light' ? 'force-light' : ''} ${density === 'compact' ? 'dense' : ''} ${tv ? 'tv' : ''}`}>
       <aside className="cd-side">
         <div className="cd-brand">
           <span className="cd-brand-mark">
@@ -1640,15 +1791,23 @@ export default function CrmDashboard() {
             onCustom={() => { setAddMenu(false); setBuilder({}); }}
             onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
           />
-          <button className={`cd-btn ghost ${imported ? 'on' : ''}`} onClick={() => setImportOpen(true)} title="Import CSV data">
-            <Upload size={15} />
+          <button className="cd-btn ghost" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
+            <Search size={15} /> <kbd className="cd-kbd">⌘K</kbd>
+          </button>
+          <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
+            <Sparkles size={15} /> Nova
           </button>
           <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
             <RefreshCw size={15} />
           </button>
-          <button className="cd-btn ghost" onClick={() => toast('Share link copied to clipboard (mock)')} title="Share dashboard">
-            <Share2 size={15} />
-          </button>
+          <ViewMenu
+            theme={theme} setTheme={setTheme}
+            density={density} setDensity={setDensity}
+            tv={tv} setTv={setTv}
+            imported={!!imported}
+            onImport={() => setImportOpen(true)}
+            onShare={() => toast('Share link copied to clipboard (mock)')}
+          />
         </header>
 
         <main className="cd-canvas">
@@ -1676,6 +1835,20 @@ export default function CrmDashboard() {
                 <h1>{dash.name}</h1>
                 <span className="sub">{sliceLabel}</span>
               </div>
+              {brief.length > 0 && (
+                <button className="cd-aistrip" onClick={() => setAiOpen(true)}>
+                  <span className="cd-aistrip-mark"><Sparkles size={15} /></span>
+                  <span className="cd-aistrip-text">
+                    {brief.slice(0, 2).map((b, i) => (
+                      <span key={i} className="cd-aistrip-item">
+                        <span className={`cd-aistrip-dot ${b.tone}`} />
+                        {b.text}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="cd-aistrip-cta">Ask Nova <Sparkles size={13} /></span>
+                </button>
+              )}
               {cross.length > 0 && (
                 <div className="cd-crossbar">
                   <span className="cd-cross-label">Cross-filter</span>
@@ -1722,12 +1895,24 @@ export default function CrmDashboard() {
                         tile={tile}
                         presetCtx={presetCtx}
                         engineCtx={tileCtx}
+                        span={tileSpan(tile)}
                         onRemove={() => mutateDash((ts) => ts.filter((t) => t.id !== tile.id))}
                         onRefresh={() => setJitters((j) => ({ ...j, [tile.id]: (j[tile.id] ?? 0) + 1 }))}
                         onExport={() => toast(`Export queued (mock) — ${label}.csv`)}
                         onEdit={() => tile.kind === 'custom' && setBuilder({ initial: tile.report, tileId: tile.id })}
                         onCross={toggleCross}
                         onViewRecords={() => tile.kind === 'custom' && setDrill({ config: tile.report, bucketKey: null, bucketLabel: tile.report.title })}
+                        onDuplicate={() => mutateDash((ts) => {
+                          const idx = ts.findIndex((t) => t.id === tile.id);
+                          const clone: Tile = tile.kind === 'custom'
+                            ? { id: tid(), kind: 'custom', report: { ...tile.report, id: uid('rep') }, span: tile.span }
+                            : { id: tid(), kind: 'preset', preset: tile.preset, span: tile.span };
+                          const next = [...ts];
+                          next.splice(idx + 1, 0, clone);
+                          return next;
+                        })}
+                        onResize={(s) => mutateDash((ts) => ts.map((t) => (t.id === tile.id ? { ...t, span: s } : t)))}
+                        onMaximize={() => setMaximized(tile.id)}
                         dragging={dragKey === tile.id}
                         dropTarget={dropKey === tile.id && dragKey !== tile.id}
                         onDragStart={() => setDragKey(tile.id)}
@@ -1773,6 +1958,41 @@ export default function CrmDashboard() {
       )}
 
       {drill && <DrillPanel target={drill} ctx={engineCtx} onClose={() => setDrill(null)} />}
+
+      {aiOpen && (
+        <AiPanel
+          deals={deals}
+          bounds={bounds}
+          now={now}
+          onCross={(c) => { toggleCross(c.field, c.value, c.label); }}
+          onToast={toast}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
+
+      {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
+
+      {maximized && (() => {
+        const t = dash.tiles.find((x) => x.id === maximized);
+        if (!t) return null;
+        const label = t.kind === 'custom' ? t.report.title : WIDGETS[t.preset]?.title ?? 'Report';
+        const mCtx: Ctx = { deals, activities: data.activities, bounds, filters, now, rep, jit: globalJit, seed };
+        return (
+          <div className="cd-scrim" onMouseDown={(e) => e.target === e.currentTarget && setMaximized(null)}>
+            <div className="cd-modal" role="dialog" aria-label={label} style={{ width: 'min(1100px, 100%)', maxHeight: '88vh' }}>
+              <div className="cd-modal-head">
+                <h2 style={{ flex: 1 }}>{label}</h2>
+                <button className="cd-iconbtn" onClick={() => setMaximized(null)} aria-label="Close"><X size={16} /></button>
+              </div>
+              <div className="cd-modal-body" style={{ minHeight: 360 }}>
+                {t.kind === 'custom'
+                  ? <ReportView config={t.report} ctx={engineCtx} onCross={toggleCross} />
+                  : WIDGETS[t.preset]?.render(mCtx)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {importOpen && (
         <ImportModal
