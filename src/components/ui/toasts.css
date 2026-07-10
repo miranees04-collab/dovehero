@@ -1,0 +1,68 @@
+.dh-toasts {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.dh-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 15px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  animation: popIn 0.2s var(--spring);
+}
+[data-theme='dark'] .dh-toast {
+  background: var(--surface-active);
+  color: var(--ink);
+  border: 1px solid var(--border-2);
+}
+.dh-toast.tone-success svg {
+  color: #34d399;
+}
+.dh-toast.tone-warn svg {
+  color: #fbbf24;
+}
+.dh-toast.tone-default svg {
+  color: var(--accent-300);
+}
+.dh-toast-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 4px 9px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-theme='dark'] .dh-toast-undo { color: var(--ink); }
+.dh-toast-undo:hover { background: rgba(255, 255, 255, 0.28); }
+.dh-toast-x {
+  margin-left: 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.dh-toast-x:hover { opacity: 1; }

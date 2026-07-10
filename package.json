@@ -1,12 +1,26 @@
 {
   "name": "dovehero-crm",
-  "version": "1.0.0",
   "private": true,
-  "description": "Dovehero CRM — a single-file revenue command-deck CRM prototype with the Nova AI assistant.",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Dovehero CRM — AI-native revenue command deck (Vite + React + TypeScript)",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": ["crm", "prototype", "dovehero", "nova"],
-  "license": "UNLICENSED"
+  "dependencies": {
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
 }

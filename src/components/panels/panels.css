@@ -1,0 +1,143 @@
+/* ============================================================
+   Notifications panel (right Drawer)
+   ============================================================ */
+.dh-notif {
+  display: flex;
+  flex-direction: column;
+}
+
+.dh-notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.dh-notif-head-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+}
+.dh-notif-head-title b {
+  font-size: 15px;
+  font-weight: 650;
+}
+.dh-notif-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dh-notif-mark {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--t-fast) var(--ease);
+}
+.dh-notif-mark:hover {
+  background: var(--surface-hover);
+}
+.dh-notif-close {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-notif-close:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.dh-notif-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.dh-notif-group {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 12px 10px 6px;
+}
+
+.dh-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-fast) var(--ease);
+}
+.dh-notif-item:hover {
+  background: var(--surface-hover);
+}
+
+.dh-notif-chip {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+}
+
+.dh-notif-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dh-notif-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.dh-notif-sub {
+  font-size: 12px;
+  color: var(--sub);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.dh-notif-when {
+  flex: none;
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+
+.dh-notif-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+}

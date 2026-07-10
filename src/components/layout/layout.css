@@ -1,0 +1,385 @@
+/* ---------------- App shell ---------------- */
+.dh-app {
+  display: grid;
+  grid-template-columns: 244px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+.dh-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.dh-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------------- Sidebar ---------------- */
+.dh-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  padding: 14px 12px;
+  min-height: 0;
+}
+.dh-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 16px;
+}
+.dh-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--grad);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 12px -3px rgba(99, 102, 241, 0.5);
+  flex: none;
+}
+.dh-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.dh-brand-text b {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.dh-brand-text small {
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.01em;
+}
+.dh-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.dh-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dh-nav-label {
+  padding: 14px 10px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dh-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.dh-nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.dh-nav-item.on {
+  background: var(--accent-soft);
+  color: var(--accent-700);
+  font-weight: 600;
+}
+[data-theme='dark'] .dh-nav-item.on {
+  color: var(--accent);
+}
+.dh-nav-item.on svg {
+  color: var(--accent-600);
+}
+[data-theme='dark'] .dh-nav-item.on svg {
+  color: var(--accent);
+}
+.dh-sidebar-foot {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.dh-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.dh-user:hover {
+  background: var(--surface-hover);
+}
+.dh-user-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  text-align: left;
+  min-width: 0;
+}
+.dh-user-text b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dh-user-text small {
+  font-size: 11px;
+  color: var(--faint);
+}
+.dh-user svg {
+  color: var(--faint);
+}
+
+/* ---------------- Top bar ---------------- */
+.dh-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex: none;
+  min-height: 56px;
+}
+.dh-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+}
+.dh-topbar-title svg {
+  color: var(--sub);
+}
+.dh-topbar-title h1 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.dh-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+}
+.dh-seg button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: none;
+  background: none;
+  border-radius: var(--r-sm);
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-seg button:hover {
+  color: var(--ink);
+}
+.dh-seg button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+.dh-seg button.on svg {
+  color: var(--accent-600);
+}
+[data-theme='dark'] .dh-seg button.on svg {
+  color: var(--accent);
+}
+
+.dh-search {
+  flex: 1;
+  max-width: 420px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+  cursor: text;
+  transition: all var(--t) var(--ease);
+}
+.dh-search:hover {
+  border-color: var(--border-strong);
+}
+.dh-search:focus-within {
+  border-color: var(--accent-400);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--surface);
+}
+.dh-search input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--ink);
+  font-size: 13px;
+  min-width: 0;
+}
+.dh-search input::placeholder {
+  color: var(--faint);
+}
+.dh-search kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--surface);
+}
+
+.dh-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  flex: none;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+  border-color: var(--border);
+}
+.dh-notif-dot {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 1.5px solid var(--surface);
+}
+.dh-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.dh-undo-group {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+}
+.dh-undo-group .dh-icon-btn {
+  width: 30px;
+  height: 30px;
+}
+.dh-count-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-600);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--surface);
+}
+
+/* ---------------- Scrim ---------------- */
+.dh-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 90;
+  animation: fadeIn 0.16s var(--ease);
+  backdrop-filter: blur(1px);
+}
+
+/* ---------------- Responsive ---------------- */
+.mobile-only {
+  display: none;
+}
+@media (max-width: 900px) {
+  .dh-app {
+    grid-template-columns: 1fr;
+  }
+  .dh-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 248px;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.24s var(--ease);
+    box-shadow: var(--shadow-lg);
+  }
+  .dh-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .mobile-only {
+    display: grid;
+  }
+  .dh-search {
+    max-width: none;
+  }
+}
+@media (max-width: 640px) {
+  .dh-topbar-title h1 {
+    display: none;
+  }
+  .dh-seg {
+    display: none;
+  }
+  .hide-sm {
+    display: none;
+  }
+  .dh-topbar {
+    padding: 10px 12px;
+  }
+}

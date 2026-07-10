@@ -1,0 +1,665 @@
+import { useMemo, useState, useEffect, useRef, type ReactElement } from 'react';
+import { useStore, useFilteredDeals, type ComposerKind } from '@/store/useStore';
+import type { Deal, GroupBy } from '@/types';
+import { OWNERS, hueOf, healthColor, healthBand, STAGES } from '@/data/constants';
+import { money, staleDays } from '@/lib/format';
+import { Avatar, Badge, Popover, MenuItem } from '@/components/ui/primitives';
+import { InlineEdit } from '@/components/ui/InlineEdit';
+import { Icon } from '@/components/ui/Icon';
+import { nextBestAction, riskFactors } from '@/lib/nova';
+import { evalDealColor, firstMatchingRule, type ColorRule } from '@/lib/colorRules';
+import { CommBubble, CardActions } from './DealCard';
+import { ColorLegend } from './ColorRules';
+import { BulkBar } from './BulkBar';
+import './table.css';
+
+interface ColMeta {
+  k: string;
+  label: string;
+  align?: 'right';
+  width?: number;
+  sortable?: boolean;
+}
+
+// Full registry of available columns (chooser + render).
+export const ALL_COLS: ColMeta[] = [
+  { k: 'name', label: 'Deal', sortable: true },
+  { k: 'stage', label: 'Stage', width: 130, sortable: true },
+  { k: 'value', label: 'Value', align: 'right', width: 110, sortable: true },
+  { k: 'win', label: 'Win %', align: 'right', width: 88, sortable: true },
+  { k: 'health', label: 'Health', width: 120, sortable: true },
+  { k: 'owner', label: 'Owner', width: 150, sortable: true },
+  { k: 'priority', label: 'Priority', width: 100, sortable: true },
+  { k: 'industry', label: 'Industry', width: 120, sortable: true },
+  { k: 'tags', label: 'Tags', width: 160 },
+  { k: 'close', label: 'Close', width: 90, sortable: true },
+  { k: 'created', label: 'Created', width: 90 },
+  { k: 'ai_next', label: 'Nova — next step', width: 260 },
+  { k: 'ai_risk', label: 'Nova — risk', width: 200 },
+];
+const colMeta = (k: string) => ALL_COLS.find((c) => c.k === k) ?? { k, label: k };
+
+function sortVal(d: Deal, k: string): number | string {
+  switch (k) {
+    case 'name': return d.name.toLowerCase();
+    case 'stage': return ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'].indexOf(d.stage);
+    case 'owner': return OWNERS[d.owner]?.name ?? d.owner;
+    case 'priority': return { high: 3, med: 2, low: 1 }[d.priority] ?? 0;
+    case 'value': return d.value;
+    case 'win': return d.win;
+    case 'health': return d.health;
+    case 'industry': return d.industry;
+    case 'close': return d.close;
+    default: return 0;
+  }
+}
+
+function cellText(d: Deal, k: string): string {
+  switch (k) {
+    case 'name': return d.name + ' ' + d.company;
+    case 'stage': return d.stage;
+    case 'owner': return OWNERS[d.owner]?.name ?? d.owner;
+    case 'priority': return d.priority;
+    case 'industry': return d.industry;
+    case 'tags': return d.tags.join(' ');
+    case 'value': return String(d.value);
+    case 'win': return String(d.win);
+    case 'health': return String(d.health);
+    case 'close': return d.close;
+    case 'created': return d.created;
+    default: return '';
+  }
+}
+
+const groupOptions: { k: GroupBy; label: string }[] = [
+  { k: 'none', label: 'No grouping' },
+  { k: 'stage', label: 'Stage' },
+  { k: 'owner', label: 'Owner' },
+  { k: 'priority', label: 'Priority' },
+  { k: 'rule', label: 'Color rule' },
+];
+function groupOf(d: Deal, g: GroupBy, rules: ColorRule[] = []): string {
+  if (g === 'stage') return d.stage;
+  if (g === 'owner') return OWNERS[d.owner]?.name ?? d.owner;
+  if (g === 'priority') return d.priority === 'high' ? 'High priority' : d.priority === 'med' ? 'Medium priority' : 'Low priority';
+  if (g === 'rule') return firstMatchingRule(d, rules)?.label ?? 'No rule matched';
+  return '';
+}
+
+export function DealTable() {
+  const pipeline = useStore((s) => s.pipeline);
+  const sort = useStore((s) => s.sort);
+  const toggleSort = useStore((s) => s.toggleSort);
+  const openDeal = useStore((s) => s.openDeal);
+  const toast = useStore((s) => s.toast);
+  const tableCols = useStore((s) => s.tableCols);
+  const density = useStore((s) => s.density);
+  const setDensity = useStore((s) => s.setDensity);
+  const group = useStore((s) => s.group);
+  const setGroup = useStore((s) => s.setGroup);
+  const toggleTableCol = useStore((s) => s.toggleTableCol);
+  const moveTableCol = useStore((s) => s.moveTableCol);
+  const savedViews = useStore((s) => s.savedViews);
+  const activeView = useStore((s) => s.activeView);
+  const applyView = useStore((s) => s.applyView);
+  const deleteView = useStore((s) => s.deleteView);
+  const saveView = useStore((s) => s.saveView);
+  const bulk = useStore((s) => s.bulk);
+  const toggleBulk = useStore((s) => s.toggleBulk);
+  const addSort = useStore((s) => s.addSort);
+  const colW = useStore((s) => s.colW);
+  const setColW = useStore((s) => s.setColW);
+  const colSearch = useStore((s) => s.colSearch);
+  const setColSearch = useStore((s) => s.setColSearch);
+  const colSearchOpen = useStore((s) => s.colSearchOpen);
+  const toggleColSearch = useStore((s) => s.toggleColSearch);
+  const openComposer = useStore((s) => s.openComposer);
+  const requestStage = useStore((s) => s.requestStage);
+  const setPeek = useStore((s) => s.setPeek);
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const setColorRulesOpen = useStore((s) => s.setColorRulesOpen);
+  const base = useFilteredDeals();
+  const [viewName, setViewName] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  const rows = useMemo(() => {
+    let list = base.filter((d) => d.pipeline === pipeline);
+    if (ruleFilter) list = list.filter((d) => firstMatchingRule(d, colorRules)?.id === ruleFilter);
+    // per-column search
+    const active = Object.entries(colSearch).filter(([, q]) => q.trim());
+    if (active.length) {
+      list = list.filter((d) => active.every(([k, q]) => String(cellText(d, k)).toLowerCase().includes(q.trim().toLowerCase())));
+    }
+    if (!sort.length) return list;
+    return list.slice().sort((a, b) => {
+      for (const s of sort) {
+        const va = sortVal(a, s.k);
+        const vb = sortVal(b, s.k);
+        const cmp = typeof va === 'string' || typeof vb === 'string' ? String(va).localeCompare(String(vb)) : (va as number) - (vb as number);
+        if (cmp !== 0) return s.dir * cmp;
+      }
+      return 0;
+    });
+  }, [base, pipeline, sort, colSearch, ruleFilter, colorRules]);
+
+  const grouped = useMemo(() => {
+    if (group === 'none') return [{ key: '', rows }];
+    const map = new Map<string, Deal[]>();
+    rows.forEach((d) => {
+      const g = groupOf(d, group, colorRules);
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(d);
+    });
+    return [...map.entries()].map(([key, rs]) => ({ key, rows: rs }));
+  }, [rows, group, colorRules]);
+
+  const cols = tableCols.map(colMeta);
+
+  // ---- keyboard shortcuts (table only) ----
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const focusRef = useRef(focusId);
+  focusRef.current = focusId;
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const st = useStore.getState();
+      if (st.view !== 'table' || st.nav !== 'deals' || st.openDealId || st.paletteOpen || st.composers.length) return;
+      const el = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName) || el?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const list = rowsRef.current;
+      if (!list.length) return;
+      const idx = list.findIndex((d) => d.id === focusRef.current);
+      const focusAt = (i: number) => {
+        const d = list[Math.max(0, Math.min(i, list.length - 1))];
+        if (d) { setFocusId(d.id); requestAnimationFrame(() => document.querySelector(`[data-row="${d.id}"]`)?.scrollIntoView({ block: 'nearest' })); }
+      };
+      const d = idx >= 0 ? list[idx] : null;
+      const compose = (kind: ComposerKind) => {
+        if (!d) return;
+        const c = d.contacts[0];
+        const email = `${(c?.n ?? 'contact').toLowerCase().replace(/\s+/g, '.')}@${d.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
+        openComposer({ dealId: d.id, kind, to: kind === 'email' ? email : '+1 (415) 555-0140', subject: kind === 'email' ? `${d.name} — next steps` : '', body: '', outcome: 'Connected', due: 'Tomorrow', prio: 'med', dur: '30', title: kind === 'task' ? String(d.next ?? 'Follow up') : '' });
+      };
+      if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); focusAt(idx < 0 ? 0 : idx + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); focusAt(idx < 0 ? 0 : idx - 1); }
+      else if (!d) return;
+      else if (e.key === 'e') { e.preventDefault(); compose('email'); }
+      else if (e.key === 'n') { e.preventDefault(); compose('note'); }
+      else if (e.key === 'c') { e.preventDefault(); compose('call'); }
+      else if (e.key === 't') { e.preventDefault(); compose('task'); }
+      else if (e.key === 'a') {
+        e.preventDefault();
+        const order: Deal['stage'][] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+        const i = order.indexOf(d.stage);
+        if (i >= 0 && i < order.length - 1) requestStage(d.id, order[i + 1]);
+      }
+      else if (e.key === 'o' || e.key === 'Enter') { e.preventDefault(); openDeal(d.id); }
+      else if (e.key === 'p') { e.preventDefault(); setPeek(d.id); }
+      else if (e.key === 'x') { e.preventDefault(); toggleBulk(d.id); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [openComposer, requestStage, openDeal, toggleBulk, setPeek]);
+
+  const exportCsv = () => {
+    const header = ['ID', 'Deal', 'Company', 'Stage', 'Value', 'Win%', 'Health', 'Owner', 'Close'];
+    const lines = rows.map((d) =>
+      [d.id, d.name, d.company, d.stage, d.value, d.win, d.health, OWNERS[d.owner]?.name ?? d.owner, d.close]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','),
+    );
+    const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'dovehero-deals.csv'; a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${rows.length} deals to CSV`, 'success');
+  };
+
+  return (
+    <div className="dh-table-wrap">
+      {/* Saved view tabs */}
+      {savedViews.length > 0 && (
+        <div className="dh-view-tabs">
+          {savedViews.map((v) => (
+            <span key={v.name} className={`dh-view-tab ${activeView === v.name ? 'on' : ''}`}>
+              <button className="dh-view-apply" onClick={() => applyView(v.name)}>{v.name}</button>
+              <button className="dh-view-del" onClick={() => deleteView(v.name)} aria-label={`Delete ${v.name}`}>
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="dh-table-toolbar">
+        <span className="dh-table-count">{rows.length} deals</span>
+
+        <div className="dh-table-tools">
+          {/* Group by */}
+          <Popover
+            align="end"
+            trigger={({ toggle }) => (
+              <button className={`dh-filter-btn ${group !== 'none' ? 'active' : ''}`} onClick={toggle}>
+                <Icon name="layers" size={15} />
+                <span className="hide-sm">{group === 'none' ? 'Group' : `By ${group}`}</span>
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <div className="dh-menu-head">Group rows by</div>
+                {groupOptions.map((g) => (
+                  <MenuItem key={g.k} active={group === g.k} onClick={() => { setGroup(g.k); close(); }}>
+                    {g.label}
+                  </MenuItem>
+                ))}
+              </>
+            )}
+          </Popover>
+
+          {/* Density */}
+          <button
+            className="dh-filter-btn"
+            onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}
+            title="Toggle row density"
+          >
+            <Icon name={density === 'comfortable' ? 'list' : 'grid'} size={15} />
+            <span className="hide-sm">{density === 'comfortable' ? 'Comfortable' : 'Compact'}</span>
+          </button>
+
+          {/* Columns */}
+          <Popover
+            align="end"
+            width={250}
+            trigger={({ toggle }) => (
+              <button className="dh-filter-btn" onClick={toggle}>
+                <Icon name="sliders" size={15} />
+                <span className="hide-sm">Columns</span>
+              </button>
+            )}
+          >
+            {() => (
+              <div className="dh-col-chooser">
+                <div className="dh-menu-head">Columns ({tableCols.length})</div>
+                {ALL_COLS.map((c) => {
+                  const on = tableCols.includes(c.k);
+                  const idx = tableCols.indexOf(c.k);
+                  return (
+                    <div key={c.k} className="dh-col-choice">
+                      <label className="dh-col-choice-label">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          disabled={c.k === 'name'}
+                          onChange={() => toggleTableCol(c.k)}
+                        />
+                        {c.label}
+                      </label>
+                      {on && c.k !== 'name' && (
+                        <span className="dh-col-move">
+                          <button onClick={() => moveTableCol(c.k, -1)} disabled={idx <= 1} aria-label="Move left">
+                            <Icon name="chevronLeft" size={13} />
+                          </button>
+                          <button onClick={() => moveTableCol(c.k, 1)} disabled={idx >= tableCols.length - 1} aria-label="Move right">
+                            <Icon name="chevronRight" size={13} />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Popover>
+
+          {/* Save view */}
+          <Popover
+            align="end"
+            width={240}
+            trigger={({ toggle }) => (
+              <button className="dh-filter-btn" onClick={toggle} title="Save current view">
+                <Icon name="star" size={15} />
+                <span className="hide-sm">Save view</span>
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="dh-saveview">
+                <div className="dh-menu-head">Save this view</div>
+                <input
+                  className="dh-input"
+                  placeholder="Name this view…"
+                  value={viewName}
+                  onChange={(e) => setViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && viewName.trim()) { saveView(viewName.trim()); setViewName(''); close(); }
+                  }}
+                  autoFocus
+                />
+                <button
+                  className="dh-btn v-primary s-sm"
+                  style={{ width: '100%', marginTop: 8 }}
+                  disabled={!viewName.trim()}
+                  onClick={() => { saveView(viewName.trim()); setViewName(''); close(); }}
+                >
+                  <Icon name="check" size={14} /> Save view
+                </button>
+                <p className="dh-saveview-note">Captures columns, density, grouping, sort and filters.</p>
+              </div>
+            )}
+          </Popover>
+
+          <button className={`dh-filter-btn ${colSearchOpen ? 'active' : ''}`} onClick={toggleColSearch} title="Search within columns">
+            <Icon name="search" size={15} />
+            <span className="hide-sm">Search columns</span>
+          </button>
+
+          <button className={`dh-filter-btn ${colorRulesOn ? 'active' : ''}`} onClick={() => setColorRulesOpen(true)} title="Color-code rows by rules">
+            <Icon name="sliders" size={15} />
+            <span className="hide-sm">Colors</span>
+          </button>
+
+          <button className="dh-filter-btn" onClick={exportCsv}>
+            <Icon name="download" size={15} />
+            <span className="hide-sm">Export</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="dh-table-legend"><ColorLegend deals={base.filter((d) => d.pipeline === pipeline)} /></div>
+
+      <div className="dh-table-scroll">
+        <table className={`dh-table density-${density}`}>
+          <thead>
+            <tr>
+              <th className="dh-th-check">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={rows.length > 0 && rows.every((d) => bulk.includes(d.id))}
+                  ref={(el) => { if (el) el.indeterminate = bulk.length > 0 && !rows.every((d) => bulk.includes(d.id)); }}
+                  onChange={(e) => {
+                    const all = e.target.checked;
+                    rows.forEach((d) => {
+                      if (all && !bulk.includes(d.id)) toggleBulk(d.id);
+                      if (!all && bulk.includes(d.id)) toggleBulk(d.id);
+                    });
+                  }}
+                />
+              </th>
+              {cols.map((c) => {
+                const si = sort.findIndex((s) => s.k === c.k);
+                const active = si >= 0;
+                const w = colW[c.k] ?? c.width;
+                return (
+                  <th
+                    key={c.k}
+                    style={{ width: w, textAlign: c.align }}
+                    className={`${active ? 'sorted' : ''} ${c.sortable ? 'sortable' : ''}`}
+                    onClick={c.sortable ? (e) => (e.shiftKey ? addSort(c.k) : toggleSort(c.k)) : undefined}
+                    title={c.sortable ? 'Click to sort · ⇧-click to add a sort' : undefined}
+                  >
+                    <span className="dh-th">
+                      {c.label}
+                      {active && <Icon name="arrowUp" size={12} className={sort[si].dir === 1 ? 'dh-sort-asc' : 'dh-sort-desc'} />}
+                      {active && sort.length > 1 && <span className="dh-sort-idx">{si + 1}</span>}
+                    </span>
+                    <ResizeHandle onResize={(dx, startW) => setColW(c.k, (startW || w || 140) + dx)} startWidth={w as number} />
+                  </th>
+                );
+              })}
+              <th className="dh-th-acts" aria-label="Quick actions" />
+            </tr>
+            {colSearchOpen && (
+              <tr className="dh-search-row">
+                <th className="dh-th-check" />
+                {cols.map((c) => (
+                  <th key={c.k}>
+                    {c.k !== 'ai_next' && c.k !== 'ai_risk' && (
+                      <input
+                        className="dh-colsearch"
+                        placeholder="Filter…"
+                        value={colSearch[c.k] ?? ''}
+                        onChange={(e) => setColSearch(c.k, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
+                  </th>
+                ))}
+                <th className="dh-th-acts" />
+              </tr>
+            )}
+          </thead>
+          <tbody>
+            {grouped.map((g) => (
+              <GroupBlock
+                key={g.key || 'all'}
+                groupKey={g.key}
+                rows={g.rows}
+                cols={cols}
+                group={group}
+                bulk={bulk}
+                toggleBulk={toggleBulk}
+                focusId={focusId}
+                collapsed={!!collapsedGroups[g.key]}
+                onToggleCollapse={() => setCollapsedGroups((m) => ({ ...m, [g.key]: !m[g.key] }))}
+              />
+            ))}
+          </tbody>
+        </table>
+        {!rows.length && (
+          <div className="dh-table-empty">
+            <Icon name="list" size={22} />
+            <span>No deals match your filters.</span>
+          </div>
+        )}
+      </div>
+      <BulkBar />
+    </div>
+  );
+}
+
+function RowActions({ deal }: { deal: Deal }) {
+  const openDeal = useStore((s) => s.openDeal);
+  return (
+    <div className="dh-row-acts">
+      <CardActions deal={deal} className="dh-row-cardacts" />
+      <button className="dh-row-peek" title="Open full record" aria-label="Open full record" onClick={() => openDeal(deal.id)}>
+        <Icon name="expand" size={15} />
+      </button>
+    </div>
+  );
+}
+
+function ResizeHandle({ onResize }: { onResize: (dx: number, startW: number) => void; startWidth: number }) {
+  return (
+    <span
+      className="dh-resize-handle"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startW = (e.currentTarget.parentElement as HTMLElement)?.offsetWidth ?? 140;
+        const move = (ev: MouseEvent) => onResize(ev.clientX - startX, startW);
+        const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+      }}
+    />
+  );
+}
+
+function GroupBlock({
+  groupKey, rows, cols, group, bulk, toggleBulk, focusId, collapsed, onToggleCollapse,
+}: {
+  groupKey: string;
+  rows: Deal[];
+  cols: ColMeta[];
+  group: GroupBy;
+  bulk: string[];
+  toggleBulk: (id: string) => void;
+  focusId: string | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+}) {
+  const colorRulesOn = useStore((s) => s.colorRulesOn);
+  const colorRules = useStore((s) => s.colorRules);
+  const setPeek = useStore((s) => s.setPeek);
+  const total = rows.reduce((s, d) => s + d.value, 0);
+  return (
+    <>
+      {group !== 'none' && (
+        <tr className="dh-group-row">
+          <td colSpan={cols.length + 2}>
+            <button className="dh-group-head" onClick={onToggleCollapse}>
+              <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={13} />
+              {group === 'rule' && (
+                <span className="dh-legend-dot" style={{ background: colorRules.find((r) => r.label === groupKey)?.color ?? 'var(--dim)' }} />
+              )}
+              <span className="dh-group-name">{groupKey}</span>
+              <span className="dh-group-count">{rows.length}</span>
+              <span className="dh-group-total mono">{money(total, true)}</span>
+            </button>
+          </td>
+        </tr>
+      )}
+      {!collapsed && rows.map((d) => {
+        const ruleColor = colorRulesOn ? evalDealColor(d, colorRules) : null;
+        return (
+        <tr
+          key={d.id}
+          data-row={d.id}
+          onClick={() => setPeek(d.id)}
+          className={`${bulk.includes(d.id) ? 'selected' : ''} ${focusId === d.id ? 'focused' : ''}`}
+          style={ruleColor ? { boxShadow: `inset 3px 0 0 ${ruleColor}`, background: `color-mix(in srgb, ${ruleColor} 6%, transparent)` } : undefined}
+        >
+          <td className="dh-td-check" onClick={(e) => e.stopPropagation()}>
+            <input type="checkbox" checked={bulk.includes(d.id)} onChange={() => toggleBulk(d.id)} aria-label={`Select ${d.name}`} />
+          </td>
+          {cols.map((c) => (
+            <td key={c.k} style={{ textAlign: c.align }} className={c.k === 'value' ? 'mono' : ''}>
+              <Cell deal={d} col={c.k} />
+            </td>
+          ))}
+          <td className="dh-td-acts" onClick={(e) => e.stopPropagation()}>
+            <RowActions deal={d} />
+          </td>
+        </tr>
+        );
+      })}
+    </>
+  );
+}
+
+const STAGE_OPTS = STAGES.map((s) => ({ value: s.k, label: s.k }));
+const OWNER_OPTS = Object.values(OWNERS).map((o) => ({ value: o.key, label: o.name }));
+const PRIO_OPTS = [{ value: 'high', label: 'High' }, { value: 'med', label: 'Medium' }, { value: 'low', label: 'Low' }];
+
+function Cell({ deal: d, col }: { deal: Deal; col: string }) {
+  const updateDeal = useStore((s) => s.updateDeal);
+  const requestStage = useStore((s) => s.requestStage);
+  const display = renderCell(d, col);
+  const num = (v: string, clamp?: boolean) => { const n = parseInt(v.replace(/[^0-9]/g, ''), 10) || 0; return clamp ? Math.min(100, n) : n; };
+
+  switch (col) {
+    case 'value':
+      return <InlineEdit value={d.value} type="number" display={display} onCommit={(v) => updateDeal(d.id, { value: num(v) })} />;
+    case 'win':
+      return <InlineEdit value={d.win} type="number" display={display} onCommit={(v) => updateDeal(d.id, { win: num(v, true) })} />;
+    case 'health':
+      return <InlineEdit value={d.health} type="number" display={display} onCommit={(v) => updateDeal(d.id, { health: num(v, true) })} />;
+    case 'stage':
+      return <InlineEdit value={d.stage} options={STAGE_OPTS} display={display} onCommit={(v) => requestStage(d.id, v as Deal['stage'])} />;
+    case 'owner':
+      return <InlineEdit value={d.owner} options={OWNER_OPTS} display={display} onCommit={(v) => updateDeal(d.id, { owner: v })} />;
+    case 'priority':
+      return <InlineEdit value={d.priority} options={PRIO_OPTS} display={display} onCommit={(v) => updateDeal(d.id, { priority: v as Deal['priority'] })} />;
+    case 'industry':
+      return <InlineEdit value={d.industry} display={display} onCommit={(v) => v.trim() && updateDeal(d.id, { industry: v.trim() })} />;
+    case 'close':
+      return <InlineEdit value={d.close} display={display} onCommit={(v) => updateDeal(d.id, { close: v })} />;
+    default:
+      return display;
+  }
+}
+
+function renderCell(d: Deal, col: string): ReactElement {
+  switch (col) {
+    case 'name':
+      return (
+        <div className="dh-td-deal">
+          <span className={`dh-prio ${d.priority}`} />
+          <div>
+            <div className="dh-td-name">{d.name} <CommBubble deal={d} /></div>
+            <div className="dh-td-company">{d.company}</div>
+          </div>
+        </div>
+      );
+    case 'stage':
+      return (
+        <span className="dh-stage-pill" style={{ ['--pc' as string]: hueOf(d.stage) }}>
+          <span className="dot" /> {d.stage}
+        </span>
+      );
+    case 'value':
+      return <span style={{ fontWeight: 600 }}>{d.value ? money(d.value) : '—'}</span>;
+    case 'win':
+      return <span className="mono">{d.win}%</span>;
+    case 'health': {
+      const hc = healthColor(d.health);
+      return (
+        <div className="dh-td-health">
+          <div className="dh-health-bar"><span style={{ width: `${d.health}%`, background: hc }} /></div>
+          <span className="dh-health-val" style={{ color: hc }} title={healthBand(d.health)}>{d.health}</span>
+        </div>
+      );
+    }
+    case 'owner':
+      return (
+        <div className="dh-td-owner">
+          <Avatar ownerKey={d.owner} size={22} />
+          <span>{OWNERS[d.owner]?.name ?? d.owner}</span>
+        </div>
+      );
+    case 'priority':
+      return <Badge tone={d.priority === 'high' ? 'red' : d.priority === 'med' ? 'amber' : 'neutral'}>{d.priority === 'high' ? 'High' : d.priority === 'med' ? 'Medium' : 'Low'}</Badge>;
+    case 'industry':
+      return <span>{d.industry}</span>;
+    case 'tags':
+      return (
+        <div className="dh-td-tags">
+          {d.tags.slice(0, 2).map((t) => (
+            <Badge key={t} tone={t === 'At-risk' ? 'red' : 'neutral'}>{t}</Badge>
+          ))}
+        </div>
+      );
+    case 'close': {
+      const stale = staleDays(d.acts?.[0]?.w) >= 14 && d.stage !== 'Won';
+      return <span className="dh-td-close">{stale && <Icon name="clock" size={12} color="var(--amber)" />}{d.close}</span>;
+    }
+    case 'created':
+      return <span className="dh-td-close">{d.created}</span>;
+    case 'ai_next':
+      return (
+        <div className="dh-td-next">
+          <Icon name="sparkles" size={12} color="var(--accent-500)" />
+          <span>{nextBestAction(d)}</span>
+        </div>
+      );
+    case 'ai_risk': {
+      const r = riskFactors(d);
+      return r.length ? (
+        <div className="dh-td-next"><Icon name="alert" size={12} color="var(--red)" /><span>{r[0]}</span></div>
+      ) : (
+        <span className="dh-td-close" style={{ color: 'var(--green)' }}>On track</span>
+      );
+    }
+    default:
+      return <span>—</span>;
+  }
+}

@@ -1,0 +1,81 @@
+.dh-auto-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.dh-auto-hint {
+  font-size: 11px;
+  color: var(--faint);
+  flex: 1;
+  min-width: 100%;
+}
+.dh-auto-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 10px;
+  border-radius: var(--r-md);
+  transition: background var(--t-fast) var(--ease);
+}
+.dh-auto-row:hover { background: var(--surface-hover); }
+.dh-auto-row.off { opacity: 0.55; }
+.dh-auto-main { flex: 1; min-width: 0; }
+.dh-auto-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dh-auto-desc { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.dh-auto-desc b { color: var(--ink-2); font-weight: 600; }
+.dh-auto-tog {
+  width: 36px; height: 20px; border-radius: 999px; border: none;
+  background: var(--border-strong); cursor: pointer; flex: none; position: relative;
+  transition: background var(--t-fast) var(--ease);
+}
+.dh-auto-tog.on { background: var(--accent-600); }
+.dh-auto-tog span {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: transform var(--t-fast) var(--ease);
+}
+.dh-auto-tog.on span { transform: translateX(16px); }
+.dh-auto-ic {
+  width: 28px; height: 28px; display: grid; place-items: center; flex: none;
+  border: none; background: none; color: var(--faint); border-radius: 6px; cursor: pointer;
+}
+.dh-auto-ic:hover { background: var(--surface-active); color: var(--ink); }
+
+.dh-rule-builder {
+  margin: 12px 16px;
+  padding: 14px;
+  border: 1px solid var(--accent-200);
+  background: var(--accent-soft);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-theme='dark'] .dh-rule-builder { border-color: var(--border-2); }
+.dh-rule-clause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dh-rule-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-700);
+  width: 38px;
+  flex: none;
+}
+[data-theme='dark'] .dh-rule-lbl { color: var(--accent); }
+.dh-rule-clause .dh-adv-sel,
+.dh-rule-clause .dh-adv-in { font-size: 12.5px; padding: 6px 8px; }
+.dh-rule-clause .dh-adv-in { flex: 1; }
+.dh-rule-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

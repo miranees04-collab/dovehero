@@ -1,0 +1,328 @@
+.dh-feedtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.dh-feedtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  color: var(--sub);
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-feedtab b { color: var(--faint); font-family: var(--font-mono); }
+.dh-feedtab:hover { border-color: var(--border-strong); color: var(--ink); }
+.dh-feedtab.on {
+  border-color: var(--fc, var(--accent-500));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--fc, var(--accent-500)) 10%, transparent);
+}
+.dh-feed-empty { padding: 24px 0; text-align: center; color: var(--faint); font-size: 13px; }
+.dh-tl-noterow { display: flex; align-items: center; justify-content: space-between; }
+.dh-pin-btn {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border: none; background: none; color: var(--faint); border-radius: 6px; cursor: pointer;
+  opacity: 0; transition: all var(--t-fast) var(--ease);
+}
+.dh-tl-item:hover .dh-pin-btn { opacity: 1; }
+.dh-pin-btn.on { opacity: 1; color: var(--violet); }
+.dh-pin-btn:hover { background: var(--surface-hover); color: var(--violet); }
+.dh-tl-group {
+  margin-bottom: 6px;
+}
+.dh-tl-group-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 0 4px 6px;
+}
+.dh-tl-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* email */
+.dh-em-card {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 11px 12px;
+}
+.dh-em-subj {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  margin-bottom: 7px;
+}
+.dh-em-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.dh-em-stat span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-sunk);
+}
+.dh-em-stat span.on {
+  background: var(--accent-soft);
+  color: var(--accent-700);
+}
+[data-theme='dark'] .dh-em-stat span.on { color: var(--accent); }
+.dh-em-att {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.dh-docchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.dh-em-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.dh-em-msg {
+  display: flex;
+  gap: 8px;
+}
+.dh-em-msg.out { flex-direction: row-reverse; }
+.dh-em-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-500);
+}
+.dh-em-msg.in .dh-em-av { background: var(--sub); }
+.dh-em-b {
+  max-width: 78%;
+}
+.dh-em-h {
+  display: flex;
+  gap: 7px;
+  font-size: 11.5px;
+  margin-bottom: 2px;
+}
+.dh-em-h b { color: var(--ink); font-weight: 600; }
+.dh-em-h span { color: var(--faint); }
+.dh-em-msg.out .dh-em-h { justify-content: flex-end; }
+.dh-em-t {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+.dh-em-msg.out .dh-em-t {
+  background: var(--accent-600);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* meeting */
+.dh-mtg-card {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 11px 12px;
+}
+.dh-mtg-top { display: flex; gap: 12px; }
+.dh-mtg-when {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunk);
+}
+.dh-mtg-when b { font-size: 13px; color: var(--ink); }
+.dh-mtg-when span { font-size: 10.5px; color: var(--faint); }
+.dh-mtg-main { flex: 1; }
+.dh-mtg-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dh-mtg-prov { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 550; margin-top: 2px; }
+.dh-mtg-att { display: flex; gap: 4px; margin-top: 7px; }
+.dh-mtg-att .dh-em-av { width: 22px; height: 22px; font-size: 9px; background: var(--sub); }
+.dh-mtg-agenda { margin-top: 9px; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.dh-mtg-agenda b { color: var(--ink); }
+.dh-mtg-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.dh-joinbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--pc) 14%, transparent);
+  color: var(--pc);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dh-mtg-link { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+
+/* call */
+.dh-call-line { display: flex; align-items: center; gap: 9px; margin-top: 5px; }
+.dh-call-dur { font-size: 12px; color: var(--sub); }
+
+/* chat (whatsapp/sms) */
+.dh-chat-card {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  background: var(--surface-2);
+}
+.dh-chat-to { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--sub); margin-bottom: 8px; }
+.dh-chat-thread { display: flex; flex-direction: column; gap: 6px; }
+.dh-chat-msg { display: flex; }
+.dh-chat-msg.out { justify-content: flex-end; }
+.dh-chat-b {
+  max-width: 80%;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+}
+.dh-chat-card.wa .dh-chat-msg.out .dh-chat-b { background: #25d36622; border-color: #25d36644; }
+.dh-chat-card.sms .dh-chat-msg.out .dh-chat-b { background: var(--blue-soft); border-color: transparent; }
+.dh-chat-tm { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; text-align: right; }
+
+/* sequence */
+.dh-seq-card {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 11px 12px;
+  background: var(--surface-2);
+}
+.dh-seq-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dh-seq-h b { font-size: 13px; color: var(--ink); }
+.dh-seq-prog { font-size: 11px; font-weight: 600; color: var(--pink); }
+.dh-seq-track { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
+.dh-seq-step { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--faint); }
+.dh-seq-step.done { color: var(--ink-2); }
+.dh-seq-step.now { color: var(--ink); font-weight: 600; }
+.dh-seq-n {
+  width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; background: var(--bg-sunk); color: var(--faint); flex: none;
+}
+.dh-seq-step.done .dh-seq-n { background: var(--green); color: #fff; }
+.dh-seq-step.now .dh-seq-n { background: var(--pink); color: #fff; }
+
+/* task */
+.dh-task-card { display: flex; gap: 9px; margin-top: 5px; align-items: flex-start; }
+.dh-tcheck {
+  width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--border-strong);
+  background: var(--surface); display: grid; place-items: center; cursor: pointer; flex: none; margin-top: 1px;
+}
+.dh-tcheck.sm { width: 15px; height: 15px; }
+.dh-tcheck.on { background: var(--accent-600); border-color: var(--accent-600); }
+.dh-task-card.done .dh-task-t { text-decoration: line-through; color: var(--faint); }
+.dh-task-t { font-size: 13.5px; color: var(--ink); font-weight: 500; }
+.dh-task-sub { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+
+/* note reminder */
+.dh-rem-chip {
+  display: flex; align-items: center; gap: 7px; margin-top: 8px; padding: 7px 10px;
+  border-radius: var(--r-sm); background: var(--amber-soft); font-size: 12px; color: var(--ink-2);
+}
+.dh-rem-chip b { color: var(--ink); }
+.dh-rem-chip.done { opacity: 0.6; }
+.dh-rem-chip.done b { text-decoration: line-through; }
+.dh-rem-due { color: var(--faint); }
+
+/* Inline reply on timeline communication cards */
+.dh-tl-reply-bar { display: flex; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
+.dh-tl-replybtn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+  border: 1px solid var(--border-2); background: var(--surface); border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: all var(--t-fast) var(--ease);
+}
+.dh-tl-replybtn:hover { border-color: var(--accent-400); color: var(--accent-700); background: var(--accent-soft); }
+[data-theme='dark'] .dh-tl-replybtn:hover { color: var(--accent); }
+.dh-tl-replybtn.primary { background: var(--accent-600); border-color: var(--accent-600); color: #fff; }
+.dh-tl-replybtn.primary:hover { background: var(--accent-700); color: #fff; }
+.dh-tl-replybtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dh-tl-reply { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
+.dh-tl-reply-input {
+  width: 100%; min-height: 56px; resize: vertical; font: inherit; font-size: 13px;
+  border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 8px 10px;
+  background: var(--surface); color: var(--ink); outline: none;
+}
+.dh-tl-reply-input:focus { border-color: var(--accent-400); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dh-tl-reply-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.dh-tl-reply-hint { margin-right: auto; font-size: 11px; color: var(--faint); }
+
+/* Read receipts + typing on chat/email cards */
+.dh-chat-check { margin-left: 4px; color: var(--faint); font-size: 10px; }
+.dh-chat-check.read { color: #34B7F1; }
+.dh-chat-b.typing { padding: 8px 12px; }
+.dh-em-typing { display: flex; align-items: center; gap: 8px; padding: 8px 2px 2px; }
+
+/* Activity search box */
+.dh-feed-search {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px; padding: 7px 11px;
+  border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--surface-2);
+}
+.dh-feed-search:focus-within { border-color: var(--accent-400); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface); }
+.dh-feed-search svg { color: var(--faint); flex: none; }
+.dh-feed-search input { flex: 1; border: none; background: none; outline: none; font-size: 13px; color: var(--ink); }
+.dh-feed-search-x { width: 20px; height: 20px; display: grid; place-items: center; border: none; background: none; border-radius: 5px; color: var(--faint); cursor: pointer; flex: none; }
+.dh-feed-search-x:hover { background: var(--surface-hover); color: var(--ink); }
+
+/* Feed toolbar: search + date range */
+.dh-feed-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.dh-feed-toolbar .dh-feed-search { margin-bottom: 0; flex: 1; min-width: 180px; }
+.dh-feed-range { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-md); }
+.dh-feed-range button {
+  padding: 5px 10px; border: none; background: none; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 550; color: var(--sub); cursor: pointer; white-space: nowrap;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-feed-range button:hover { color: var(--ink); }
+.dh-feed-range button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-xs); }

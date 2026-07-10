@@ -1,0 +1,218 @@
+.dh-nova {
+  display: flex;
+  flex-direction: column;
+}
+.dh-nova-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.dh-nova-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--grad);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px -4px rgba(99, 102, 241, 0.6);
+  flex: none;
+}
+.dh-nova-head-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.dh-nova-head-text b {
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.dh-nova-head-text small {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.dh-nova-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dh-nova-msg {
+  display: flex;
+  gap: 9px;
+  max-width: 100%;
+}
+.dh-nova-msg.user {
+  justify-content: flex-end;
+}
+.dh-nova-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--grad);
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-top: 2px;
+}
+.dh-nova-bubble {
+  max-width: 80%;
+}
+.dh-nova-msg.nova .dh-nova-text {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  border-radius: 4px 14px 14px 14px;
+}
+.dh-nova-msg.user .dh-nova-text {
+  background: var(--accent-600);
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+}
+.dh-nova-text {
+  padding: 10px 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.dh-nova-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.dh-nova-chip {
+  padding: 6px 11px;
+  border: 1px solid var(--accent-200);
+  background: var(--accent-soft);
+  color: var(--accent-700);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+[data-theme='dark'] .dh-nova-chip {
+  border-color: rgba(129, 140, 248, 0.3);
+  color: var(--accent);
+}
+.dh-nova-chip:hover {
+  background: var(--accent-100);
+  border-color: var(--accent-400);
+}
+[data-theme='dark'] .dh-nova-chip:hover {
+  background: rgba(129, 140, 248, 0.18);
+}
+.dh-nova-typing {
+  display: flex;
+  gap: 4px;
+  padding: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px 14px 14px 14px;
+}
+.dh-nova-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+  animation: novaBounce 1.2s var(--ease) infinite;
+}
+.dh-nova-typing span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.dh-nova-typing span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes novaBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+.dh-nova-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 16px 12px;
+  flex: none;
+}
+.dh-nova-suggest button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-nova-suggest button:hover {
+  border-color: var(--accent-300);
+  background: var(--accent-soft);
+  color: var(--accent-700);
+}
+.dh-nova-suggest button svg {
+  color: var(--accent-500);
+  flex: none;
+}
+.dh-nova-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+.dh-nova-input input {
+  flex: 1;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 13.5px;
+  outline: none;
+  transition: all var(--t) var(--ease);
+}
+.dh-nova-input input:focus {
+  border-color: var(--accent-400);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--surface);
+}
+.dh-nova-input button {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  border: none;
+  background: var(--accent-600);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-nova-input button:hover:not(:disabled) {
+  background: var(--accent-700);
+}
+.dh-nova-input button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

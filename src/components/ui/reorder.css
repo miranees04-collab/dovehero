@@ -1,0 +1,17 @@
+.dh-reorder { display: flex; flex-direction: column; gap: 2px; }
+.dh-reorder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: grab;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.dh-reorder-row:hover { background: var(--surface-hover); }
+.dh-reorder-row.dragging { opacity: 0.4; }
+.dh-reorder-row.over { border-color: var(--accent-400); background: var(--accent-soft); }
+.dh-reorder-grip { color: var(--dim); cursor: grab; display: grid; place-items: center; flex: none; }
+.dh-reorder-row:active { cursor: grabbing; }
