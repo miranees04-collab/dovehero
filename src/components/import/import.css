@@ -310,6 +310,10 @@
 }
 .dh-imp-nova-count { font-size: 11px; font-weight: 700; color: var(--accent-700); background: var(--surface); border: 1px solid var(--accent-200); padding: 2px 8px; border-radius: var(--r-pill); }
 [data-theme='dark'] .dh-imp-nova-count { color: var(--accent); background: var(--surface-2); border-color: var(--border-strong); }
+.dh-imp-nova-engine { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 2px 6px; }
+.dh-imp-nova.busy { opacity: 0.72; transition: opacity var(--t) var(--ease); }
+.dh-imp-nova-badge.loading { animation: dh-imp-nova-pulse 1s var(--ease) infinite; }
+@keyframes dh-imp-nova-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.9); } }
 .dh-imp-nova-all { border: none; background: none; color: var(--accent-700); font-weight: 650; font-size: 12.5px; cursor: pointer; padding: 4px 8px; border-radius: var(--r-sm); }
 [data-theme='dark'] .dh-imp-nova-all { color: var(--accent); }
 .dh-imp-nova-all:hover { background: var(--surface); }

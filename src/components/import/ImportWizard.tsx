@@ -4,6 +4,12 @@ import { Icon } from '@/components/ui/Icon';
 import { Button, Popover, MenuItem } from '@/components/ui/primitives';
 import { Modal } from '@/components/ui/Modal';
 import { uid } from '@/lib/format';
+import {
+  norm, matchScore, transformVal, coerce, dedupeKey,
+  requestNovaSuggestions,
+  RULE_LABEL, type RuleAction,
+  type NovaContext, type NovaFinding, type NovaEngine,
+} from '@/lib/importAI';
 import type { FieldDef, FieldType, ObjectDef, ObjectRecord } from '@/types';
 import './import.css';
 
@@ -16,15 +22,6 @@ import './import.css';
 
 const STEPS = ['Start', 'Data', 'Configure', 'Report'] as const;
 const STEP_HINT = ['What & where', 'Map & clean', 'Review & settings', 'Done'] as const;
-
-type RuleAction = 'trim' | 'upper' | 'lower' | 'title' | 'sentence';
-const RULE_LABEL: Record<RuleAction, string> = {
-  title: 'Capitalize Each Word',
-  sentence: 'Sentence case',
-  upper: 'UPPERCASE',
-  lower: 'lowercase',
-  trim: 'Trim extra spaces',
-};
 
 type MapTarget = { obj: string; field: string } | { skip: true } | null;
 interface Col {
@@ -78,62 +75,12 @@ function parsePasted(text: string): { cols: string[]; rows: string[][] } | null 
   return { cols, rows };
 }
 
-/* ---- helpers ---- */
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
-const SYN: string[][] = [
-  ['name', 'fullname', 'contact', 'contactname'],
-  ['email', 'emailaddress', 'mail'],
-  ['phone', 'mobile', 'tel', 'telephone', 'cell'],
-  ['company', 'organization', 'organisation', 'account', 'employer', 'business'],
-  ['title', 'jobtitle', 'position', 'role'],
-  ['industry', 'sector', 'vertical'],
-  ['value', 'dealvalue', 'amount', 'price', 'revenue', 'deal'],
-  ['source', 'leadsource', 'channel'],
-  ['region', 'country', 'territory', 'location', 'geo'],
-  ['owner', 'assigned', 'rep', 'assignedto'],
-  ['date', 'created', 'signup', 'signupdate', 'createddate', 'due'],
-  ['status', 'stage'],
-  ['sku', 'code'],
-  ['domain', 'website', 'url', 'site'],
-];
-const groupOf = (a: string): string[] | null => SYN.find((g) => g.includes(a)) ?? null;
-function matchScore(col: string, label: string): number {
-  const a = norm(col), b = norm(label);
-  if (a === b) return 3;
-  if (a.includes(b) || b.includes(a)) return 2;
-  const ga = groupOf(a), gb = groupOf(b);
-  if (ga && gb && ga === gb) return 1;
-  return 0;
-}
-
-function transformVal(v: string, action?: RuleAction): string {
-  const s = v ?? '';
-  switch (action) {
-    case 'title': return s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
-    case 'sentence': return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-    case 'upper': return s.toUpperCase();
-    case 'lower': return s.toLowerCase();
-    case 'trim': return s.replace(/\s+/g, ' ').trim();
-    default: return s;
-  }
-}
-
-function coerce(v: string, type: FieldType): unknown {
-  const s = (v ?? '').trim();
-  if (type === 'number' || type === 'currency') return Number(s.replace(/[^0-9.\-]/g, '')) || 0;
-  if (type === 'checkbox') return /^(yes|true|1|paid|active)$/i.test(s);
-  return s;
-}
-
 const FIELD_TYPES: { k: FieldType; label: string }[] = [
   { k: 'text', label: 'Text' }, { k: 'number', label: 'Number' }, { k: 'email', label: 'Email' },
   { k: 'currency', label: 'Currency' }, { k: 'date', label: 'Date' }, { k: 'select', label: 'Dropdown' },
   { k: 'checkbox', label: 'Checkbox' }, { k: 'url', label: 'URL' }, { k: 'longtext', label: 'Long text' },
 ];
 const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.k === t)?.label ?? 'Text';
-
-/** A Nova (AI assistant) suggestion computed from the real grid — each has a one-click fix. */
-interface NovaSug { id: string; tone: 'map' | 'clean' | 'dupe'; title: ReactNode; cta: string; apply: () => void }
 
 /** What one import run actually did — kept so undo/redo can faithfully reverse it. */
 interface AppliedUpdate { id: string; patch: Partial<ObjectRecord>; prevPatch: Partial<ObjectRecord> }
@@ -184,6 +131,10 @@ export function ImportWizard() {
   const [tagDraft, setTagDraft] = useState<string | null>(null); // null = not adding a tag
   const [novaDone, setNovaDone] = useState<Set<string>>(new Set()); // dismissed/applied Nova suggestions
   const novaDismiss = (id: string) => setNovaDone((s) => new Set(s).add(id));
+  const [novaFindings, setNovaFindings] = useState<NovaFinding[]>([]);
+  const [novaEngine, setNovaEngine] = useState<NovaEngine | null>(null);
+  const [novaLoading, setNovaLoading] = useState(false);
+  const [novaScanned, setNovaScanned] = useState(false);
 
   const [settings, setSettings] = useState({
     owner: 'Round-robin (Sales team)',
@@ -247,6 +198,37 @@ export function ImportWizard() {
     setCols((prev) => prev.map((c) => (c.userSet ? c : { ...c, map: bestTarget(c.name) })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
+
+  // Nova reviews the data via the pluggable provider whenever the grid changes
+  // on the Data step. Findings are data; the actions are derived below.
+  const buildNovaContext = (): NovaContext => ({
+    objects: selected.map((k) => defOf(k)).filter((o): o is ObjectDef => !!o).map((o) => ({
+      k: o.k, name: o.name, plural: o.plural, fields: o.fields.map((f) => ({ k: f.k, label: f.label, type: f.type })),
+    })),
+    columns: cols.map((c, i) => ({
+      index: i, name: c.name,
+      mapped: c.map && 'obj' in c.map ? { objKey: c.map.obj, fieldKey: c.map.field } : null,
+      skip: !!(c.map && 'skip' in c.map),
+      rule: c.rule,
+    })),
+    rows: rows.slice(0, 40).map((r) => [...r]),
+    dedupe: settings.dedupe,
+  });
+
+  useEffect(() => {
+    if (step !== 1) return;
+    let cancelled = false;
+    setNovaLoading(true);
+    requestNovaSuggestions(buildNovaContext()).then((res) => {
+      if (cancelled) return;
+      setNovaFindings(res.findings);
+      setNovaEngine(res.engine);
+      setNovaLoading(false);
+      setNovaScanned(true);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, cols, rows, selected, settings.dedupe]);
 
   // esc to close
   useEffect(() => {
@@ -433,22 +415,6 @@ export function ImportWizard() {
     });
   };
 
-  /** Nova guesses a property type from a column's actual values + its name. */
-  const inferType = (ci: number, name: string): FieldType => {
-    const nm = norm(name);
-    if (/phone|mobile|tel|fax/.test(nm)) return 'text'; // no phone type in the model
-    const vals = rows.map((r) => r[ci]).filter((v) => v && v.trim());
-    if (!vals.length) return 'text';
-    if (vals.every((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()))) return 'email';
-    if (vals.every((v) => /^https?:\/\//.test(v.trim()))) return 'url';
-    if (vals.every((v) => /^\d{4}-\d{2}-\d{2}/.test(v.trim()) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v.trim()))) return 'date';
-    if (vals.every((v) => /^[-+]?[\d.,\s]+$/.test(v.trim()))) return /value|price|amount|revenue|deal|cost|salary/.test(nm) ? 'currency' : 'number';
-    // low-cardinality short strings → a dropdown
-    const uniq = new Set(vals.map((v) => v.trim().toLowerCase()));
-    if (uniq.size <= Math.max(2, Math.floor(vals.length / 2)) && [...uniq].every((v) => v.length < 24)) return 'select';
-    return 'text';
-  };
-
   const propKey = (name: string) => norm(name).replace(/(^[0-9]+)/, 'f$1') || 'f' + idSeqSuffix();
 
   /** Nova one-click: create a property (type inferred) on an object and map the column to it. */
@@ -501,12 +467,7 @@ export function ImportWizard() {
     return out;
   };
 
-  /** Duplicate identity: contacts match by email (fallback name), everything else by name. */
-  const keyOf = (objKey: string, rec: ObjectRecord): string => {
-    const email = typeof rec.email === 'string' ? rec.email.trim().toLowerCase() : '';
-    if (objKey === 'contact' && email) return 'e:' + email;
-    return 'n:' + String(rec.name ?? '').trim().toLowerCase();
-  };
+  const keyOf = dedupeKey; // contacts match by email, others by name (shared with Nova)
 
   const runImport = () => {
     const payload = buildRecords();
@@ -842,73 +803,35 @@ export function ImportWizard() {
     );
   }
 
-  /** Nova's read of the current grid — real analysis, each finding one-click fixable. */
-  function novaScan(): NovaSug[] {
-    const out: NovaSug[] = [];
-    // 1) unmapped columns — map to a match, or create a property with an inferred type
-    cols.forEach((c, ci) => {
-      if (c.map) return;
-      const id = 'unmap-' + ci + '-' + norm(c.name);
-      if (novaDone.has(id)) return;
-      const t = bestTarget(c.name);
-      if (t && 'obj' in t) {
-        const def = defOf(t.obj);
-        const f = def?.fields.find((x) => x.k === t.field);
-        out.push({ id, tone: 'map', cta: 'Map it',
-          title: <>Map <b>{c.name}</b> to {def?.plural} · {f?.label}</>,
-          apply: () => { setMap(ci, `${t.obj}:::${t.field}`); novaDismiss(id); } });
-      } else {
-        const objKey = selected[0];
-        const type = inferType(ci, c.name);
-        out.push({ id, tone: 'map', cta: `Create ${typeLabel(type)}`,
-          title: <>No match for <b>{c.name}</b> — create it as a <b>{typeLabel(type).toLowerCase()}</b> on {defOf(objKey)?.plural}</>,
-          apply: () => { novaCreateAndMap(ci, objKey, type); novaDismiss(id); } });
-      }
-    });
-    // 2) stray whitespace on a mapped column
-    cols.forEach((c, ci) => {
-      if (!c.map || 'skip' in c.map || c.rule) return;
-      const id = 'ws-' + ci + '-' + norm(c.name);
-      if (novaDone.has(id)) return;
-      if (rows.some((r) => { const v = r[ci] || ''; return v !== v.trim() || /\s{2,}/.test(v); }))
-        out.push({ id, tone: 'clean', cta: 'Trim',
-          title: <><b>{c.name}</b> has stray spaces — trim on import</>,
-          apply: () => { applyRule(ci, 'trim'); novaDismiss(id); } });
-    });
-    // 3) uppercase in an email column
-    cols.forEach((c, ci) => {
-      if (!c.map || 'skip' in c.map || c.rule) return;
-      const def = defOf(c.map.obj);
-      const f = def?.fields.find((x) => x.k === (c.map as { field: string }).field);
-      if (!(f?.type === 'email' || /email/.test(norm(c.name)))) return;
-      const id = 'lc-' + ci;
-      if (novaDone.has(id)) return;
-      if (rows.some((r) => /[A-Z]/.test(r[ci] || '')))
-        out.push({ id, tone: 'clean', cta: 'Lowercase',
-          title: <><b>{c.name}</b> has mixed-case emails — lowercase them</>,
-          apply: () => { applyRule(ci, 'lower'); novaDismiss(id); } });
-    });
-    // 4) duplicate rows within the file — check every object that has data
-    if (settings.dedupe !== 'skip') {
-      for (const dobj of objsWithData) {
-        const id = 'dupe-' + dobj;
-        if (novaDone.has(id)) continue;
-        const def = defOf(dobj);
-        const mapped = cols.map((c, ci) => ({ c, ci })).filter(({ c }) => c.map && 'obj' in c.map && c.map.obj === dobj);
-        const seen = new Set<string>();
-        let dupes = 0;
-        rows.forEach((row) => {
-          const rec: ObjectRecord = { id: 'x' };
-          mapped.forEach(({ c, ci }) => { const f = def?.fields.find((x) => x.k === (c.map as { field: string }).field); if (f) rec[f.k] = coerce(transformVal(row[ci] || '', c.rule), f.type); });
-          const k = keyOf(dobj, rec);
-          if (seen.has(k)) dupes++; else seen.add(k);
-        });
-        if (dupes > 0) out.push({ id, tone: 'dupe', cta: 'Skip dupes',
-          title: <>Found <b>{dupes} duplicate {def?.name.toLowerCase()} row{dupes > 1 ? 's' : ''}</b> — skip {dupes > 1 ? 'them' : 'it'} on import</>,
-          apply: () => { setSettings((s) => ({ ...s, dedupe: 'skip' })); novaDismiss(id); } });
-      }
+  // ---- turn a (data-only) Nova finding into UI: a title + a one-click action ----
+  // NOTE: function declarations (hoisted) — they are referenced by renderData(),
+  // which runs before this point in source order.
+  function novaCta(f: NovaFinding): string {
+    return f.kind === 'map' ? 'Map it'
+      : f.kind === 'create' ? `Create ${typeLabel(f.fieldType ?? 'text')}`
+        : f.kind === 'trim' ? 'Trim'
+          : f.kind === 'lower' ? 'Lowercase' : 'Skip dupes';
+  }
+
+  function novaTitle(f: NovaFinding): ReactNode {
+    const colName = f.colIndex != null ? cols[f.colIndex]?.name : '';
+    const plural = f.objKey ? defOf(f.objKey)?.plural : '';
+    switch (f.kind) {
+      case 'map': return <>Map <b>{colName}</b> to {plural} · {f.fieldLabel}</>;
+      case 'create': return <>No match for <b>{colName}</b> — create it as a <b>{typeLabel(f.fieldType ?? 'text').toLowerCase()}</b> on {plural}</>;
+      case 'trim': return <><b>{colName}</b> has stray spaces — trim on import</>;
+      case 'lower': return <><b>{colName}</b> has mixed-case emails — lowercase them</>;
+      case 'skip-dupes': return <>Found <b>{f.count} duplicate {defOf(f.objKey ?? '')?.name.toLowerCase()} row{(f.count ?? 0) > 1 ? 's' : ''}</b> — skip {(f.count ?? 0) > 1 ? 'them' : 'it'} on import</>;
     }
-    return out.slice(0, 6);
+  }
+
+  function applyFinding(f: NovaFinding) {
+    if (f.kind === 'map' && f.colIndex != null && f.objKey && f.fieldKey) setMap(f.colIndex, `${f.objKey}:::${f.fieldKey}`);
+    else if (f.kind === 'create' && f.colIndex != null && f.objKey) novaCreateAndMap(f.colIndex, f.objKey, f.fieldType ?? 'text');
+    else if (f.kind === 'trim' && f.colIndex != null) applyRule(f.colIndex, 'trim');
+    else if (f.kind === 'lower' && f.colIndex != null) applyRule(f.colIndex, 'lower');
+    else if (f.kind === 'skip-dupes') setSettings((s) => ({ ...s, dedupe: 'skip' }));
+    novaDismiss(f.id);
   }
 
   /** How many import rows already exist in the store (drives the "use Update" nudge). */
@@ -938,7 +861,8 @@ export function ImportWizard() {
 
   function renderData() {
     const ruleCount = cols.filter((c) => c.rule).length;
-    const sugs = novaScan();
+    const sugs = novaFindings.filter((f) => !novaDone.has(f.id));
+    const engineLabel = novaEngine === 'nova-remote' ? 'model' : 'on-device';
     return (
       <div className="dh-imp-wide">
         <div className="dh-imp-headrow">
@@ -948,23 +872,26 @@ export function ImportWizard() {
           </div>
         </div>
 
-        {sugs.length > 0 ? (
-          <div className="dh-imp-nova">
+        {novaLoading && !novaScanned ? (
+          <div className="dh-imp-nova clean"><span className="dh-imp-nova-badge loading"><Icon name="sparkles" size={13} /></span><b>Nova is reviewing your data…</b></div>
+        ) : sugs.length > 0 ? (
+          <div className={`dh-imp-nova ${novaLoading ? 'busy' : ''}`}>
             <div className="dh-imp-nova-head">
               <span className="dh-imp-nova-badge"><Icon name="sparkles" size={13} /></span>
               <b>Nova reviewed {rows.length} rows</b>
               <span className="dh-imp-nova-count">{sugs.length} suggestion{sugs.length > 1 ? 's' : ''}</span>
+              <span className="dh-imp-nova-engine" title={`Suggestions from Nova's ${engineLabel} engine`}>{engineLabel}</span>
               <span className="dh-imp-grow" />
-              <button className="dh-imp-nova-all" onClick={() => sugs.forEach((s) => s.apply())}>Apply all</button>
-              <button className="dh-imp-nova-x" title="Dismiss all" onClick={() => setNovaDone((prev) => { const n = new Set(prev); sugs.forEach((s) => n.add(s.id)); return n; })}><Icon name="x" size={14} /></button>
+              <button className="dh-imp-nova-all" onClick={() => sugs.forEach((f) => applyFinding(f))}>Apply all</button>
+              <button className="dh-imp-nova-x" title="Dismiss all" onClick={() => setNovaDone((prev) => { const n = new Set(prev); sugs.forEach((f) => n.add(f.id)); return n; })}><Icon name="x" size={14} /></button>
             </div>
             <div className="dh-imp-nova-list">
-              {sugs.map((s) => (
-                <div key={s.id} className={`dh-imp-nova-item t-${s.tone}`}>
+              {sugs.map((f) => (
+                <div key={f.id} className={`dh-imp-nova-item t-${f.tone}`}>
                   <span className="dh-imp-nova-dot" />
-                  <span className="dh-imp-grow">{s.title}</span>
-                  <button className="dh-imp-nova-cta" onClick={s.apply}>{s.cta}</button>
-                  <button className="dh-imp-nova-x sm" title="Dismiss" onClick={() => novaDismiss(s.id)}><Icon name="x" size={13} /></button>
+                  <span className="dh-imp-grow">{novaTitle(f)}</span>
+                  <button className="dh-imp-nova-cta" onClick={() => applyFinding(f)}>{novaCta(f)}</button>
+                  <button className="dh-imp-nova-x sm" title="Dismiss" onClick={() => novaDismiss(f.id)}><Icon name="x" size={13} /></button>
                 </div>
               ))}
             </div>
