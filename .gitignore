@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dist-ssr/
+# Generated single-file bundle for sharing the prototype (build artifact, not source)
+dovehero-crm.html
 *.local
 .DS_Store
 *.log
