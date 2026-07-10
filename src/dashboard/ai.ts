@@ -155,6 +155,71 @@ export function recommendations(deals: Deal[], now: number): Recommendation[] {
   return recs.slice(0, 6);
 }
 
+// Probability a deal closes, by current stage index (Prospect … Closed Won).
+const STAGE_PROB = [0.1, 0.25, 0.45, 0.65, 0.85, 1];
+
+export interface Forecast {
+  committed: number; // already closed-won this quarter
+  weighted: number; // Σ open amount × stage probability
+  best: number; // committed + all open pipeline
+  target: number;
+  bars: Array<{ label: string; value: number; tone: Tone }>;
+}
+
+/** AI revenue forecast: committed + probability-weighted open pipeline. */
+export function forecast(deals: Deal[], now: number, target = 1_480_000): Forecast {
+  const q = { start: new Date(new Date(now).getFullYear(), Math.floor(new Date(now).getMonth() / 3) * 3, 1).getTime(), end: now };
+  const committed = kpisFor(deals, q.start, q.end).revenue;
+  const open = openDeals(deals);
+  const weighted = open.reduce((s, d) => s + d.amount * (STAGE_PROB[d.stage] ?? 0.3), 0);
+  const openTotal = open.reduce((s, d) => s + d.amount, 0);
+  const projected = committed + weighted;
+  return {
+    committed,
+    weighted,
+    best: committed + openTotal,
+    target,
+    bars: [
+      { label: 'Committed', value: committed, tone: 'good' },
+      { label: 'Forecast (weighted)', value: projected, tone: projected >= target ? 'good' : 'warn' },
+      { label: 'Best case', value: committed + openTotal, tone: 'info' },
+    ],
+  };
+}
+
+export interface RiskAccount {
+  company: string;
+  value: number;
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
+/** Churn / deal-risk: score accounts by stalled deals, losses, and idle renewals. */
+export function churnRisk(deals: Deal[], now: number): RiskAccount[] {
+  const byCompany = new Map<string, Deal[]>();
+  for (const d of deals) {
+    if (!byCompany.has(d.company)) byCompany.set(d.company, []);
+    byCompany.get(d.company)!.push(d);
+  }
+  const rows: Array<RiskAccount & { score: number }> = [];
+  for (const [company, ds] of byCompany) {
+    const openOnes = ds.filter((d) => d.status === 'open');
+    if (!openOnes.length) continue;
+    const stuck = openOnes.filter((d) => daysInStage(d, now) > 21);
+    const recentLost = ds.filter((d) => d.status === 'lost' && d.closedAt !== null && now - d.closedAt < 60 * MS_DAY);
+    const idleRenewal = openOnes.filter((d) => d.pipeline === 'Renewals' && daysInStage(d, now) > 14);
+    const value = openOnes.reduce((s, d) => s + d.amount, 0);
+    let score = 0;
+    const reasons: string[] = [];
+    if (stuck.length) { score += stuck.length * 2 + Math.max(...stuck.map((d) => daysInStage(d, now))) / 10; reasons.push(`${stuck.length} deal${stuck.length === 1 ? '' : 's'} stalled ${Math.max(...stuck.map((d) => daysInStage(d, now)))}d`); }
+    if (recentLost.length) { score += recentLost.length * 3; reasons.push(`${recentLost.length} recent loss${recentLost.length === 1 ? '' : 'es'}`); }
+    if (idleRenewal.length) { score += idleRenewal.length * 2.5; reasons.push(`renewal idle ${Math.max(...idleRenewal.map((d) => daysInStage(d, now)))}d`); }
+    if (score < 2) continue;
+    rows.push({ company, value, score, level: score >= 7 ? 'high' : score >= 4 ? 'medium' : 'low', reason: reasons.join(' · ') });
+  }
+  return rows.sort((a, b) => b.score - a.score).slice(0, 8).map(({ score, ...r }) => r);
+}
+
 /** Tiny natural-language router over the dataset — canned, keyword-based. */
 export function answerQuery(q: string, deals: Deal[], bounds: Bounds, now: number): string {
   const s = q.toLowerCase();

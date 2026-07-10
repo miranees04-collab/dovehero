@@ -6,8 +6,10 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   Sparkles, X, Sun, TrendingUp, TriangleAlert, CircleAlert, Info, ArrowRight, Send, ListChecks,
+  Settings2, Cloud, Cpu,
 } from 'lucide-react';
-import { morningBrief, recommendations, answerQuery, type BriefItem, type Tone } from './ai';
+import { morningBrief, recommendations, type BriefItem, type Tone } from './ai';
+import { askNova, type NovaSource } from './novaClient';
 import type { Deal, Bounds } from './data';
 import type { CrossFilter } from './reportEngine';
 
@@ -25,17 +27,27 @@ export function AiPanel({
 }) {
   const brief = useMemo(() => morningBrief(deals, bounds, now), [deals, bounds, now]);
   const recs = useMemo(() => recommendations(deals, now), [deals, now]);
-  const [chat, setChat] = useState<Array<{ q: string; a: string }>>([]);
+  const [chat, setChat] = useState<Array<{ q: string; a: string; source?: NovaSource }>>([]);
   const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showCfg, setShowCfg] = useState(false);
+  const [endpoint, setEndpoint] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const ask = (text: string) => {
-    const t = text.trim();
-    if (!t) return;
-    const a = answerQuery(t, deals, bounds, now);
-    setChat((c) => [...c, { q: t, a }]);
-    setQ('');
+  const scrollDown = () =>
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+
+  const ask = async (text: string) => {
+    const t = text.trim();
+    if (!t || busy) return;
+    setQ('');
+    setBusy(true);
+    setChat((c) => [...c, { q: t, a: '…' }]);
+    scrollDown();
+    const reply = await askNova(t, deals, bounds, now, { endpoint });
+    setChat((c) => c.map((m, i) => (i === c.length - 1 ? { q: t, a: reply.text, source: reply.source } : m)));
+    setBusy(false);
+    scrollDown();
   };
 
   const hour = new Date(now).getHours();
@@ -49,10 +61,35 @@ export function AiPanel({
           <span className="cd-ai-mark"><Sparkles size={16} /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <b>Nova</b>
-            <small>AI command center · prototype</small>
+            <small>{endpoint.trim() ? 'Claude · connected' : 'AI command center · prototype'}</small>
           </div>
+          <button
+            className={`cd-iconbtn ${showCfg ? 'active' : ''}`}
+            onClick={() => setShowCfg((v) => !v)}
+            aria-label="AI connection settings"
+            title="Connect a Claude proxy"
+          >
+            <Settings2 size={16} />
+          </button>
           <button className="cd-iconbtn" onClick={onClose} aria-label="Close assistant"><X size={16} /></button>
         </div>
+
+        {showCfg && (
+          <div className="cd-ai-cfg">
+            <label className="cd-ai-cfg-lab">Claude proxy endpoint</label>
+            <input
+              className="cd-input"
+              placeholder="https://your-proxy.example.com/nova"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+            />
+            <p className="cd-ai-cfg-note">
+              Optional. Point Nova at a small server you host that holds your API key and forwards to
+              Claude (<code>claude-opus-4-8</code>). Left blank, answers come from the on-device rules
+              engine. The browser never sees a key. See the README for a ~30-line reference proxy.
+            </p>
+          </div>
+        )}
 
         <div className="cd-ai-body" ref={scrollRef}>
           <div className="cd-ai-section">
@@ -100,7 +137,15 @@ export function AiPanel({
                 {chat.map((c, i) => (
                   <div key={i}>
                     <div className="cd-chat-q">{c.q}</div>
-                    <div className="cd-chat-a">{c.a}</div>
+                    <div className="cd-chat-a">
+                      {c.a}
+                      {c.source && (
+                        <span className={`cd-chat-src ${c.source}`}>
+                          {c.source === 'claude' ? <Cloud size={11} /> : <Cpu size={11} />}
+                          {c.source === 'claude' ? 'Claude' : 'on-device'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -114,8 +159,9 @@ export function AiPanel({
             placeholder="Ask about pipeline, win rate, forecast…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            disabled={busy}
           />
-          <button className="cd-iconbtn primary" type="submit" aria-label="Ask" disabled={!q.trim()}><Send size={15} /></button>
+          <button className="cd-iconbtn primary" type="submit" aria-label="Ask" disabled={!q.trim() || busy}><Send size={15} /></button>
         </form>
         {chat.length === 0 && (
           <div className="cd-ai-chips">

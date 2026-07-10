@@ -67,6 +67,7 @@ import {
   Table2,
   Target,
   Trash2,
+  TriangleAlert,
   Tv,
   Upload,
   TrendingUp,
@@ -123,7 +124,7 @@ import { ReportView, measureLabel, type DrillTarget } from './ReportView';
 import { ReportBuilder } from './ReportBuilder';
 import { AiPanel } from './AiPanel';
 import { CommandPalette, type Command } from './CommandPalette';
-import { morningBrief, recommendations } from './ai';
+import { morningBrief, recommendations, forecast, churnRisk } from './ai';
 import {
   drillRecords,
   fmtByUnit,
@@ -863,6 +864,65 @@ function WorkQueue({ ctx }: { ctx: Ctx }) {
   );
 }
 
+/** AI revenue forecast — committed + probability-weighted pipeline vs target. */
+function AiForecast({ ctx }: { ctx: Ctx }) {
+  const f = useMemo(() => forecast(ctx.deals, ctx.now), [ctx.deals, ctx.now]);
+  const max = Math.max(f.best, f.target) * 1.05;
+  const toneColor: Record<string, string> = {
+    good: 'var(--good)', warn: 'var(--warn)', info: 'var(--accent)', bad: 'var(--bad)',
+  };
+  const pctToTarget = f.target > 0 ? (f.committed + f.weighted) / f.target : 0;
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em' }}>{fmtMoney(f.committed + f.weighted)}</span>
+        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>weighted forecast · {fmtPct(pctToTarget)} of {fmtMoney(f.target)} target</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {f.bars.map((b) => (
+          <div key={b.label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+              <span style={{ color: 'var(--ink-2)' }}>{b.label}</span>
+              <b>{fmtMoney(b.value)}</b>
+            </div>
+            <div className="cd-fc-track">
+              <div className="cd-fc-fill" style={{ width: `${Math.min(100, (b.value / max) * 100)}%`, background: toneColor[b.tone] }} />
+              <div className="cd-fc-target" style={{ left: `${Math.min(100, (f.target / max) * 100)}%` }} title={`Target ${fmtMoney(f.target)}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
+        Weighted = open deals × stage win-probability. Dashed line marks the {fmtMoney(f.target)} quarter target.
+      </div>
+    </div>
+  );
+}
+
+/** Churn / deal-risk radar — accounts scored by stalls, losses and idle renewals. */
+function ChurnRisk({ ctx }: { ctx: Ctx }) {
+  const rows = useMemo(() => churnRisk(ctx.deals, ctx.now), [ctx.deals, ctx.now]);
+  if (!rows.length) return <Empty msg="No at-risk accounts in this slice" />;
+  const dot: Record<string, string> = { high: 'var(--bad)', medium: 'var(--warn)', low: 'var(--muted)' };
+  return (
+    <div className="cd-risk-list">
+      {rows.map((r) => (
+        <div className="cd-risk-row" key={r.company}>
+          <span className="cd-risk-dot" style={{ background: dot[r.level] }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="cd-risk-co">{r.company}</div>
+            <div className="cd-risk-reason">{r.reason}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{fmtMoney(r.value)}</div>
+            <div className={`cd-risk-lvl ${r.level}`}>{r.level}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Widget registry + saved dashboards
 // ---------------------------------------------------------------------------
@@ -946,6 +1006,20 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 7,
     icon: <ListChecks size={15} />,
     render: (ctx) => <WorkQueue ctx={ctx} />,
+  },
+  aiForecast: {
+    title: 'AI revenue forecast',
+    desc: 'Committed + probability-weighted pipeline against the quarter target',
+    span: 6,
+    icon: <TrendingUp size={15} />,
+    render: (ctx) => <AiForecast ctx={ctx} />,
+  },
+  churnRisk: {
+    title: 'Churn-risk radar',
+    desc: 'Accounts scored by stalled deals, recent losses and idle renewals',
+    span: 6,
+    icon: <TriangleAlert size={15} />,
+    render: (ctx) => <ChurnRisk ctx={ctx} />,
   },
   coverage: {
     title: 'Pipeline coverage',
@@ -1055,7 +1129,7 @@ const INITIAL_DASHBOARDS: DashboardConfig[] = [
     id: 'exec',
     name: 'Executive Overview',
     role: 'Leadership view',
-    tiles: ['aiInsights', 'workQueue', 'revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'].map(presetTile),
+    tiles: ['aiInsights', 'workQueue', 'aiForecast', 'churnRisk', 'revenueGauge', 'coverage', 'retention', 'mrr', 'ltvCac', 'custMove'].map(presetTile),
   },
   {
     id: 'rep',
@@ -1302,6 +1376,38 @@ function TileCard({
 }) {
   const { open, setOpen, ref } = usePop();
   const [flash, setFlash] = useState(0);
+  const cardRef = useRef<HTMLElement>(null);
+  const [resizing, setResizing] = useState(false);
+
+  // Freeform corner resize: translate pointer position into a column span by
+  // measuring against the parent 12-col grid, snap to integers, clamp 3–12.
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const card = cardRef.current;
+    const grid = card?.parentElement;
+    if (!card || !grid) return;
+    const gridRect = grid.getBoundingClientRect();
+    const styles = getComputedStyle(grid);
+    const gap = parseFloat(styles.columnGap || styles.gap || '0') || 0;
+    const colWidth = (gridRect.width - gap * 11) / 12;
+    const cardLeft = card.getBoundingClientRect().left;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setResizing(true);
+    const move = (ev: PointerEvent) => {
+      const widthPx = ev.clientX - cardLeft;
+      const cols = Math.round((widthPx + gap) / (colWidth + gap));
+      const clamped = Math.max(3, Math.min(12, cols)) as ReportConfig['span'];
+      if (clamped !== span) onResize(clamped);
+    };
+    const up = () => {
+      setResizing(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   const isCustom = tile.kind === 'custom';
   const def = tile.kind === 'preset' ? WIDGETS[tile.preset] : null;
@@ -1313,7 +1419,8 @@ function TileCard({
 
   return (
     <section
-      className={`cd-card w-${span} ${dragging ? 'dragging' : ''} ${dropTarget ? 'dropTarget' : ''}`}
+      ref={cardRef}
+      className={`cd-card w-${span} ${dragging ? 'dragging' : ''} ${dropTarget ? 'dropTarget' : ''} ${resizing ? 'resizing' : ''}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
     >
@@ -1373,6 +1480,13 @@ function TileCard({
       <div className="cd-card-body cd-refreshing" key={`${tile.id}-${flash}-${presetCtx.jit}`}>
         {isCustom ? <ReportView config={tile.report} ctx={engineCtx} onCross={onCross} /> : def?.render(presetCtx)}
       </div>
+      <span
+        className="cd-resize-handle"
+        onPointerDown={startResize}
+        title="Drag to resize"
+        aria-label="Resize report"
+        role="separator"
+      />
     </section>
   );
 }
@@ -1820,7 +1934,7 @@ export default function CrmDashboard() {
 
   return (
     <div className={`cd-app ${theme === 'dark' ? 'force-dark' : theme === 'light' ? 'force-light' : ''} ${density === 'compact' ? 'dense' : ''} ${tv ? 'tv' : ''}`}>
-      <aside className="cd-side">
+      <nav className="cd-topnav">
         <div className="cd-brand">
           <span className="cd-brand-mark">
             <Zap size={16} strokeWidth={2.4} />
@@ -1830,6 +1944,36 @@ export default function CrmDashboard() {
             <small style={{ display: 'block' }}>Reporting</small>
           </div>
         </div>
+        <div className="cd-topnav-tabs">
+          {NAV_ITEMS.map((it) => (
+            <button key={it.key} className={`cd-topnav-tab ${nav === it.key ? 'on' : ''}`} onClick={() => setNav(it.key)}>
+              {it.icon}
+              <span className="cd-topnav-tab-txt">{it.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="cd-topbar-spacer" />
+        <button className="cd-btn ghost cd-search-btn" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
+          <Search size={15} /> <span className="cd-search-txt">Search</span> <kbd className="cd-kbd">⌘K</kbd>
+        </button>
+        <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
+          <Sparkles size={15} /> Nova
+        </button>
+        <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
+          <RefreshCw size={15} />
+        </button>
+        <ViewMenu
+          theme={theme} setTheme={setTheme}
+          density={density} setDensity={setDensity}
+          tv={tv} setTv={setTv}
+          imported={!!imported}
+          onImport={() => setImportOpen(true)}
+          onShare={() => toast('Share link copied to clipboard (mock)')}
+        />
+      </nav>
+
+      <div className="cd-body">
+      <aside className="cd-side">
         {NAV_ITEMS.map((it) => (
           <button key={it.key} className={`cd-nav-item ${nav === it.key ? 'on' : ''}`} onClick={() => setNav(it.key)}>
             {it.icon}
@@ -1863,23 +2007,6 @@ export default function CrmDashboard() {
             setOpen={setAddMenu}
             onCustom={() => { setAddMenu(false); setBuilder({}); }}
             onLibrary={() => { setAddMenu(false); setAddOpen(true); }}
-          />
-          <button className="cd-btn ghost cd-search-btn" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
-            <Search size={15} /> <span className="cd-search-txt">Search</span> <kbd className="cd-kbd">⌘K</kbd>
-          </button>
-          <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
-            <Sparkles size={15} /> Nova
-          </button>
-          <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
-            <RefreshCw size={15} />
-          </button>
-          <ViewMenu
-            theme={theme} setTheme={setTheme}
-            density={density} setDensity={setDensity}
-            tv={tv} setTv={setTv}
-            imported={!!imported}
-            onImport={() => setImportOpen(true)}
-            onShare={() => toast('Share link copied to clipboard (mock)')}
           />
         </header>
 
@@ -2033,6 +2160,7 @@ export default function CrmDashboard() {
             </>
           )}
         </main>
+      </div>
       </div>
 
       {addOpen && (

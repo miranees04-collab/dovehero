@@ -43,14 +43,58 @@ A second entry point, [`dashboard.html`](./dashboard.html), hosts a HubSpot-styl
 dashboards (Sales Pipeline · Executive Overview · My Sales Desk) built from a
 widget registry, with global date/owner/pipeline filters that recompute every
 tile from one seeded in-memory dataset. Widgets can be added, removed,
-drag-reordered, and refreshed; thresholds render green/red (win rate, pipeline
-coverage, stuck deals).
+drag-reordered, freeform corner-resized, and refreshed; thresholds render
+green/red (win rate, pipeline coverage, stuck deals). A global top-nav carries
+search (`⌘K`), the Nova assistant, refresh, and view controls; the per-page
+header keeps the dashboard switcher and filter bar.
 
 ```bash
 npm run dev                # open http://localhost:5173/dashboard.html
 npm run build:dashboard    # bundle it into ONE self-contained HTML file
                            # (dist-dashboard/dashboard.html — shareable anywhere)
 ```
+
+### Nova AI — connecting the real Claude API
+
+Nova (`src/dashboard/ai.ts`) answers from a deterministic rules engine over the
+in-memory dataset, so the prototype works fully offline with zero setup. To route
+answers through a real Claude model instead, open the Nova panel, click the
+settings gear, and paste a **proxy endpoint**.
+
+Why a proxy? The dashboard ships as a single self-contained HTML artifact whose
+CSP blocks cross-origin requests, and an API key must never live in client code.
+So the browser calls a small server *you* host that holds the key and forwards to
+Claude (`claude-opus-4-8`). `src/dashboard/novaClient.ts` `POST`s
+`{ question, context }` and expects `{ text }` back, falling back to the rules
+engine on any error. A reference proxy is ~30 lines:
+
+```ts
+// server.ts — run with your ANTHROPIC_API_KEY in the environment
+import express from 'express';
+import Anthropic from '@anthropic-ai/sdk';
+
+const app = express();
+app.use(express.json());
+const client = new Anthropic(); // reads ANTHROPIC_API_KEY
+
+app.post('/nova', async (req, res) => {
+  const { question, context } = req.body;
+  const msg = await client.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 1024,
+    thinking: { type: 'adaptive' },
+    system: 'You are Nova, a concise CRM analyst. Answer from the snapshot only.',
+    messages: [{ role: 'user', content: `Snapshot:\n${context}\n\nQ: ${question}` }],
+  });
+  const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  res.json({ text });
+});
+
+app.listen(8787, () => console.log('Nova proxy on :8787'));
+```
+
+Point the Nova settings field at `http://localhost:8787/nova` (enable CORS for
+the artifact's origin) and answers switch to Claude, badged accordingly.
 
 ---
 

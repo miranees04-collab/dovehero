@@ -45,10 +45,74 @@
   color: var(--ink);
   background: var(--page);
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   font-size: 14px;
   line-height: 1.45;
 }
+
+/* ---- global top navigation bar ---- */
+
+.cd-topnav {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.cd-topnav .cd-brand {
+  padding: 0;
+  margin-right: 6px;
+}
+
+/* On wide screens the left sidebar carries navigation, so the top-nav stays
+   clean (brand + global utilities). When the sidebar collapses, these tabs
+   become the primary navigation. */
+.cd-topnav-tabs {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.cd-topnav-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cd-topnav-tab:hover {
+  background: var(--wash);
+}
+
+.cd-topnav-tab.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cd-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 
 .cd-dark-vars {
   --page: #0d0d0d;
@@ -96,8 +160,8 @@
   flex-direction: column;
   gap: 2px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 52px;
+  height: calc(100vh - 52px);
 }
 
 .cd-brand {
@@ -175,7 +239,7 @@
 /* sticky header wrapper holds the title row + filter row together */
 .cd-header {
   position: sticky;
-  top: 0;
+  top: 52px;
   z-index: 30;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -466,6 +530,9 @@
   .w-6 { grid-column: span 6; }
   .w-7 { grid-column: span 12; }
   .w-8 { grid-column: span 12; }
+  .w-9 { grid-column: span 12; }
+  .w-10 { grid-column: span 12; }
+  .w-11 { grid-column: span 12; }
 }
 
 @media (min-width: 1180px) {
@@ -475,7 +542,31 @@
   .w-6 { grid-column: span 6; }
   .w-7 { grid-column: span 7; }
   .w-8 { grid-column: span 8; }
+  .w-9 { grid-column: span 9; }
+  .w-10 { grid-column: span 10; }
+  .w-11 { grid-column: span 11; }
 }
+
+/* ---- freeform corner resize handle ---- */
+.cd-card { position: relative; }
+.cd-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  touch-action: none;
+  z-index: 5;
+  background:
+    linear-gradient(135deg, transparent 0 50%, var(--axis) 50% 60%, transparent 60% 70%, var(--axis) 70% 80%, transparent 80%);
+  border-bottom-right-radius: 8px;
+}
+.cd-card:hover .cd-resize-handle { opacity: 0.9; }
+.cd-card.resizing { outline: 2px solid var(--accent); outline-offset: 1px; user-select: none; }
+.cd-card.resizing .cd-resize-handle { opacity: 1; }
 
 .cd-card-head {
   display: flex;
@@ -1074,6 +1165,12 @@
 
 @media (max-width: 900px) {
   .cd-side { display: none; }
+  .cd-topnav-tabs { display: flex; }
+  .cd-topnav .cd-search-txt, .cd-topnav .cd-kbd { display: none; }
+}
+
+@media (max-width: 560px) {
+  .cd-topnav-tab-txt { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -1605,6 +1702,57 @@
 .cd-iconbtn.primary:hover { filter: brightness(1.06); background: var(--accent); }
 .cd-iconbtn.primary:disabled { opacity: 0.5; }
 .cd-ai-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px; }
+
+/* chat source badge (Claude vs on-device rules) */
+.cd-chat-src {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; margin-left: 8px;
+  padding: 1px 6px; border-radius: 20px; vertical-align: middle;
+}
+.cd-chat-src.claude { color: var(--accent); background: var(--accent-soft); }
+.cd-chat-src.local { color: var(--muted); background: var(--wash); }
+
+/* Nova connection config */
+.cd-iconbtn.active { background: var(--accent-soft); color: var(--accent); }
+.cd-ai-cfg {
+  padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--wash);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cd-ai-cfg-lab { font-size: 11px; font-weight: 600; color: var(--ink-2); }
+.cd-ai-cfg-note { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 2px 0 0; }
+.cd-ai-cfg-note code {
+  font-size: 10.5px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0 4px;
+}
+
+/* AI forecast widget bars */
+.cd-fc-track {
+  position: relative; height: 12px; border-radius: 6px;
+  background: var(--wash); overflow: hidden;
+}
+.cd-fc-fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; transition: width 0.4s ease; }
+.cd-fc-target {
+  position: absolute; top: -2px; bottom: -2px; width: 0;
+  border-left: 2px dashed var(--ink-2); overflow: visible;
+}
+
+/* churn-risk radar list */
+.cd-risk-list { display: flex; flex-direction: column; }
+.cd-risk-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; border-bottom: 1px solid var(--border);
+}
+.cd-risk-row:last-child { border-bottom: 0; }
+.cd-risk-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.cd-risk-co { font-size: 13px; font-weight: 600; color: var(--ink); }
+.cd-risk-reason { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.cd-risk-lvl {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.cd-risk-lvl.high { color: var(--bad); }
+.cd-risk-lvl.medium { color: var(--warn); }
+.cd-risk-lvl.low { color: var(--muted); }
 
 /* command palette */
 .cd-scrim.palette { align-items: flex-start; padding-top: 12vh; }
