@@ -452,6 +452,14 @@
   color: var(--bad);
 }
 
+.cd-pop-row.primary-row {
+  color: var(--accent);
+  font-weight: 600;
+}
+.cd-pop-row.primary-row:hover {
+  background: var(--accent-soft);
+}
+
 .cd-pop-sep {
   height: 1px;
   background: var(--border);
@@ -1839,6 +1847,14 @@
 .cd-width-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .cd-card-max { opacity: 0; transition: opacity 0.12s ease; }
 .cd-card:hover .cd-card-max { opacity: 1; }
+/* prominent hover Edit affordance for custom reports */
+.cd-card-edit { opacity: 0; transition: opacity 0.12s ease; color: var(--accent); }
+.cd-card:hover .cd-card-edit { opacity: 1; }
+.cd-card-edit:hover { background: var(--accent-soft); }
+/* on touch / narrow screens hover doesn't exist — keep the actions visible */
+@media (hover: none), (max-width: 760px) {
+  .cd-card-edit, .cd-card-max { opacity: 1; }
+}
 
 /* card hover elevation + fade-in */
 .cd-card {

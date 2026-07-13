@@ -1428,8 +1428,20 @@ function TileCard({
         <span className="cd-drag" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} title="Drag to reorder">
           <GripVertical size={14} />
         </span>
-        <span className="cd-card-title">{title}</span>
+        <span
+          className="cd-card-title"
+          onDoubleClick={isCustom ? onEdit : undefined}
+          title={isCustom ? `${title} — double-click to edit` : title}
+          style={isCustom ? { cursor: 'pointer' } : undefined}
+        >
+          {title}
+        </span>
         {isCustom && <span className="cd-customtag">Custom</span>}
+        {isCustom && (
+          <button className="cd-iconbtn cd-card-edit" onClick={onEdit} title="Edit report" aria-label="Edit report">
+            <Pencil size={14} />
+          </button>
+        )}
         <button className="cd-iconbtn cd-card-max" onClick={onMaximize} title="Maximize" aria-label="Maximize">
           <Maximize2 size={14} />
         </button>
@@ -1446,6 +1458,17 @@ function TileCard({
                 ))}
               </div>
               <div className="cd-pop-sep" />
+              {isCustom && (
+                <>
+                  <button className="cd-pop-row primary-row" onClick={() => { setOpen(false); onEdit(); }}>
+                    <Pencil size={14} /> Edit report
+                  </button>
+                  <button className="cd-pop-row" onClick={() => { setOpen(false); onViewRecords(); }}>
+                    <Table2 size={14} /> View records
+                  </button>
+                  <div className="cd-pop-sep" />
+                </>
+              )}
               <button className="cd-pop-row" onClick={() => { setOpen(false); onMaximize(); }}>
                 <Maximize2 size={14} /> Maximize
               </button>
@@ -1455,16 +1478,6 @@ function TileCard({
               <button className="cd-pop-row" onClick={() => { setOpen(false); onDuplicate(); }}>
                 <Copy size={14} /> Duplicate
               </button>
-              {isCustom && (
-                <>
-                  <button className="cd-pop-row" onClick={() => { setOpen(false); onViewRecords(); }}>
-                    <Table2 size={14} /> View records
-                  </button>
-                  <button className="cd-pop-row" onClick={() => { setOpen(false); onEdit(); }}>
-                    <Pencil size={14} /> Edit report
-                  </button>
-                </>
-              )}
               <button className="cd-pop-row" onClick={() => { setOpen(false); onExport(); }}>
                 <Download size={14} /> Export CSV
               </button>
