@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Avatar, Badge } from '@/components/ui/primitives';
@@ -40,6 +40,7 @@ export function ProductPipeline({ items }: { items?: Product[] }) {
         return (
           <div
             key={st.k}
+            style={{ ['--sh']: st.hue } as CSSProperties}
             className={`dh-pp-col ${over === st.k ? 'over' : ''}`}
             onDragOver={(e) => { e.preventDefault(); if (over !== st.k) setOver(st.k); }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver((o) => (o === st.k ? null : o)); }}

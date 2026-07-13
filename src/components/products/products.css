@@ -1205,3 +1205,162 @@ select.dh-pw-input { cursor: pointer; }
 @media (max-width: 640px) {
   .dh-cp-grid.three { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   ✦ CREATIVE THEME — "Product Studio"
+   A tinted, layered canvas (no flat white), colour-per-product
+   surfaces, and poppy gradient buttons. Theme-aware via color-mix
+   over the design tokens, so light + dark both adapt.
+   ============================================================ */
+.dh-pw, .dh-pr {
+  --phue: var(--accent-500);
+  --p-border: color-mix(in srgb, var(--phue) 16%, var(--border));
+  --p-card-a: color-mix(in srgb, var(--phue) 4%, var(--surface));
+  --p-card-b: color-mix(in srgb, var(--phue) 9%, var(--surface));
+  --p-glass: color-mix(in srgb, var(--phue) 7%, var(--surface));
+  --p-shadow: 0 6px 20px -10px color-mix(in srgb, var(--phue) 55%, transparent);
+}
+
+/* Layered canvas with soft colour blooms */
+.dh-pw, .dh-pr, .dh-pp {
+  background:
+    radial-gradient(1200px 440px at 100% -12%, color-mix(in srgb, var(--accent-500) 14%, transparent), transparent 60%),
+    radial-gradient(900px 480px at -8% 112%, color-mix(in srgb, var(--violet) 12%, transparent), transparent 55%),
+    radial-gradient(700px 500px at 50% 140%, color-mix(in srgb, var(--pink) 8%, transparent), transparent 60%),
+    var(--bg);
+}
+
+/* Card-ish surfaces → soft tinted gradient, coloured hairline, gentle glow */
+.dh-pw-kpi,
+.dh-pr-col,
+.dh-pw-stat,
+.dh-pw-priceband,
+.dh-pw-invhero,
+.dh-pr-composer,
+.dh-pw-detailrows,
+.dh-pw-mini,
+.dh-pp-col,
+.dh-cp-pricecard,
+.dh-broch-pricecard,
+.dh-pr-doc,
+.dh-pr-chip,
+.dh-pr-brochurecard,
+.dh-pw-moves li {
+  background: linear-gradient(162deg, var(--p-card-a), var(--p-card-b)) !important;
+  border-color: var(--p-border) !important;
+}
+.dh-pr-col, .dh-pp-col { box-shadow: var(--p-shadow); }
+
+/* Glass headers */
+.dh-pw-head, .dh-pw-types, .dh-pw-toolbar {
+  background: linear-gradient(180deg, var(--p-glass), color-mix(in srgb, var(--phue) 3%, var(--surface))) !important;
+  border-color: var(--p-border);
+  backdrop-filter: saturate(1.15);
+}
+.dh-pw-table thead th { background: color-mix(in srgb, var(--phue) 8%, var(--bg)); }
+.dh-pw-table tbody tr:hover { background: color-mix(in srgb, var(--phue) 6%, var(--surface)); }
+
+/* Record header → a colour-per-product hero band */
+.dh-pr-head {
+  background:
+    radial-gradient(600px 200px at 12% -40%, color-mix(in srgb, var(--phue) 30%, transparent), transparent 70%),
+    linear-gradient(115deg, color-mix(in srgb, var(--phue) 16%, var(--surface)), color-mix(in srgb, var(--phue) 4%, var(--surface))) !important;
+  border-bottom: 1px solid var(--p-border);
+}
+.dh-pr-title-txt h1 { letter-spacing: -0.015em; }
+
+/* Record column headers get a coloured accent bar + tinted strip */
+.dh-pr-col { position: relative; }
+.dh-pr-col::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent-500), var(--violet));
+}
+.dh-pr-col:nth-child(2)::before { background: linear-gradient(90deg, var(--cyan), var(--accent-500)); }
+.dh-pr-col:nth-child(3)::before { background: linear-gradient(90deg, var(--violet), var(--pink)); }
+.dh-pr-colhead {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--phue) 10%, var(--surface)), transparent) !important;
+  color: var(--ink-2);
+}
+
+/* KPI tiles — colour-coded, poppy */
+.dh-pw-kpi { box-shadow: 0 4px 14px -8px color-mix(in srgb, var(--accent-500) 45%, transparent); transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.dh-pw-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent-500) 55%, transparent); }
+.dh-pw-kpi.tone-accent { background: linear-gradient(160deg, color-mix(in srgb, var(--accent-500) 8%, var(--surface)), color-mix(in srgb, var(--accent-500) 16%, var(--surface))) !important; border-color: color-mix(in srgb, var(--accent-500) 26%, var(--border)) !important; }
+.dh-pw-kpi.tone-green  { background: linear-gradient(160deg, color-mix(in srgb, var(--green) 8%, var(--surface)),  color-mix(in srgb, var(--green) 16%, var(--surface)))  !important; border-color: color-mix(in srgb, var(--green) 26%, var(--border))  !important; }
+.dh-pw-kpi.tone-amber  { background: linear-gradient(160deg, color-mix(in srgb, var(--amber) 9%, var(--surface)),  color-mix(in srgb, var(--amber) 18%, var(--surface)))  !important; border-color: color-mix(in srgb, var(--amber) 28%, var(--border))  !important; }
+.dh-pw-kpi.tone-red    { background: linear-gradient(160deg, color-mix(in srgb, var(--red) 9%, var(--surface)),    color-mix(in srgb, var(--red) 17%, var(--surface)))    !important; border-color: color-mix(in srgb, var(--red) 28%, var(--border))    !important; }
+.dh-pw-kpi-icon { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 20%, transparent); }
+
+/* Pipeline columns → stage-coloured identity */
+.dh-pp-col { background: linear-gradient(180deg, color-mix(in srgb, var(--sh) 10%, var(--surface)), color-mix(in srgb, var(--sh) 3%, var(--surface))) !important; border-color: color-mix(in srgb, var(--sh) 24%, var(--border)) !important; box-shadow: 0 6px 20px -12px color-mix(in srgb, var(--sh) 60%, transparent); }
+.dh-pp-col::before { content: ''; display: block; height: 3px; border-radius: var(--r-lg) var(--r-lg) 0 0; background: var(--sh); }
+.dh-pp-col.over { border-color: var(--sh) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sh) 35%, transparent); }
+.dh-pp-card { transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+.dh-pp-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--sh) 40%, var(--border-strong)); box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--sh) 55%, transparent); }
+
+/* ── Poppy buttons — gradient primary with glow + lift ── */
+.dh-pw .dh-btn.v-primary,
+.dh-pr .dh-btn.v-primary,
+.dh-cp .dh-btn.v-primary,
+.dh-broch-modal .dh-btn.v-primary,
+.dh-pw-viewtoggle button.on {
+  background: linear-gradient(135deg, var(--accent-500), var(--violet)) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--accent-500) 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t) var(--ease), filter var(--t-fast) var(--ease);
+}
+.dh-pw .dh-btn.v-primary:hover,
+.dh-pr .dh-btn.v-primary:hover,
+.dh-cp .dh-btn.v-primary:hover,
+.dh-broch-modal .dh-btn.v-primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05) saturate(1.1);
+  box-shadow: 0 12px 26px -6px color-mix(in srgb, var(--accent-500) 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+}
+.dh-pw .dh-btn.v-primary:active,
+.dh-pr .dh-btn.v-primary:active,
+.dh-cp .dh-btn.v-primary:active { transform: translateY(0) scale(0.98); }
+
+/* Ghost buttons: tinted, springy hover */
+.dh-pw .dh-btn.v-ghost,
+.dh-pr .dh-btn.v-ghost,
+.dh-cp .dh-btn.v-ghost {
+  border: 1px solid var(--p-border);
+  background: color-mix(in srgb, var(--phue) 4%, var(--surface));
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-pw .dh-btn.v-ghost:hover,
+.dh-pr .dh-btn.v-ghost:hover,
+.dh-cp .dh-btn.v-ghost:hover {
+  background: color-mix(in srgb, var(--phue) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--phue) 34%, var(--border));
+  transform: translateY(-1px);
+}
+
+/* View toggle + header wrapper pops */
+.dh-pw-viewtoggle { border-color: var(--p-border); background: color-mix(in srgb, var(--phue) 5%, var(--surface)); }
+.dh-pw-viewtoggle button.on { box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent-500) 55%, transparent) !important; }
+.dh-pw-head-icon { box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent-500) 65%, transparent); }
+
+/* Type tabs — bolder active */
+.dh-pw-type.on { background: linear-gradient(135deg, color-mix(in srgb, var(--accent-500) 14%, var(--surface)), color-mix(in srgb, var(--violet) 14%, var(--surface))); box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--accent-500) 50%, transparent); }
+
+/* Nova insight — richer gradient */
+.dh-pw-nova {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent-500) 12%, var(--surface)), color-mix(in srgb, var(--violet) 8%, var(--surface)), transparent) !important;
+  border-color: color-mix(in srgb, var(--accent-500) 24%, var(--border)) !important;
+}
+.dh-pw-nova-ico { box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--accent-500) 60%, transparent); }
+
+/* Wizard + brochure modals lift off a tinted card */
+.dh-cp, .dh-broch-modal {
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--accent-500) 5%, var(--surface))) !important;
+  border-color: color-mix(in srgb, var(--accent-500) 18%, var(--border)) !important;
+}
+.dh-cp-typerow.on { background: linear-gradient(120deg, color-mix(in srgb, var(--accent-500) 8%, var(--surface)), color-mix(in srgb, var(--violet) 8%, var(--surface))) !important; }
+
+/* Reduced-motion: keep transforms subtle */
+@media (prefers-reduced-motion: reduce) {
+  .dh-pw-kpi, .dh-pp-card, .dh-btn { transition: none !important; }
+}

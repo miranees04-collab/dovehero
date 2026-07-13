@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/primitives';
@@ -52,7 +52,7 @@ export function ProductRecord({ id }: { id: string }) {
   const activeLeft = shownLeft.some((t) => t.k === left) ? left : 'details';
 
   return (
-    <div className="dh-pr">
+    <div className="dh-pr" style={{ ['--phue']: p.image.hue } as CSSProperties}>
       {/* Header */}
       <div className="dh-pr-head">
         <button className="dh-btn v-ghost s-sm" onClick={() => openObject(null)}>
