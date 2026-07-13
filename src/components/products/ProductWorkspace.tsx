@@ -2,17 +2,14 @@ import { useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Badge, Button, Popover, MenuItem } from '@/components/ui/primitives';
-import { uid } from '@/lib/format';
 import type {
   Product,
-  ProductType,
   ProductStatus,
 } from '@/types';
 import {
-  PRODUCT_TYPES,
   PRODUCT_TYPE_ORDER,
   PRODUCT_STATUSES,
-  PRODUCT_CATEGORIES,
+  resolveType,
   BILLING_LABEL,
   price as fmtPrice,
   margin as calcMargin,
@@ -22,6 +19,7 @@ import {
 } from '@/data/products';
 import { TypeBadge } from './ProductSections';
 import { ProductPipeline } from './ProductPipeline';
+import { CreateProduct } from './CreateProduct';
 import { productDealLinks } from './assoc';
 import './products.css';
 
@@ -40,11 +38,13 @@ export function ProductWorkspace() {
   const removeObjectRecord = useStore((s) => s.removeObjectRecord);
   const duplicateObjectRecord = useStore((s) => s.duplicateObjectRecord);
   const openObject = useStore((s) => s.openObject);
+  const customTypes = useStore((s) => s.productTypes);
+  const categories = useStore((s) => s.productCategories);
   const toast = useStore((s) => s.toast);
 
   const [q, setQ] = useState('');
   const [pview, setPview] = useState<'table' | 'pipeline'>('table');
-  const [typeF, setTypeF] = useState<ProductType | 'all'>('all');
+  const [typeF, setTypeF] = useState<string>('all');
   const [statusF, setStatusF] = useState<ProductStatus | 'all'>('all');
   const [catF, setCatF] = useState<string>('all');
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: 'updated', dir: 1 });
@@ -88,11 +88,15 @@ export function ProductWorkspace() {
   const avgMargin = active.length ? Math.round(active.reduce((s, p) => s + calcMargin(p), 0) / active.length) : 0;
   const lowStock = products.filter((p) => ['low', 'out'].includes(stockState(p))).length;
 
+  const typeKeys = useMemo(
+    () => [...PRODUCT_TYPE_ORDER as string[], ...customTypes.map((t) => t.k)],
+    [customTypes],
+  );
   const typeCounts = useMemo(() => {
     const m: Record<string, number> = { all: products.length };
-    PRODUCT_TYPE_ORDER.forEach((t) => { m[t] = products.filter((p) => p.type === t).length; });
+    typeKeys.forEach((t) => { m[t] = products.filter((p) => p.type === t).length; });
     return m;
-  }, [products]);
+  }, [products, typeKeys]);
 
   const allShownSelected = filtered.length > 0 && filtered.every((p) => sel.includes(p.id));
   const toggleAll = () => setSel(allShownSelected ? [] : filtered.map((p) => p.id));
@@ -114,7 +118,7 @@ export function ProductWorkspace() {
     const rows = [
       ['Name', 'SKU', 'Type', 'Category', 'Status', 'Price', 'Currency', 'Cost', 'Margin %', 'On hand', 'Available'],
       ...filtered.map((p) => [
-        p.name, p.sku, PRODUCT_TYPES[p.type].label, p.category, p.status,
+        p.name, p.sku, resolveType(p.type, customTypes).label, p.category, p.status,
         p.price, p.currency, p.cost, calcMargin(p),
         p.tracked ? p.onHand : '', p.tracked ? p.onHand - p.committed : '',
       ]),
@@ -169,18 +173,21 @@ export function ProductWorkspace() {
       {/* Type tabs */}
       <div className="dh-pw-types">
         <TypeTab k="all" label="All" count={typeCounts.all} active={typeF === 'all'} onClick={() => setTypeF('all')} />
-        {PRODUCT_TYPE_ORDER.map((t) => (
-          <TypeTab
-            key={t}
-            k={t}
-            label={PRODUCT_TYPES[t].label}
-            count={typeCounts[t]}
-            hue={PRODUCT_TYPES[t].hue}
-            icon={PRODUCT_TYPES[t].icon}
-            active={typeF === t}
-            onClick={() => setTypeF(typeF === t ? 'all' : t)}
-          />
-        ))}
+        {typeKeys.map((t) => {
+          const meta = resolveType(t, customTypes);
+          return (
+            <TypeTab
+              key={t}
+              k={t}
+              label={meta.label}
+              count={typeCounts[t] ?? 0}
+              hue={meta.hue}
+              icon={meta.icon}
+              active={typeF === t}
+              onClick={() => setTypeF(typeF === t ? 'all' : t)}
+            />
+          );
+        })}
       </div>
 
       {/* Toolbar */}
@@ -196,7 +203,7 @@ export function ProductWorkspace() {
         </select>
         <select className="dh-pw-select" value={catF} onChange={(e) => setCatF(e.target.value)}>
           <option value="all">All categories</option>
-          {PRODUCT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <Popover
           align="end"
@@ -234,7 +241,7 @@ export function ProductWorkspace() {
           >
             {(close) => (
               <div className="dh-pw-sortmenu">
-                {PRODUCT_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <MenuItem key={c} onClick={() => { bulkSet({ category: c }, `moved to ${c}`); close(); }}>{c}</MenuItem>
                 ))}
               </div>
@@ -329,7 +336,7 @@ export function ProductWorkspace() {
       </div>
       )}
 
-      {creating && <NewProduct onCancel={() => setCreating(false)} onCreate={createProduct} />}
+      {creating && <CreateProduct onCancel={() => setCreating(false)} onCreate={createProduct} />}
     </div>
   );
 }
@@ -358,103 +365,3 @@ function TypeTab({ k, label, count, active, onClick, hue, icon }: { k: string; l
   );
 }
 
-/* ---------------- New product drawer ---------------- */
-function NewProduct({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p: Product) => void }) {
-  const [type, setType] = useState<ProductType>('subscription');
-  const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
-  const [priceV, setPriceV] = useState('');
-  const [cost, setCost] = useState('');
-  const [category, setCategory] = useState('Platform');
-
-  const submit = () => {
-    const meta = PRODUCT_TYPES[type];
-    const nm = name.trim() || 'Untitled product';
-    const tracked = type === 'physical';
-    const p: Product = {
-      id: 'PR-' + uid('n').slice(-4).toUpperCase(),
-      name: nm,
-      sku: (sku.trim() || nm.slice(0, 3).toUpperCase() + '-' + Math.floor(Math.random() * 900 + 100)).toUpperCase(),
-      type,
-      category,
-      status: 'draft',
-      description: '',
-      price: Number(priceV) || 0,
-      cost: Number(cost) || 0,
-      currency: 'USD',
-      billing: type === 'subscription' ? 'annual' : type === 'usage' ? 'monthly' : 'one_time',
-      taxRate: 0,
-      tracked,
-      onHand: tracked ? 0 : 0,
-      committed: 0,
-      reorderPoint: tracked ? 5 : 0,
-      warehouse: tracked ? 'Reno DC-1' : undefined,
-      stage: 'Backlog',
-      tags: [],
-      image: { emoji: type === 'service' ? '🧭' : type === 'physical' ? '📦' : type === 'bundle' ? '🎁' : type === 'digital' ? '☁️' : type === 'usage' ? '⚡' : '🚀', hue: meta.hue },
-      createdW: 'now', updatedW: 'now',
-      acts: [{ id: uid('pa'), type: 'note', who: 'You', w: 'now', text: `${nm} created as a draft.` }],
-    };
-    onCreate(p);
-  };
-
-  return (
-    <>
-      <div className="dh-pw-scrim" onClick={onCancel} />
-      <aside className="dh-pw-drawer new" role="dialog" aria-label="New product">
-        <div className="dh-pw-drawer-head">
-          <b>New product</b>
-          <button className="dh-pw-x" onClick={onCancel} aria-label="Close"><Icon name="x" size={16} /></button>
-        </div>
-        <div className="dh-pw-drawer-body">
-          <label className="dh-pw-flabel">Product type</label>
-          <div className="dh-pw-typegrid">
-            {PRODUCT_TYPE_ORDER.map((t) => (
-              <button key={t} className={`dh-pw-typecard ${type === t ? 'on' : ''}`} onClick={() => setType(t)} style={type === t ? { borderColor: PRODUCT_TYPES[t].hue } : undefined}>
-                <span className="dh-pw-typecard-ico" style={{ color: PRODUCT_TYPES[t].hue }}><Icon name={PRODUCT_TYPES[t].icon} size={16} /></span>
-                <b>{PRODUCT_TYPES[t].label}</b>
-                <small>{PRODUCT_TYPES[t].blurb}</small>
-              </button>
-            ))}
-          </div>
-
-          <label className="dh-pw-flabel">Name</label>
-          <input className="dh-pw-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aurora Platform — Growth" autoFocus />
-
-          <div className="dh-pw-frow">
-            <div>
-              <label className="dh-pw-flabel">SKU</label>
-              <input className="dh-pw-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Auto" />
-            </div>
-            <div>
-              <label className="dh-pw-flabel">Category</label>
-              <select className="dh-pw-input" value={category} onChange={(e) => setCategory(e.target.value)}>
-                {PRODUCT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="dh-pw-frow">
-            <div>
-              <label className="dh-pw-flabel">List price ($)</label>
-              <input className="dh-pw-input" type="number" value={priceV} onChange={(e) => setPriceV(e.target.value)} placeholder="0" />
-            </div>
-            <div>
-              <label className="dh-pw-flabel">Unit cost ($)</label>
-              <input className="dh-pw-input" type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" />
-            </div>
-          </div>
-          {Number(priceV) > 0 && (
-            <p className="dh-pw-hint-inline">
-              Margin: <b>{calcMargin({ price: Number(priceV) || 0, cost: Number(cost) || 0 })}%</b> · Created as a <b>draft</b> you can refine.
-            </p>
-          )}
-        </div>
-        <div className="dh-pw-drawer-foot">
-          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button variant="primary" onClick={submit}><Icon name="plus" size={15} /> Create product</Button>
-        </div>
-      </aside>
-    </>
-  );
-}

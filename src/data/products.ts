@@ -3,10 +3,13 @@ import type {
   ProductType,
   ProductStatus,
   ProductStage,
+  CustomProductType,
   BillingPeriod,
   CurrencyCode,
   Activity,
 } from '@/types';
+
+export type TypeMeta = { label: string; icon: string; hue: string; blurb: string };
 
 /** Per-type presentation + capability metadata (icon, colour, label, blurb). */
 export const PRODUCT_TYPES: Record<
@@ -24,6 +27,18 @@ export const PRODUCT_TYPES: Record<
 export const PRODUCT_TYPE_ORDER: ProductType[] = [
   'subscription', 'usage', 'service', 'physical', 'digital', 'bundle',
 ];
+
+/** Resolve presentation metadata for any product type key — built-in or custom. */
+export function resolveType(k: string, custom: CustomProductType[] = []): TypeMeta {
+  if ((PRODUCT_TYPES as Record<string, TypeMeta>)[k]) return (PRODUCT_TYPES as Record<string, TypeMeta>)[k];
+  const c = custom.find((t) => t.k === k);
+  if (c) return { label: c.label, icon: c.icon, hue: c.hue, blurb: c.blurb ?? 'Custom product type' };
+  return { label: k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Product', icon: 'box', hue: '#64748B', blurb: 'Custom product type' };
+}
+
+/** Icon + colour palettes offered when defining a custom product type. */
+export const TYPE_ICON_CHOICES = ['box', 'cloud', 'wrench', 'gauge', 'repeat', 'boxes', 'zap', 'star', 'tag', 'briefcase', 'dollar', 'layers'];
+export const TYPE_HUE_CHOICES = ['#6366F1', '#06B6D4', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#EF4444', '#3B82F6', '#14B8A6', '#F97316'];
 
 export const PRODUCT_STATUSES: Record<ProductStatus, { label: string; tone: 'green' | 'amber' | 'neutral' }> = {
   active: { label: 'Active', tone: 'green' },
@@ -114,7 +129,7 @@ function seedActs(p: SeedRow): Activity[] {
     { id: aid(), type: 'note', who: owner, w: p.updatedW, text: `Updated ${p.name} — refreshed positioning and pricing.` },
     { id: aid(), type: 'file', who: 'Nova', w: '1w', text: `Generated brochure for ${p.name}.`, chan: `${p.sku}-brochure.pdf` },
     { id: aid(), type: 'note', who: owner, w: '2w', text: `List price set to ${price(p.price, p.currency)}.` },
-    { id: aid(), type: 'note', who: owner, w: p.createdW, text: `${p.name} created as a ${PRODUCT_TYPES[p.type].label.toLowerCase()} product.` },
+    { id: aid(), type: 'note', who: owner, w: p.createdW, text: `${p.name} created as a ${resolveType(p.type).label.toLowerCase()} product.` },
   ];
   return acts;
 }

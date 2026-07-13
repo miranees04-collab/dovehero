@@ -176,7 +176,8 @@ export type ObjectRecord = Record<string, unknown> & { id: string };
 
 // ---- Product Object (first-class catalog model) ----
 
-/** The kind of thing being sold — drives which capabilities a product exposes. */
+/** The built-in kinds of thing being sold — each drives specific capabilities.
+ *  `Product.type` is a string so teams can also define their own custom types. */
 export type ProductType =
   | 'subscription' // recurring SaaS / licences
   | 'usage'        // metered, tiered/volume pricing
@@ -184,6 +185,15 @@ export type ProductType =
   | 'physical'     // inventory-tracked goods
   | 'digital'      // downloads / vouchers / licences (no stock)
   | 'bundle';      // a kit composed of other products
+
+/** A user-defined product type (label + icon + colour). */
+export interface CustomProductType {
+  k: string;
+  label: string;
+  icon: string;
+  hue: string;
+  blurb?: string;
+}
 
 export type ProductStatus = 'active' | 'draft' | 'archived';
 
@@ -228,7 +238,7 @@ export interface Product {
   id: string;
   name: string;
   sku: string;
-  type: ProductType;
+  type: string; // built-in ProductType or a custom type key
   category: string;
   status: ProductStatus;
   description?: string;

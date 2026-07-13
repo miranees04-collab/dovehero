@@ -4,11 +4,12 @@ import { Button, Badge } from '@/components/ui/primitives';
 import { useStore } from '@/store/useStore';
 import { uid } from '@/lib/format';
 import type { Product } from '@/types';
-import { PRODUCT_TYPES, BILLING_LABEL, price as fmtPrice } from '@/data/products';
+import { resolveType, BILLING_LABEL, price as fmtPrice, type TypeMeta } from '@/data/products';
 
 /** A customer-facing one-page brochure for a product, with email send + export. */
 export function Brochure({ product: p, onClose }: { product: Product; onClose: () => void }) {
   const addProductActivity = useStore((s) => s.addProductActivity);
+  const customTypes = useStore((s) => s.productTypes);
   const toast = useStore((s) => s.toast);
   const [mode, setMode] = useState<'preview' | 'email'>('preview');
   const [to, setTo] = useState('');
@@ -16,7 +17,7 @@ export function Brochure({ product: p, onClose }: { product: Product; onClose: (
   const [message, setMessage] = useState(`Hi,\n\nSharing the brochure for ${p.name}. Happy to set up a walkthrough whenever suits.\n\nBest,\nAmara`);
 
   const fileName = `${p.sku}-brochure.pdf`;
-  const meta = PRODUCT_TYPES[p.type];
+  const meta = resolveType(p.type, customTypes);
   const highlights = (p.tags ?? []).slice(0, 6);
 
   const send = () => {
@@ -32,7 +33,7 @@ export function Brochure({ product: p, onClose }: { product: Product; onClose: (
   };
 
   const download = () => {
-    const html = brochureHtml(p);
+    const html = brochureHtml(p, meta);
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const a = document.createElement('a');
     a.href = url; a.download = `${p.sku}-brochure.html`; a.click();
@@ -141,8 +142,7 @@ export function Brochure({ product: p, onClose }: { product: Product; onClose: (
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Standalone HTML brochure for download. */
-function brochureHtml(p: Product): string {
-  const meta = PRODUCT_TYPES[p.type];
+function brochureHtml(p: Product, meta: TypeMeta): string {
   const feats = (p.tags ?? []).map((t) => `<li>${cap(t)}</li>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${p.name} — Brochure</title>
 <style>body{font-family:Inter,system-ui,sans-serif;margin:0;color:#1a1d29}

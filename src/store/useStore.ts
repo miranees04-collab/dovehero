@@ -17,6 +17,7 @@ import type {
   ObjectRecord,
   Product,
   ProductStage,
+  CustomProductType,
   Priority,
   Density,
   GroupBy,
@@ -28,7 +29,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { seedProducts } from '@/data/products';
+import { seedProducts, PRODUCT_CATEGORIES } from '@/data/products';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
@@ -150,6 +151,8 @@ export interface AppState {
   deals: Deal[];
   objects: ObjectDef[];
   objectRecords: Record<string, ObjectRecord[]>;
+  productTypes: CustomProductType[];
+  productCategories: string[];
   pipelines: Pipeline[];
   automations: Automation[];
 
@@ -369,6 +372,8 @@ export interface AppState {
   duplicateObjectRecord: (objKey: string, id: string) => void;
   moveProductStage: (id: string, stage: ProductStage) => void;
   addProductActivity: (id: string, act: Activity) => void;
+  addProductType: (t: CustomProductType) => void;
+  addProductCategory: (c: string) => string;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
@@ -423,6 +428,8 @@ export const useStore = create<AppState>()(
   deals: seeded,
   objects: OBJECT_DEFS,
   objectRecords: seedObjectRecords(seeded),
+  productTypes: [],
+  productCategories: [...PRODUCT_CATEGORIES],
   pipelines: PIPELINES.map((p) => ({ ...p })),
   automations: DEFAULT_AUTOMATIONS.map((a) => ({ ...a })),
 
@@ -1398,6 +1405,14 @@ export const useStore = create<AppState>()(
       const next = list.map((r) => (r.id === id ? { ...r, updatedW: 'now', acts: [act, ...(r.acts ?? [])] } : r));
       return { objectRecords: { ...s.objectRecords, product: next as unknown as ObjectRecord[] } };
     }),
+  addProductType: (t) =>
+    set((s) => (s.productTypes.some((x) => x.k === t.k) ? {} : { productTypes: [...s.productTypes, t] })),
+  addProductCategory: (c) => {
+    const name = c.trim();
+    if (!name) return name;
+    set((s) => (s.productCategories.some((x) => x.toLowerCase() === name.toLowerCase()) ? {} : { productCategories: [...s.productCategories, name] }));
+    return name;
+  },
 
   toast: (text, tone = 'default', undoable = false) => {
     const id = uid('t');
@@ -1412,6 +1427,8 @@ export const useStore = create<AppState>()(
       deals: fresh,
       objects: OBJECT_DEFS,
       objectRecords: seedObjectRecords(fresh),
+      productTypes: [],
+      productCategories: [...PRODUCT_CATEGORIES],
       openDealId: null,
       openObjectId: null,
       nav: 'deals',
@@ -1426,7 +1443,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1456,6 +1473,13 @@ export const useStore = create<AppState>()(
             product: seedProducts() as unknown as ObjectRecord[],
           };
         }
+        if (s && version < 7) {
+          // Custom product types + editable category list.
+          s.productTypes = s.productTypes ?? [];
+          s.productCategories = s.productCategories ?? [...PRODUCT_CATEGORIES];
+          // Older seed products predate lifecycle/record surfaces — reseed once more.
+          s.objectRecords = { ...(s.objectRecords ?? {}), product: seedProducts() as unknown as ObjectRecord[] };
+        }
         return s as AppState;
       },
       // Persist data + a couple of preferences; skip transient UI state.
@@ -1463,6 +1487,8 @@ export const useStore = create<AppState>()(
         deals: s.deals,
         objects: s.objects,
         objectRecords: s.objectRecords,
+        productTypes: s.productTypes,
+        productCategories: s.productCategories,
         role: s.role,
         tableCols: s.tableCols,
         density: s.density,

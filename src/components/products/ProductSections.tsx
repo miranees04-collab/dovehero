@@ -7,7 +7,6 @@ import { useStore } from '@/store/useStore';
 import { OWNERS, hueOf } from '@/data/constants';
 import type {
   Product,
-  ProductType,
   ProductStatus,
   ProductVariant,
   BundleItem,
@@ -17,9 +16,8 @@ import type {
   CurrencyCode,
 } from '@/types';
 import {
-  PRODUCT_TYPES,
   PRODUCT_STATUSES,
-  PRODUCT_CATEGORIES,
+  resolveType,
   BILLING_LABEL,
   CURRENCIES,
   price as fmtPrice,
@@ -31,8 +29,9 @@ import {
 import type { ProductLink } from './assoc';
 
 /* ---------------- shared badges ---------------- */
-export function TypeBadge({ type }: { type: ProductType }) {
-  const t = PRODUCT_TYPES[type];
+export function TypeBadge({ type }: { type: string }) {
+  const custom = useStore((s) => s.productTypes);
+  const t = resolveType(type, custom);
   return (
     <span className="dh-pw-typebadge" style={{ background: t.hue + '18', color: t.hue }}>
       <Icon name={t.icon} size={12} /> {t.label}
@@ -65,6 +64,7 @@ export function StatTiles({ p, link }: { p: Product; link?: ProductLink }) {
 
 /* ---------------- Properties (record left column) ---------------- */
 export function Properties({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
+  const categories = useStore((s) => s.productCategories);
   return (
     <div className="dh-pw-sect">
       <Field label="Description">
@@ -79,7 +79,7 @@ export function Properties({ p, onChange }: { p: Product; onChange: (patch: Part
         <Row label="Type"><TypeBadge type={p.type} /></Row>
         <Row label="Category">
           <InlineEdit value={p.category} display={<span>{p.category}</span>}
-            options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }))} onCommit={(v) => onChange({ category: v })} />
+            options={categories.map((c) => ({ value: c, label: c }))} onCommit={(v) => onChange({ category: v })} />
         </Row>
         <Row label="Status"><StatusPicker status={p.status} onChange={(status) => onChange({ status })} /></Row>
         <Row label="Vendor">
