@@ -16,6 +16,7 @@ const COMMERCE = [
   { key: 'invoices', label: 'Invoices', icon: 'receipt' },
   { key: 'payments', label: 'Payments', icon: 'dollar' },
   { key: 'subscriptions', label: 'Subscriptions', icon: 'repeat' },
+  { key: 'connectors', label: 'Connectors', icon: 'zap' },
 ];
 
 /** Object keys shown under Commerce, so we don't repeat them under Records. */

@@ -11,6 +11,7 @@ import { ObjectView } from './components/objects/ObjectView';
 import { ProductWorkspace } from './components/products/ProductWorkspace';
 import { ProductRecord } from './components/products/ProductRecord';
 import { CommerceWorkspace, type CommerceSection } from './components/commerce/CommerceWorkspace';
+import { ConnectorsWorkspace } from './components/commerce/Connectors';
 
 const COMMERCE_NAV: Record<string, CommerceSection> = {
   commerce: 'overview', quotes: 'quote', orders: 'order', invoices: 'invoice', payments: 'payment', subscriptions: 'subscription',
@@ -71,7 +72,9 @@ export default function App() {
   }, [setPalette, setNova, undo, redo, setFocusMode]);
 
   let content;
-  if (COMMERCE_NAV[nav]) {
+  if (nav === 'connectors') {
+    content = <ConnectorsWorkspace />;
+  } else if (COMMERCE_NAV[nav]) {
     content = <CommerceWorkspace key={nav} section={COMMERCE_NAV[nav]} />;
   } else if (nav === 'product') {
     content = openObjectId ? <ProductRecord id={openObjectId} /> : <ProductWorkspace />;

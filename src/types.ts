@@ -277,6 +277,21 @@ export interface Subscription {
   cycleRemaining?: number; // fraction (0–1) of the current period left — used for proration
 }
 
+export type ConnectorCategory = 'Payments' | 'Accounting' | 'E-commerce' | 'Ops';
+
+export interface Connector {
+  k: string;
+  name: string;
+  category: ConnectorCategory;
+  emoji: string;
+  hue: string;
+  blurb: string;
+  syncs: string; // what it keeps in sync, e.g. "Payments"
+  connected: boolean;
+  lastSyncW?: string;
+  syncedCount?: number;
+}
+
 export interface SalesDoc {
   id: string;
   kind: SalesDocKind;

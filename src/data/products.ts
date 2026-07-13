@@ -14,6 +14,8 @@ import type {
   Subscription,
   SubInterval,
   SubStatus,
+  Connector,
+  ConnectorCategory,
 } from '@/types';
 
 export type TypeMeta = { label: string; icon: string; hue: string; blurb: string };
@@ -240,6 +242,33 @@ export function seedPayments(): Payment[] {
     { id: 'pay-1', number: 'PAY-5001', invoiceId: 'sd-i2', invoiceNumber: 'INV-4002', party: 'Prestige Worldwide', amount: 114000, currency: 'USD', method: 'Wire', status: 'Succeeded', w: '1w' },
     { id: 'pay-2', number: 'PAY-5002', invoiceId: 'sd-i3', invoiceNumber: 'INV-4003', party: 'Northwind Robotics', amount: 30000, currency: 'USD', method: 'Card', status: 'Succeeded', w: '2w' },
     { id: 'pay-3', number: 'PAY-5003', party: 'Helios Retail Group', amount: 4200, currency: 'USD', method: 'ACH', status: 'Pending', w: '2d' },
+  ];
+}
+
+// ---- Connectors / integrations ----
+export const CONNECTOR_CATEGORIES: ConnectorCategory[] = ['Payments', 'Accounting', 'E-commerce', 'Ops'];
+
+export function seedConnectors(): Connector[] {
+  return [
+    { k: 'stripe', name: 'Stripe', category: 'Payments', emoji: '💳', hue: '#635BFF', blurb: 'Card & ACH processing that powers checkout and the Payments object.', syncs: 'Payments', connected: true, lastSyncW: '2h', syncedCount: 3 },
+    { k: 'paypal', name: 'PayPal', category: 'Payments', emoji: '🅿️', hue: '#003087', blurb: 'Accept PayPal & Venmo on invoices and payment links.', syncs: 'Payments', connected: false },
+    { k: 'quickbooks', name: 'QuickBooks', category: 'Accounting', emoji: '📗', hue: '#2CA01C', blurb: 'Push invoices & payments to your ledger; sync paid status back.', syncs: 'Invoices', connected: true, lastSyncW: '1d', syncedCount: 4 },
+    { k: 'xero', name: 'Xero', category: 'Accounting', emoji: '🔵', hue: '#13B5EA', blurb: 'Two-way sync of invoices and payments with Xero.', syncs: 'Invoices', connected: false },
+    { k: 'shopify', name: 'Shopify', category: 'E-commerce', emoji: '🛍️', hue: '#95BF47', blurb: 'Sync products and import orders from your Shopify storefront.', syncs: 'Products · Orders', connected: false },
+    { k: 'woocommerce', name: 'WooCommerce', category: 'E-commerce', emoji: '🟣', hue: '#7F54B3', blurb: 'Import WooCommerce products and orders into the catalog.', syncs: 'Products · Orders', connected: false },
+    { k: 'salesforce', name: 'Salesforce', category: 'Ops', emoji: '☁️', hue: '#00A1E0', blurb: 'Keep products and accounts in sync with Salesforce CRM.', syncs: 'Products · Accounts', connected: false },
+    { k: 'slack', name: 'Slack', category: 'Ops', emoji: '💬', hue: '#4A154B', blurb: 'Notify a channel when quotes are accepted or invoices go overdue.', syncs: 'Notifications', connected: true, lastSyncW: '5m', syncedCount: 12 },
+    { k: 'gmail', name: 'Gmail', category: 'Ops', emoji: '✉️', hue: '#EA4335', blurb: 'Send quotes, invoices and reminders from your inbox.', syncs: 'Email', connected: false },
+  ];
+}
+
+/** Extra demo products a Shopify/Woo sync would pull in. */
+export function connectorDemoProducts(): { name: string; sku: string; price: number; cost: number; category: string }[] {
+  return [
+    { name: 'Aurora Tee', sku: 'SHOP-TEE', price: 29, cost: 8, category: 'Hardware' },
+    { name: 'Aurora Mug', sku: 'SHOP-MUG', price: 15, cost: 4, category: 'Hardware' },
+    { name: 'Sticker Sheet', sku: 'SHOP-STK', price: 6, cost: 1, category: 'Hardware' },
+    { name: 'Hoodie — Aurora', sku: 'SHOP-HOOD', price: 55, cost: 18, category: 'Hardware' },
   ];
 }
 

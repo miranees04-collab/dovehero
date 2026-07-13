@@ -137,3 +137,29 @@
 .dh-import-sample:hover { text-decoration: underline; }
 .dh-import-preview-head { font-size: 12.5px; color: var(--sub); margin: 4px 0; }
 .dh-import-preview-head b { color: var(--ink); }
+
+/* ============================================================
+   Connectors / integrations
+   ============================================================ */
+.dh-conn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 18px 22px; }
+.dh-conn-card {
+  border: 1px solid var(--p-border, var(--border));
+  border-radius: var(--r-lg);
+  background: linear-gradient(162deg, var(--p-card-a, var(--surface)), var(--p-card-b, var(--surface-2)));
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden;
+  transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.dh-conn-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--chue); opacity: 0.35; }
+.dh-conn-card.on::before { opacity: 1; }
+.dh-conn-card:hover { box-shadow: 0 10px 26px -14px color-mix(in srgb, var(--chue) 60%, transparent); transform: translateY(-2px); }
+.dh-conn-top { display: flex; align-items: center; gap: 11px; }
+.dh-conn-logo { width: 42px; height: 42px; border-radius: var(--r-md); display: grid; place-items: center; font-size: 22px; flex: none; }
+.dh-conn-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dh-conn-name b { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+.dh-conn-cat { font-size: 11.5px; color: var(--sub); }
+.dh-conn-blurb { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; min-height: 38px; }
+.dh-conn-syncs { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--sub); background: var(--surface-active); padding: 3px 9px; border-radius: var(--r-pill); align-self: flex-start; }
+.dh-conn-last { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--green); }
+.dh-conn-actions { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.dh-conn-disc { border: none; background: none; color: var(--sub); font-size: 12.5px; font-weight: 550; cursor: pointer; font-family: inherit; }
+.dh-conn-disc:hover { color: var(--red); text-decoration: underline; }

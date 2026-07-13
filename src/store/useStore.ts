@@ -24,6 +24,7 @@ import type {
   Payment,
   PaymentMethod,
   Subscription,
+  Connector,
   Priority,
   Density,
   GroupBy,
@@ -35,7 +36,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { seedProducts, seedSalesDocs, seedPayments, seedSubscriptions, DOC_META, SUB_INTERVALS, PRODUCT_CATEGORIES } from '@/data/products';
+import { seedProducts, seedSalesDocs, seedPayments, seedSubscriptions, seedConnectors, connectorDemoProducts, DOC_META, SUB_INTERVALS, PRODUCT_CATEGORIES } from '@/data/products';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
@@ -162,6 +163,7 @@ export interface AppState {
   salesDocs: SalesDoc[];
   payments: Payment[];
   subscriptions: Subscription[];
+  connectors: Connector[];
   pipelines: Pipeline[];
   automations: Automation[];
 
@@ -397,6 +399,8 @@ export interface AppState {
   updateSubscription: (id: string, patch: Partial<Subscription>) => void;
   removeSubscription: (id: string) => void;
   generateInvoiceFromSub: (id: string) => string | null;
+  toggleConnector: (k: string) => void;
+  syncConnector: (k: string) => void;
   receivePO: (id: string) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
@@ -457,6 +461,7 @@ export const useStore = create<AppState>()(
   salesDocs: seedSalesDocs(),
   payments: seedPayments(),
   subscriptions: seedSubscriptions(),
+  connectors: seedConnectors(),
   pipelines: PIPELINES.map((p) => ({ ...p })),
   automations: DEFAULT_AUTOMATIONS.map((a) => ({ ...a })),
 
@@ -1563,6 +1568,54 @@ export const useStore = create<AppState>()(
     get().toast(`Invoice ${inv?.number ?? ''} generated for ${sub.number}`, 'success');
     return invId;
   },
+  toggleConnector: (k) =>
+    set((s) => ({
+      connectors: s.connectors.map((c) => (c.k === k ? { ...c, connected: !c.connected, lastSyncW: !c.connected ? c.lastSyncW : c.lastSyncW } : c)),
+    })),
+  syncConnector: (k) => {
+    const c = get().connectors.find((x) => x.k === k);
+    if (!c || !c.connected) return;
+    let count = 0;
+    let msg = `${c.name} synced`;
+    if (k === 'shopify' || k === 'woocommerce') {
+      const existing = (get().objectRecords.product || []) as unknown as Product[];
+      let added = 0;
+      connectorDemoProducts().forEach((d) => {
+        if (existing.some((p) => p.sku === d.sku)) return;
+        const p: Product = {
+          id: 'PR-' + uid('n').slice(-4).toUpperCase(), name: d.name, sku: d.sku, type: 'physical', category: d.category,
+          status: 'active', description: `Imported from ${c.name}.`, price: d.price, cost: d.cost, currency: 'USD', billing: 'one_time', taxRate: 0,
+          tracked: true, onHand: 50, committed: 0, reorderPoint: 10, warehouse: 'Shopify · Ohio',
+          stage: 'Live', tags: [k], image: { emoji: '🛍️', hue: c.hue }, createdW: 'now', updatedW: 'now',
+          acts: [{ id: uid('pa'), type: 'note', who: c.name, w: 'now', text: `Synced from ${c.name}.` }],
+        };
+        get().addObjectRecord('product', p as unknown as ObjectRecord);
+        added++;
+      });
+      // pull a couple of storefront orders
+      const store = get().objectRecords.product as unknown as Product[];
+      const src = store.find((p) => p.sku === 'SHOP-HOOD') || store[0];
+      if (added > 0 && src) {
+        get().createSalesDoc('order', { party: `${c.name} storefront`, status: 'Fulfilled', lines: [{ productId: src.id, name: src.name, qty: 3, unit: src.price }] });
+      }
+      count = added;
+      msg = added ? `Imported ${added} products & 1 order from ${c.name}` : `${c.name} already up to date`;
+    } else if (c.category === 'Payments') {
+      count = get().payments.length;
+      msg = `Synced ${count} payments from ${c.name}`;
+    } else if (c.category === 'Accounting') {
+      count = get().salesDocs.filter((d) => d.kind === 'invoice').length;
+      msg = `Pushed ${count} invoices to ${c.name}`;
+    } else if (k === 'salesforce') {
+      count = (get().objectRecords.product || []).length;
+      msg = `Synced ${count} products & accounts with ${c.name}`;
+    } else {
+      count = (c.syncedCount || 0) + 1;
+      msg = `Test message sent via ${c.name}`;
+    }
+    set((s) => ({ connectors: s.connectors.map((x) => (x.k === k ? { ...x, lastSyncW: 'now', syncedCount: count } : x)) }));
+    get().toast(msg, 'success');
+  },
   receivePO: (id) => {
     const po = get().salesDocs.find((d) => d.id === id);
     if (!po || po.kind !== 'po') return;
@@ -1603,6 +1656,7 @@ export const useStore = create<AppState>()(
       salesDocs: seedSalesDocs(),
       payments: seedPayments(),
       subscriptions: seedSubscriptions(),
+      connectors: seedConnectors(),
       openDealId: null,
       openObjectId: null,
       nav: 'deals',
@@ -1617,7 +1671,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 9,
+      version: 10,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1661,6 +1715,9 @@ export const useStore = create<AppState>()(
           s.payments = s.payments ?? seedPayments();
           s.subscriptions = s.subscriptions ?? seedSubscriptions();
         }
+        if (s && version < 10) {
+          s.connectors = s.connectors ?? seedConnectors();
+        }
         return s as AppState;
       },
       // Persist data + a couple of preferences; skip transient UI state.
@@ -1673,6 +1730,7 @@ export const useStore = create<AppState>()(
         salesDocs: s.salesDocs,
         payments: s.payments,
         subscriptions: s.subscriptions,
+        connectors: s.connectors,
         role: s.role,
         tableCols: s.tableCols,
         density: s.density,
