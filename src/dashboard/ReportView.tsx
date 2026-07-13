@@ -278,6 +278,7 @@ export function ReportView({
   const multi = config.breakdown && res.seriesKeys[0] !== 'value';
   const chartData = res.points.map((p) => ({ label: p.label, key: p.key, _anom: p.anomaly ? p.value : null, ...(multi ? p.series : { value: p.value }) }));
   const keys = multi ? res.seriesKeys : ['value'];
+  const showValues = config.showValues !== false && !multi;
   const anomCount = !multi ? res.points.filter((p) => p.anomaly).length : 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anomDot: any = config.anomalies && !multi ? AnomalyDot : false;
@@ -303,7 +304,7 @@ export function ReportView({
             <Tooltip cursor={{ fill: 'var(--wash)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
               <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={18} radius={multi ? 0 : [0, 4, 4, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={cursor}>
-                {!multi && <LabelList dataKey="value" position="right" formatter={(v) => fmt(Number(v))} style={{ fill: 'var(--ink-2)', fontSize: 11 }} />}
+                {showValues && <LabelList dataKey="value" position="right" formatter={(v) => fmt(Number(v))} style={{ fill: 'var(--ink-2)', fontSize: 11 }} />}
               </Bar>
             ))}
           </BarChart>
@@ -314,7 +315,9 @@ export function ReportView({
             <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmt} width={44} />
             <Tooltip cursor={{ fill: 'var(--wash)' }} content={<ChartTip fmt={fmtFull} />} />
             {keys.map((k, i) => (
-              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={34} radius={multi ? 0 : [4, 4, 0, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={cursor} />
+              <Bar key={k} dataKey={k} name={multi ? k : measureLabel(config)} stackId={multi ? 's' : undefined} fill={seriesColor(i)} maxBarSize={34} radius={multi ? 0 : [4, 4, 0, 0]} onClick={(_, idx) => clickPoint(idx)} cursor={cursor}>
+                {showValues && <LabelList dataKey="value" position="top" formatter={(v) => fmt(Number(v))} style={{ fill: 'var(--ink-2)', fontSize: 11 }} />}
+              </Bar>
             ))}
           </BarChart>
         ) : config.viz === 'line' ? (
@@ -353,11 +356,13 @@ function KpiView({
   fmt: (v: number) => string;
 }) {
   const rule = evalRules(res.value, config.rules);
+  const cmpMode = config.compareMode ?? (config.compare ? 'prevPeriod' : 'none');
+  const cmpSuffix = cmpMode === 'prevYear' ? 'vs last year' : cmpMode === 'custom' ? 'vs baseline' : 'vs prev period';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <StatTile label={measureLabel(config)} value={<CountUp value={res.value} format={fmt} />}>
-        {config.compare && res.prevValue !== null ? (
-          <Delta cur={res.value} prev={res.prevValue} hasPrev suffix="vs prev period" />
+        {res.prevValue !== null ? (
+          <Delta cur={res.value} prev={res.prevValue} hasPrev suffix={cmpSuffix} />
         ) : (
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{res.rowCount.toLocaleString()} records</span>
         )}

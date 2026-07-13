@@ -11,12 +11,14 @@ import {
   BarChart3, BarChartHorizontal, LineChart, AreaChart, PieChart, CircleDashed,
   Gauge, Hash, Table2, Filter, Plus, Trash2, X, Check, ChevronLeft, Sparkles,
   TrendingUp, Users, DollarSign, Trophy, Timer, Target, ArrowRight, Grid2x2, Grid3x3,
+  Copy, Tags, Layers, SlidersHorizontal, CalendarRange,
 } from 'lucide-react';
 import { ReportView } from './ReportView';
 import {
   OBJECTS, OPERATORS_BY_TYPE, AGG_LABELS, measureUnit, uid,
   type ReportConfig, type EngineCtx, type ObjectKey, type ObjectDef, type Viz, type Aggregation,
   type FilterRule, type FilterGroup, type ThresholdRule, type Operator, type DateGrain,
+  type CompareMode,
 } from './reportEngine';
 import { measureLabel } from './ReportView';
 
@@ -65,71 +67,79 @@ export function blankConfig(): ReportConfig {
   };
 }
 
-// Clone-to-start templates (Pipedrive-style report-type gallery).
-interface Template { key: string; name: string; desc: string; icon: ReactNode; make: () => ReportConfig; }
+// Clone-to-start templates, organised the way HubSpot/Salesforce group their
+// report libraries. Each report here is deliberately distinct in DATA — no two
+// share the same query + measure (that is what "remove duplicate reports"
+// means); differing visualization alone is not a separate template.
+type TemplateCat = 'Sales performance' | 'Pipeline health' | 'Efficiency & advanced';
+interface Template { key: string; name: string; desc: string; cat: TemplateCat; icon: ReactNode; make: () => ReportConfig; }
+
+const wonFilter = () => ({ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in' as Operator, value: ['won'] }] });
+const openFilter = () => ({ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in' as Operator, value: ['open'] }] });
 
 const TEMPLATES: Template[] = [
+  // ---- Sales performance ----
   {
-    key: 'rev-month', name: 'Revenue by month', desc: 'Closed-won amount trended by close month', icon: <TrendingUp size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Revenue by month', viz: 'area', span: 8, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'closedAt', grain: 'month' }, dateField: 'closedAt', filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }], sort: 'label-asc' }),
+    key: 'revenue-kpi', name: 'Closed-won revenue', desc: 'Total won revenue this period vs the last', cat: 'Sales performance', icon: <DollarSign size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Closed-won revenue', viz: 'kpi', span: 3, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', filterGroups: [wonFilter()], compareMode: 'prevPeriod' }),
   },
   {
-    key: 'deals-stage', name: 'Deals by stage', desc: 'Count of deals in each pipeline stage', icon: <BarChart3 size={16} />,
+    key: 'rev-month', name: 'Revenue by month', desc: 'Won revenue trended by close month with a moving average', cat: 'Sales performance', icon: <TrendingUp size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Revenue by month', viz: 'combo', span: 8, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'closedAt', grain: 'month' }, dateField: 'closedAt', filterGroups: [wonFilter()], sort: 'label-asc' }),
+  },
+  {
+    key: 'pace', name: 'Revenue pace to goal', desc: 'Actual vs target with a projected landing', cat: 'Sales performance', icon: <Target size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Revenue pace to goal', viz: 'pace', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [wonFilter()] }),
+  },
+  {
+    key: 'leaderboard', name: 'Rep leaderboard', desc: 'Reps ranked by closed-won value', cat: 'Sales performance', icon: <Trophy size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Rep leaderboard', viz: 'leaderboard', span: 7, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'owner' }, dateField: 'closedAt', filterGroups: [wonFilter()], sort: 'value-desc' }),
+  },
+  {
+    key: 'winrate-rep', name: 'Win rate by rep', desc: 'Won ÷ closed deals for each owner', cat: 'Sales performance', icon: <Users size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Win rate by rep', viz: 'bar', span: 6, measure: { agg: 'winRate' }, dimension: { field: 'owner' }, dateField: 'closedAt', sort: 'value-desc' }),
+  },
+  // ---- Pipeline health ----
+  {
+    key: 'deals-stage', name: 'Deals by stage', desc: 'Count of deals in each pipeline stage', cat: 'Pipeline health', icon: <BarChart3 size={16} />,
     make: () => ({ ...blankConfig(), title: 'Deals by stage', viz: 'bar', span: 6, measure: { agg: 'count' }, dimension: { field: 'stage' }, sort: 'natural' }),
   },
   {
-    key: 'pipeline-value', name: 'Open pipeline by stage', desc: 'Sum of open deal value per stage', icon: <DollarSign size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Open pipeline by stage', viz: 'hbar', span: 6, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'stage' }, dateField: null, filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['open'] }] }], sort: 'natural' }),
+    key: 'pipeline-value', name: 'Open pipeline by stage', desc: 'Sum of open deal value per stage', cat: 'Pipeline health', icon: <DollarSign size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Open pipeline by stage', viz: 'hbar', span: 6, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'stage' }, dateField: null, filterGroups: [openFilter()], sort: 'natural' }),
   },
   {
-    key: 'winrate-rep', name: 'Win rate by rep', desc: 'Calculated win rate for each owner', icon: <Users size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Win rate by rep', viz: 'bar', span: 6, measure: { agg: 'winRate' }, dimension: { field: 'owner' }, dateField: 'closedAt', sort: 'value-desc', rules: [] }),
-  },
-  {
-    key: 'source', name: 'Deals by source', desc: 'Where deals originate, as a donut', icon: <PieChart size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Deals by source', viz: 'donut', span: 4, measure: { agg: 'count' }, dimension: { field: 'source' }, sort: 'value-desc', limit: 6 }),
-  },
-  {
-    key: 'funnel', name: 'Deal funnel', desc: 'Stage-to-stage conversion', icon: <Filter size={16} />,
+    key: 'funnel', name: 'Deal funnel', desc: 'Stage-to-stage conversion (cumulative reach)', cat: 'Pipeline health', icon: <Filter size={16} />,
     make: () => ({ ...blankConfig(), title: 'Deal funnel', viz: 'funnel', span: 4, measure: { agg: 'count' }, dimension: { field: 'stage' }, sort: 'natural' }),
   },
   {
-    key: 'leaderboard', name: 'Rep leaderboard', desc: 'Reps ranked by closed-won value', icon: <Trophy size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Rep leaderboard', viz: 'leaderboard', span: 7, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'owner' }, dateField: 'closedAt', filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }], sort: 'value-desc' }),
+    key: 'source', name: 'Deals by source', desc: 'Where deals originate, as a donut', cat: 'Pipeline health', icon: <PieChart size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Deals by source', viz: 'donut', span: 4, measure: { agg: 'count' }, dimension: { field: 'source' }, sort: 'value-desc', limit: 6 }),
+  },
+  // ---- Efficiency & advanced ----
+  {
+    key: 'velocity', name: 'Sales velocity by rep', desc: 'Average days to close per owner (won deals)', cat: 'Efficiency & advanced', icon: <Timer size={16} />,
+    make: () => ({ ...blankConfig(), title: 'Avg days to close by rep', viz: 'bar', span: 6, measure: { agg: 'avg', field: 'daysToClose' }, dimension: { field: 'owner' }, dateField: 'closedAt', filterGroups: [wonFilter()], sort: 'value-asc' }),
   },
   {
-    key: 'velocity', name: 'Sales velocity by rep', desc: 'Average days to close per owner', icon: <Timer size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Avg days to close by rep', viz: 'bar', span: 6, measure: { agg: 'avg', field: 'daysToClose' }, dimension: { field: 'owner' }, dateField: 'closedAt', filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }], sort: 'value-asc' }),
-  },
-  {
-    key: 'matrix', name: 'Stage × source matrix', desc: 'Cross-tab of deal count', icon: <Table2 size={16} />,
+    key: 'matrix', name: 'Stage × source matrix', desc: 'Cross-tab of deal count', cat: 'Efficiency & advanced', icon: <Table2 size={16} />,
     make: () => ({ ...blankConfig(), title: 'Deals by stage and source', viz: 'table', span: 8, measure: { agg: 'count' }, dimension: { field: 'stage' }, breakdown: { field: 'source' }, sort: 'natural' }),
   },
   {
-    key: 'goal', name: 'Revenue vs goal', desc: 'Closed-won against a target gauge', icon: <Target size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Revenue vs goal', viz: 'gauge', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }], rules: [{ id: uid('rl'), op: 'lt', value: 900_000, tone: 'bad', label: 'Behind target' }] }),
-  },
-  {
-    key: 'quadrant', name: 'Rep performance quadrant', desc: 'Deal size vs win rate, split into zones', icon: <Grid2x2 size={16} />,
+    key: 'quadrant', name: 'Rep performance quadrant', desc: 'Deal size vs win rate, split into zones', cat: 'Efficiency & advanced', icon: <Grid2x2 size={16} />,
     make: () => ({ ...blankConfig(), title: 'Deal size vs win rate by rep', viz: 'scatter', span: 6, measure: { agg: 'avg', field: 'amount' }, measureY: { agg: 'winRate' }, dimension: { field: 'owner' }, dateField: 'closedAt' }),
   },
   {
-    key: 'cohort', name: 'Win-rate cohorts', desc: 'Cumulative win rate by create-month cohort', icon: <Grid3x3 size={16} />,
+    key: 'cohort', name: 'Win-rate cohorts', desc: 'Cumulative win rate by create-month cohort', cat: 'Efficiency & advanced', icon: <Grid3x3 size={16} />,
     make: () => ({ ...blankConfig(), title: 'Win-rate cohorts', viz: 'cohort', span: 8, measure: { agg: 'count' }, dimension: null, dateField: 'createdAt' }),
   },
   {
-    key: 'pace', name: 'Revenue pace to goal', desc: 'Actual vs target with projected landing', icon: <Target size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Revenue pace to goal', viz: 'pace', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }] }),
-  },
-  {
-    key: 'combo', name: 'Revenue with trend', desc: 'Monthly columns plus a moving-average line', icon: <TrendingUp size={16} />,
-    make: () => ({ ...blankConfig(), title: 'Monthly revenue with trend', viz: 'combo', span: 8, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'closedAt', grain: 'month' }, dateField: 'closedAt', filterGroups: [{ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] }] }),
-  },
-  {
-    key: 'anomaly', name: 'Deal-flow anomalies', desc: 'Weekly deals created with outliers flagged', icon: <AreaChart size={16} />,
+    key: 'anomaly', name: 'Deal-flow anomalies', desc: 'Weekly deals created with outliers flagged', cat: 'Efficiency & advanced', icon: <AreaChart size={16} />,
     make: () => ({ ...blankConfig(), title: 'Weekly deals created (anomalies)', viz: 'area', span: 8, measure: { agg: 'count' }, dimension: { field: 'createdAt', grain: 'week' }, dateField: 'createdAt', anomalies: true }),
   },
 ];
+
+const TEMPLATE_CATS: TemplateCat[] = ['Sales performance', 'Pipeline health', 'Efficiency & advanced'];
 
 // --- Small styled form controls --------------------------------------------
 
@@ -140,6 +150,10 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
       {children}
     </label>
   );
+}
+
+function SectionHead({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return <div className="cd-fsection" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{icon}{children}</div>;
 }
 
 function Sel({ value, onChange, children, title }: { value: string; onChange: (v: string) => void; children: ReactNode; title?: string }) {
@@ -153,17 +167,25 @@ function Sel({ value, onChange, children, title }: { value: string; onChange: (v
 // --- Builder ----------------------------------------------------------------
 
 export function ReportBuilder({
-  ctx, initial, onSave, onClose,
+  ctx, initial, onSave, onDuplicate, onClose,
 }: {
   ctx: EngineCtx;
   initial?: ReportConfig;
   onSave: (cfg: ReportConfig) => void;
+  onDuplicate?: (cfg: ReportConfig) => void;
   onClose: () => void;
 }) {
   const [stage, setStage] = useState<'gallery' | 'build'>(initial ? 'build' : 'gallery');
   const [cfg, setCfg] = useState<ReportConfig>(initial ?? blankConfig());
   const def = OBJECTS[cfg.object];
   const patch = (p: Partial<ReportConfig>) => setCfg((c) => ({ ...c, ...p }));
+
+  // Fields a measure's aggregation can operate on: numeric aggregations need
+  // measurable (numeric) fields; "unique count" counts distinct values of any
+  // categorical/text property (unique companies, owners, sources — like HubSpot).
+  const fieldsFor = (agg: Aggregation): typeof def.fields =>
+    agg === 'countUnique' ? def.fields.filter((f) => f.groupable || f.type === 'text') : def.fields.filter((f) => f.measurable);
+  const defaultField = (agg: Aggregation): string | undefined => fieldsFor(agg)[0]?.key;
 
   const start = (c: ReportConfig) => { setCfg(c); setStage('build'); };
 
@@ -216,18 +238,16 @@ export function ReportBuilder({
     patch(p);
   };
 
-  const setMeasureAgg = (agg: Aggregation) => {
-    const needsField = agg !== 'count' && agg !== 'winRate';
-    const field = needsField ? (cfg.measure.field ?? def.fields.find((f) => f.measurable)?.key) : undefined;
-    patch({ measure: { agg, field } });
+  // Pick a valid field for the new aggregation: keep the current one only if it
+  // still belongs to the agg's field pool, otherwise fall back to the first.
+  const fieldForAgg = (agg: Aggregation, current?: string): string | undefined => {
+    if (agg === 'count' || agg === 'winRate') return undefined;
+    const pool = fieldsFor(agg);
+    return pool.some((f) => f.key === current) ? current : defaultField(agg);
   };
-  const setMeasureYAgg = (agg: Aggregation) => {
-    const needsField = agg !== 'count' && agg !== 'winRate';
-    const field = needsField ? (cfg.measureY?.field ?? def.fields.find((f) => f.measurable)?.key) : undefined;
-    patch({ measureY: { agg, field } });
-  };
+  const setMeasureAgg = (agg: Aggregation) => patch({ measure: { agg, field: fieldForAgg(agg, cfg.measure.field) } });
+  const setMeasureYAgg = (agg: Aggregation) => patch({ measureY: { agg, field: fieldForAgg(agg, cfg.measureY?.field) } });
 
-  const measurable = def.fields.filter((f) => f.measurable);
   const groupable = def.fields.filter((f) => f.groupable);
   const dimField = def.fields.find((f) => f.key === cfg.dimension?.field);
   const needsField = cfg.measure.agg !== 'count' && cfg.measure.agg !== 'winRate';
@@ -241,7 +261,13 @@ export function ReportBuilder({
   const showCompare = cfg.viz === 'kpi';
   const showRules = cfg.viz === 'kpi' || cfg.viz === 'gauge' || cfg.viz === 'pace';
   const showAnomalies = ['line', 'area'].includes(cfg.viz) && dimField?.type === 'date';
+  const showDataLabels = cfg.viz === 'bar' || cfg.viz === 'hbar';
   const needsFieldY = cfg.measureY && cfg.measureY.agg !== 'count' && cfg.measureY.agg !== 'winRate';
+  const compareMode: CompareMode = cfg.compareMode ?? (cfg.compare ? 'prevPeriod' : 'none');
+  const hasDisplaySection = showGoal || showCompare || showAnomalies || showDataLabels || showRules;
+
+  // Duplicate the current config as an independent new report.
+  const duplicate = () => onDuplicate?.({ ...cfg, id: uid('rep'), title: `${cfg.title} (copy)` });
 
   // ----- Gallery -----
   if (stage === 'gallery') {
@@ -258,16 +284,21 @@ export function ReportBuilder({
               <button className="cd-btn primary" onClick={() => start(blankConfig())}>
                 <Plus size={15} /> Start from scratch
               </button>
-              <span className="cd-flabel" style={{ margin: 0 }}>or clone a template</span>
+              <span className="cd-flabel" style={{ margin: 0 }}>or clone a proven template</span>
             </div>
-            <div className="cd-widget-lib">
-              {TEMPLATES.map((t) => (
-                <button key={t.key} className="cd-lib-item" onClick={() => start(t.make())}>
-                  <span className="nm">{t.icon}{t.name}</span>
-                  <span className="ds">{t.desc}</span>
-                </button>
-              ))}
-            </div>
+            {TEMPLATE_CATS.map((cat) => (
+              <div key={cat} className="cd-gal-cat">
+                <div className="cd-fsection" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }}>{cat}</div>
+                <div className="cd-widget-lib">
+                  {TEMPLATES.filter((t) => t.cat === cat).map((t) => (
+                    <button key={t.key} className="cd-lib-item" onClick={() => start(t.make())}>
+                      <span className="nm">{t.icon}{t.name}</span>
+                      <span className="ds">{t.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -304,17 +335,16 @@ export function ReportBuilder({
               </div>
             </Row>
 
-            <Row label="Visualization">
-              <div className="cd-vizgrid">
-                {VIZ_META.map((v) => (
-                  <button key={v.key} className={`cd-vizbtn ${cfg.viz === v.key ? 'on' : ''}`} onClick={() => setViz(v.key)} title={v.label}>
-                    {v.icon}<span>{v.label}</span>
-                  </button>
-                ))}
-              </div>
-            </Row>
+            <SectionHead icon={<Layers size={13} />}>Visualization</SectionHead>
+            <div className="cd-vizgrid">
+              {VIZ_META.map((v) => (
+                <button key={v.key} className={`cd-vizbtn ${cfg.viz === v.key ? 'on' : ''}`} onClick={() => setViz(v.key)} title={v.label}>
+                  {v.icon}<span>{v.label}</span>
+                </button>
+              ))}
+            </div>
 
-            <div className="cd-fsection">Measure &amp; grouping</div>
+            <SectionHead icon={<Tags size={13} />}>Measure &amp; grouping</SectionHead>
 
             {showMeasure && (
               <Row label={isScatter ? 'X measure' : 'Measure by'} hint="the value">
@@ -326,7 +356,7 @@ export function ReportBuilder({
                   </Sel>
                   {needsField && (
                     <Sel value={cfg.measure.field ?? ''} onChange={(v) => patch({ measure: { ...cfg.measure, field: v } })}>
-                      {measurable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {fieldsFor(cfg.measure.agg).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </Sel>
                   )}
                 </div>
@@ -343,7 +373,7 @@ export function ReportBuilder({
                   </Sel>
                   {needsFieldY && (
                     <Sel value={cfg.measureY?.field ?? ''} onChange={(v) => patch({ measureY: { ...cfg.measureY!, field: v } })}>
-                      {measurable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {fieldsFor(cfg.measureY?.agg ?? 'count').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </Sel>
                   )}
                 </div>
@@ -378,58 +408,86 @@ export function ReportBuilder({
             )}
 
             {showSortLimit && (
-              <div className="cd-inline">
-                <Row label="Sort">
-                  <Sel value={cfg.sort} onChange={(v) => patch({ sort: v as ReportConfig['sort'] })}>
-                    {dimField?.options && <option value="natural">Group order</option>}
-                    <option value="value-desc">Value, high → low</option>
-                    <option value="value-asc">Value, low → high</option>
-                    <option value="label-asc">Label, A → Z</option>
-                  </Sel>
-                </Row>
-                <Row label="Limit (top N)">
-                  <input className="cd-input" type="number" min={1} max={50} value={cfg.limit} onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 10) })} />
-                </Row>
-              </div>
+              <>
+                <SectionHead icon={<SlidersHorizontal size={13} />}>Sort &amp; limit</SectionHead>
+                <div className="cd-inline">
+                  <Row label="Sort">
+                    <Sel value={cfg.sort} onChange={(v) => patch({ sort: v as ReportConfig['sort'] })}>
+                      {dimField?.options && <option value="natural">Group order</option>}
+                      <option value="value-desc">Value, high → low</option>
+                      <option value="value-asc">Value, low → high</option>
+                      <option value="label-asc">Label, A → Z</option>
+                    </Sel>
+                  </Row>
+                  <Row label="Limit (top N)">
+                    <input className="cd-input" type="number" min={1} max={50} value={cfg.limit} onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 10) })} />
+                  </Row>
+                </div>
+              </>
             )}
 
-            {showGoal && (
-              <Row label="Target / goal" hint="optional">
-                <input className="cd-input" type="number" placeholder={goalPlaceholder} value={cfg.goal ?? ''} onChange={(e) => patch({ goal: e.target.value === '' ? null : Number(e.target.value) })} />
-              </Row>
-            )}
+            <FilterEditor def={def} groups={cfg.filterGroups} onChange={(g) => patch({ filterGroups: g })} />
 
-            {showCompare && (
-              <label className="cd-check">
-                <input type="checkbox" checked={!!cfg.compare} onChange={(e) => patch({ compare: e.target.checked })} />
-                Compare to previous period
-              </label>
-            )}
-
-            {showAnomalies && (
-              <label className="cd-check">
-                <input type="checkbox" checked={!!cfg.anomalies} onChange={(e) => patch({ anomalies: e.target.checked })} />
-                Highlight anomalies (trailing mean ± 1.8σ)
-              </label>
-            )}
-
-            <div className="cd-fsection">Date range property</div>
+            <SectionHead icon={<CalendarRange size={13} />}>Date range{showCompare ? ' & comparison' : ''}</SectionHead>
             <Row label="Filter this report's date by">
               <Sel value={cfg.dateField ?? ''} onChange={(v) => patch({ dateField: v || null })}>
                 {def.dateFields.map((k) => <option key={k} value={k}>{def.fields.find((f) => f.key === k)?.label}</option>)}
                 <option value="">Don't filter by date (snapshot)</option>
               </Sel>
             </Row>
+            {showCompare && (
+              <Row label="Compare to" hint="baseline delta">
+                <Sel value={compareMode} onChange={(v) => patch({ compareMode: v as CompareMode, compare: undefined })}>
+                  <option value="none">No comparison</option>
+                  <option value="prevPeriod">Previous period</option>
+                  <option value="prevYear">Previous year</option>
+                  <option value="custom">Custom range…</option>
+                </Sel>
+              </Row>
+            )}
+            {showCompare && compareMode === 'custom' && (
+              <div className="cd-inline">
+                <Row label="Baseline from">
+                  <input className="cd-input" type="date" value={cfg.compareFrom ?? ''} onChange={(e) => patch({ compareFrom: e.target.value })} />
+                </Row>
+                <Row label="Baseline to">
+                  <input className="cd-input" type="date" value={cfg.compareTo ?? ''} onChange={(e) => patch({ compareTo: e.target.value })} />
+                </Row>
+              </div>
+            )}
+            {showCompare && compareMode !== 'none' && !cfg.dateField && (
+              <p className="cd-fnote">Pick a date property above for the comparison to resolve a baseline window.</p>
+            )}
 
-            <FilterEditor def={def} groups={cfg.filterGroups} onChange={(g) => patch({ filterGroups: g })} />
-
+            {hasDisplaySection && <SectionHead icon={<SlidersHorizontal size={13} />}>Display &amp; rules</SectionHead>}
+            {showGoal && (
+              <Row label="Target / goal" hint="optional">
+                <input className="cd-input" type="number" placeholder={goalPlaceholder} value={cfg.goal ?? ''} onChange={(e) => patch({ goal: e.target.value === '' ? null : Number(e.target.value) })} />
+              </Row>
+            )}
+            {showDataLabels && (
+              <label className="cd-check">
+                <input type="checkbox" checked={cfg.showValues !== false} onChange={(e) => patch({ showValues: e.target.checked })} />
+                Show data labels on bars
+              </label>
+            )}
+            {showAnomalies && (
+              <label className="cd-check">
+                <input type="checkbox" checked={!!cfg.anomalies} onChange={(e) => patch({ anomalies: e.target.checked })} />
+                Highlight anomalies (trailing mean ± 1.8σ)
+              </label>
+            )}
             {showRules && <RuleEditor rules={cfg.rules} unit={unit} onChange={(r) => patch({ rules: r })} />}
           </div>
 
           {/* preview column */}
           <div className="cd-builder-preview">
-            <div className="cd-flabel">Live preview <em>{measureLabel(cfg)}</em></div>
-            <div className="cd-preview-card">
+            <div className="cd-preview-head">
+              <span className="cd-flabel" style={{ margin: 0 }}>Live preview</span>
+              <span className="cd-preview-badge">{VIZ_META.find((v) => v.key === cfg.viz)?.icon}{VIZ_META.find((v) => v.key === cfg.viz)?.label}</span>
+              <span className="cd-preview-measure">{measureLabel(cfg)}</span>
+            </div>
+            <div className={`cd-preview-card w-${cfg.span}`}>
               <div className="cd-card-head" style={{ padding: '10px 12px 0' }}>
                 <span className="cd-card-title">{cfg.title || 'Untitled report'}</span>
               </div>
@@ -437,9 +495,14 @@ export function ReportBuilder({
                 <ReportView config={cfg} ctx={ctx} />
               </div>
             </div>
-            <p className="cd-fnote">Preview reflects the dashboard's current global filters. Reports recompute live as those change.</p>
+            <p className="cd-fnote">This preview is rendered by the exact engine the saved report uses, under the dashboard's current global filters — what you see is what you'll get.</p>
             <div className="cd-builder-actions">
               <button className="cd-btn ghost" onClick={onClose}>Cancel</button>
+              {initial && onDuplicate && (
+                <button className="cd-btn" onClick={duplicate} title="Save an independent copy on the dashboard">
+                  <Copy size={15} /> Duplicate
+                </button>
+              )}
               <button className="cd-btn primary" onClick={() => onSave(cfg)}>
                 <Check size={15} /> {initial ? 'Save changes' : 'Add to dashboard'} <ArrowRight size={15} />
               </button>

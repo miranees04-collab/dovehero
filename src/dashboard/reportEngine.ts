@@ -263,15 +263,24 @@ function numOps(): Array<{ op: Operator; label: string }> {
 
 function matchRule(row: Row, rule: FilterRule, now: number): boolean {
   const v = row[rule.field];
+  // Existence checks never need a value.
+  if (rule.op === 'known') return v !== null && v !== undefined && v !== '';
+  if (rule.op === 'unknown') return v === null || v === undefined || v === '';
+  // Enum membership: an empty selection is treated as "no constraint" (a
+  // half-built "is any of []" filter should not silently exclude every row).
+  if (rule.op === 'in') {
+    if (!Array.isArray(rule.value) || rule.value.length === 0) return true;
+    return rule.value.includes(String(v));
+  }
+  if (rule.op === 'nin') {
+    if (!Array.isArray(rule.value) || rule.value.length === 0) return true;
+    return !rule.value.includes(String(v));
+  }
+  // Every remaining operator compares against a scalar. If the user hasn't
+  // entered one yet, the condition is incomplete → treat it as a no-op rather
+  // than matching nothing (or matching "> 0" from an empty numeric input).
+  if (rule.value === '' || rule.value === undefined || rule.value === null) return true;
   switch (rule.op) {
-    case 'known':
-      return v !== null && v !== undefined && v !== '';
-    case 'unknown':
-      return v === null || v === undefined || v === '';
-    case 'in':
-      return Array.isArray(rule.value) && rule.value.includes(String(v));
-    case 'nin':
-      return !(Array.isArray(rule.value) && rule.value.includes(String(v)));
     case 'contains':
       return String(v ?? '').toLowerCase().includes(String(rule.value ?? '').toLowerCase());
     case 'ncontains':
@@ -288,8 +297,12 @@ function matchRule(row: Row, rule: FilterRule, now: number): boolean {
       return v !== null && Number(v) >= Number(rule.value);
     case 'lte':
       return v !== null && Number(v) <= Number(rule.value);
-    case 'between':
-      return v !== null && Number(v) >= Number(rule.value) && Number(v) <= Number(rule.value2);
+    case 'between': {
+      if (v === null) return false;
+      const lo = Number(rule.value);
+      const hi = rule.value2 === undefined || (rule.value2 as unknown) === '' ? Infinity : Number(rule.value2);
+      return Number(v) >= lo && Number(v) <= hi;
+    }
     case 'last_n':
       return v !== null && now - Number(v) <= Number(rule.value) * MS_DAY;
     case 'older_n':
@@ -413,6 +426,9 @@ export type Viz =
 
 export type RuleTone = 'good' | 'bad' | 'warn';
 
+/** Comparison baseline for single-value reports (KPI delta). */
+export type CompareMode = 'none' | 'prevPeriod' | 'prevYear' | 'custom';
+
 export interface ThresholdRule {
   id: string;
   op: 'gt' | 'lt' | 'gte' | 'lte' | 'between';
@@ -437,8 +453,12 @@ export interface ReportConfig {
   sort: 'natural' | 'value-desc' | 'value-asc' | 'label-asc';
   limit: number;
   goal?: number | null; // gauge / kpi target
-  compare?: boolean; // vs previous period (kpi)
+  compare?: boolean; // legacy: vs previous period (kpi) — superseded by compareMode
+  compareMode?: CompareMode; // KPI comparison baseline
+  compareFrom?: string; // custom baseline start (yyyy-mm-dd)
+  compareTo?: string; // custom baseline end (yyyy-mm-dd, inclusive)
   anomalies?: boolean; // rolling-band anomaly highlighting (time series)
+  showValues?: boolean; // draw data labels on bars (default on)
   rules: ThresholdRule[];
   span: 3 | 4 | 5 | 6 | 7 | 8 | 12;
 }
@@ -504,6 +524,13 @@ function applyGlobal(rows: Row[], object: ObjectKey, filters: Filters, cross: Cr
     for (const c of applicable) if (String(r[c.field]) !== c.value) return false;
     return true;
   });
+}
+
+/** Shift a timestamp by whole calendar years (for previous-year comparison). */
+function shiftYear(ts: number, delta: number): number {
+  const d = new Date(ts);
+  d.setFullYear(d.getFullYear() + delta);
+  return d.getTime();
 }
 
 function inRange(row: Row, dateField: string | null, a: number, b: number): boolean {
@@ -587,11 +614,26 @@ export function runReport(cfg: ReportConfig, ctx: EngineCtx): ReportResult {
   if (!cfg.dimension) {
     const value = aggregate(filtered, cfg.measure);
     let prevValue: number | null = null;
-    if (cfg.compare && cfg.dateField && ctx.bounds.hasPrev) {
-      const prevRows = all.filter(
-        (r) => passesFilters(r, cfg.filterGroups, ctx.now) && inRange(r, cfg.dateField, prevStart, prevEnd),
-      );
-      prevValue = aggregate(prevRows, cfg.measure);
+    // Resolve the comparison baseline window from the selected mode.
+    const mode: CompareMode = cfg.compareMode ?? (cfg.compare ? 'prevPeriod' : 'none');
+    if (mode !== 'none' && cfg.dateField) {
+      let ps: number | null = null;
+      let pe: number | null = null;
+      if (mode === 'prevPeriod' && ctx.bounds.hasPrev) {
+        ps = prevStart; pe = prevEnd;
+      } else if (mode === 'prevYear') {
+        ps = shiftYear(start, -1); pe = shiftYear(end, -1);
+      } else if (mode === 'custom' && cfg.compareFrom && cfg.compareTo) {
+        const a = Date.parse(cfg.compareFrom);
+        const b = Date.parse(cfg.compareTo);
+        if (!isNaN(a) && !isNaN(b)) { ps = a; pe = b + MS_DAY; } // end inclusive
+      }
+      if (ps !== null && pe !== null) {
+        const prevRows = all.filter(
+          (r) => passesFilters(r, cfg.filterGroups, ctx.now) && inRange(r, cfg.dateField, ps!, pe!),
+        );
+        prevValue = aggregate(prevRows, cfg.measure);
+      }
     }
     return { points: [], seriesKeys: [], value, prevValue, unit, total: value, rowCount: filtered.length };
   }

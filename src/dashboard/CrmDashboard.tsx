@@ -2180,6 +2180,12 @@ export default function CrmDashboard() {
           ctx={engineCtx}
           initial={builder.initial}
           onSave={saveReport}
+          onDuplicate={(cfg) => {
+            mutateDash((tiles) => [...tiles, { id: tid(), kind: 'custom', report: cfg }]);
+            upsertLibrary(cfg);
+            setBuilder(null);
+            toast(`Duplicated “${cfg.title}” onto ${dash.name}`);
+          }}
           onClose={() => setBuilder(null)}
         />
       )}
