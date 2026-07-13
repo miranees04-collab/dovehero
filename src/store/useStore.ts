@@ -26,6 +26,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
+import { seedProducts } from '@/data/products';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
@@ -121,10 +122,7 @@ function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
       }
     });
   });
-  const cats = ['Platform', 'Add-on', 'Service', 'Support'];
-  ['Aurora Platform', 'Growth tier', 'Enterprise tier', 'Onboarding', 'Premium support', 'API add-on', 'Analytics add-on'].forEach((n, i) => {
-    recs.product.push({ id: 'PR-' + (i + 1), name: n, sku: 'SKU-' + (100 + i), price: [48000, 72000, 120000, 9000, 12000, 7500, 6000][i], category: cats[i % cats.length], active: true });
-  });
+  recs.product = seedProducts() as unknown as ObjectRecord[];
   ['Mara Quinn', 'Theo Blake', 'Ines Roy', 'Caleb Fox', 'Dahlia West'].forEach((n, i) => {
     recs.lead.push({ id: 'LD-' + (i + 1), name: n, company: ['Vantage Cloud', 'Orbit Health', 'Pulse Telecom', 'Halo Studios', 'Quartz Labs'][i], email: n.toLowerCase().replace(/\s+/g, '.') + '@example.com', source: ['Website', 'Referral', 'Event', 'Outbound', 'Ads'][i], status: ['New', 'Working', 'Qualified', 'New', 'Working'][i] });
   });
@@ -365,6 +363,8 @@ export interface AppState {
 
   addObjectRecord: (objKey: string, rec: ObjectRecord) => void;
   updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
+  removeObjectRecord: (objKey: string, id: string) => void;
+  duplicateObjectRecord: (objKey: string, id: string) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
@@ -1354,6 +1354,30 @@ export const useStore = create<AppState>()(
         [objKey]: (s.objectRecords[objKey] || []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
       },
     })),
+  removeObjectRecord: (objKey, id) =>
+    set((s) => ({
+      objectRecords: {
+        ...s.objectRecords,
+        [objKey]: (s.objectRecords[objKey] || []).filter((r) => r.id !== id),
+      },
+      openObjectId: s.openObjectId === id ? null : s.openObjectId,
+    })),
+  duplicateObjectRecord: (objKey, id) =>
+    set((s) => {
+      const list = s.objectRecords[objKey] || [];
+      const i = list.findIndex((r) => r.id === id);
+      if (i < 0) return {};
+      const src = list[i];
+      const copy: ObjectRecord = {
+        ...JSON.parse(JSON.stringify(src)),
+        id: (objKey.slice(0, 2).toUpperCase()) + '-' + uid('n').slice(-4),
+        name: `${String(src.name ?? 'Record')} (copy)`,
+        status: 'draft',
+      };
+      const next = list.slice();
+      next.splice(i + 1, 0, copy);
+      return { objectRecords: { ...s.objectRecords, [objKey]: next } };
+    }),
 
   toast: (text, tone = 'default', undoable = false) => {
     const id = uid('t');
@@ -1382,7 +1406,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1403,6 +1427,14 @@ export const useStore = create<AppState>()(
         if (s && version < 5) {
           s.colorRules = DEFAULT_COLOR_RULES.map((x) => ({ ...x }));
           s.colorRulesOn = false;
+        }
+        if (s && version < 6) {
+          // The Product Object was upgraded from a flat 5-field record to a
+          // first-class catalog model — reseed so the new workspace has data.
+          s.objectRecords = {
+            ...(s.objectRecords ?? {}),
+            product: seedProducts() as unknown as ObjectRecord[],
+          };
         }
         return s as AppState;
       },

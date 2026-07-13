@@ -174,6 +174,91 @@ export interface ObjectDef {
 
 export type ObjectRecord = Record<string, unknown> & { id: string };
 
+// ---- Product Object (first-class catalog model) ----
+
+/** The kind of thing being sold — drives which capabilities a product exposes. */
+export type ProductType =
+  | 'subscription' // recurring SaaS / licences
+  | 'usage'        // metered, tiered/volume pricing
+  | 'service'      // one-time professional services
+  | 'physical'     // inventory-tracked goods
+  | 'digital'      // downloads / vouchers / licences (no stock)
+  | 'bundle';      // a kit composed of other products
+
+export type ProductStatus = 'active' | 'draft' | 'archived';
+
+export type BillingPeriod = 'one_time' | 'monthly' | 'quarterly' | 'annual';
+
+export type CurrencyCode = 'USD' | 'EUR' | 'GBP';
+
+/** A volume/usage price break — charges `unit` for quantities up to `upTo` (null = ∞). */
+export interface PriceTier {
+  upTo: number | null;
+  unit: number;
+}
+
+/** A concrete variant (option combination) of a configurable product. */
+export interface ProductVariant {
+  id: string;
+  name: string; // e.g. "1TB / Rack-mount"
+  sku: string;
+  price: number;
+  stock?: number;
+}
+
+/** A component line inside a bundle/kit. */
+export interface BundleItem {
+  productId: string;
+  name: string;
+  qty: number;
+  unit: number;
+}
+
+/** A price-book row — the same product priced per market/currency. */
+export interface PriceBookEntry {
+  book: string;
+  currency: CurrencyCode;
+  price: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  type: ProductType;
+  category: string;
+  status: ProductStatus;
+  description?: string;
+
+  // pricing
+  price: number; // list price in the product's base currency
+  cost: number; // unit cost — drives margin
+  currency: CurrencyCode;
+  billing: BillingPeriod;
+  taxRate: number; // %
+  priceBooks?: PriceBookEntry[];
+  tiers?: PriceTier[]; // usage-based
+
+  // inventory
+  tracked: boolean;
+  onHand: number;
+  committed: number; // reserved by open orders
+  reorderPoint: number;
+  warehouse?: string;
+
+  // structure
+  variants?: ProductVariant[];
+  bundleItems?: BundleItem[];
+
+  // meta
+  vendor?: string;
+  owner?: string; // owner key
+  tags: string[];
+  image: { emoji: string; hue: string };
+  createdW: string; // relative-time label
+  updatedW: string;
+}
+
 export type ThemeMode = 'light' | 'dark';
 
 export type DealView = 'board' | 'table' | 'insights' | 'activity';

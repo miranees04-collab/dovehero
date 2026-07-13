@@ -8,6 +8,7 @@ import { Insights } from './components/insights/Insights';
 import { ActivityCenter } from './components/activity/ActivityCenter';
 import { RecordView } from './components/record/RecordView';
 import { ObjectView } from './components/objects/ObjectView';
+import { ProductWorkspace } from './components/products/ProductWorkspace';
 import { PipelineBar } from './components/deals/PipelineBar';
 import { NovaPanel } from './components/nova/NovaPanel';
 import { CommandPalette } from './components/command/CommandPalette';
@@ -63,7 +64,9 @@ export default function App() {
   }, [setPalette, setNova, undo, redo, setFocusMode]);
 
   let content;
-  if (nav !== 'deals') {
+  if (nav === 'product') {
+    content = <ProductWorkspace />;
+  } else if (nav !== 'deals') {
     content = <ObjectView />;
   } else if (openDealId) {
     content = <RecordView />;

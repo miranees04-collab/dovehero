@@ -59,7 +59,9 @@ src/
     deals/                # PipelineBar, Board (DnD), DealCard, DealTable
     record/               # RecordView — the 360° deal view
     insights/             # Insights & forecast analytics
-    objects/              # Companies / Contacts / Products / Leads / …
+    products/             # Product Object — catalog, pricing, variants,
+                          #   bundles, inventory & deal associations
+    objects/              # Companies / Contacts / Leads / Tickets / …
     nova/                 # Nova assistant panel
     composer/             # Email / WhatsApp / SMS composer
     command/              # ⌘K command palette
@@ -73,6 +75,18 @@ src/
   owner swimlanes), **Table** (sortable, filterable, CSV export, a Nova
   "next step" column), and **Insights** (KPIs, stage funnel, weighted
   forecast by month, owner leaderboard, health distribution).
+- **Product Object** — a first-class product catalog. A KPI header
+  (catalog value, average margin, pipeline influenced, stock alerts),
+  type tabs (subscription, usage-based, service, physical, digital,
+  bundle), search / status / category filters, sortable table, bulk
+  actions and CSV export. Each product opens a tabbed side-drawer:
+  **Overview** (stats, a Nova insight, inline-editable description &
+  tags), **Pricing** (list price, cost, margin bar, multi-currency
+  price books, usage volume tiers), **Variants**, **Bundle**
+  (component breakdown with bundle savings), **Inventory** (on-hand /
+  committed / available with a reorder gauge), **Deals** (the deals
+  each product is attached to, computed from line items) and
+  **History**. Everything is inline-editable and persists.
 - **360° record view** — stage stepper, a Nova brief with the recommended
   next step and risk signals, buying-group with roles/strength, line items,
   documents, and a live activity timeline with quick logging.
