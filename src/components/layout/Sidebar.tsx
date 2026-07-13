@@ -6,8 +6,20 @@ import './layout.css';
 
 const PRIMARY = [
   { key: 'deals', label: 'Deals', icon: 'layers' },
-  { key: 'commerce', label: 'Commerce', icon: 'receipt' },
 ];
+
+const COMMERCE = [
+  { key: 'commerce', label: 'Overview', icon: 'activity' },
+  { key: 'product', label: 'Products', icon: 'box' },
+  { key: 'quotes', label: 'Quotes', icon: 'fileText' },
+  { key: 'orders', label: 'Orders', icon: 'boxes' },
+  { key: 'invoices', label: 'Invoices', icon: 'receipt' },
+  { key: 'payments', label: 'Payments', icon: 'dollar' },
+  { key: 'subscriptions', label: 'Subscriptions', icon: 'repeat' },
+];
+
+/** Object keys shown under Commerce, so we don't repeat them under Records. */
+const COMMERCE_OBJECT_KEYS = new Set(['product', 'invoice']);
 
 export function Sidebar() {
   const nav = useStore((s) => s.nav);
@@ -50,9 +62,23 @@ export function Sidebar() {
             ))}
           </div>
 
+          <div className="dh-nav-label">Commerce</div>
+          <div className="dh-nav-group">
+            {COMMERCE.map((it) => (
+              <button
+                key={it.key}
+                className={`dh-nav-item ${nav === it.key ? 'on' : ''}`}
+                onClick={() => go(it.key)}
+              >
+                <Icon name={it.icon} size={17} />
+                <span>{it.label}</span>
+              </button>
+            ))}
+          </div>
+
           <div className="dh-nav-label">Records</div>
           <div className="dh-nav-group">
-            {objects.map((o) => (
+            {objects.filter((o) => !COMMERCE_OBJECT_KEYS.has(o.k)).map((o) => (
               <button
                 key={o.k}
                 className={`dh-nav-item ${nav === o.k ? 'on' : ''}`}

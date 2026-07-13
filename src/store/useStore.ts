@@ -20,6 +20,9 @@ import type {
   CustomProductType,
   SalesDoc,
   SalesDocKind,
+  Payment,
+  PaymentMethod,
+  Subscription,
   Priority,
   Density,
   GroupBy,
@@ -31,7 +34,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { seedProducts, seedSalesDocs, DOC_META, PRODUCT_CATEGORIES } from '@/data/products';
+import { seedProducts, seedSalesDocs, seedPayments, seedSubscriptions, DOC_META, SUB_INTERVALS, PRODUCT_CATEGORIES } from '@/data/products';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
@@ -156,6 +159,8 @@ export interface AppState {
   productTypes: CustomProductType[];
   productCategories: string[];
   salesDocs: SalesDoc[];
+  payments: Payment[];
+  subscriptions: Subscription[];
   pipelines: Pipeline[];
   automations: Automation[];
 
@@ -383,7 +388,12 @@ export interface AppState {
   removeSalesDoc: (id: string) => void;
   convertQuoteToOrder: (id: string) => string | null;
   convertToInvoice: (id: string) => string | null;
-  recordPayment: (id: string, amount: number) => void;
+  recordPayment: (id: string, amount: number, method?: PaymentMethod) => void;
+  refundPayment: (paymentId: string) => void;
+  createSubscription: (partial?: Partial<Subscription>) => string;
+  updateSubscription: (id: string, patch: Partial<Subscription>) => void;
+  removeSubscription: (id: string) => void;
+  generateInvoiceFromSub: (id: string) => string | null;
   receivePO: (id: string) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
@@ -442,6 +452,8 @@ export const useStore = create<AppState>()(
   productTypes: [],
   productCategories: [...PRODUCT_CATEGORIES],
   salesDocs: seedSalesDocs(),
+  payments: seedPayments(),
+  subscriptions: seedSubscriptions(),
   pipelines: PIPELINES.map((p) => ({ ...p })),
   automations: DEFAULT_AUTOMATIONS.map((a) => ({ ...a })),
 
@@ -1467,17 +1479,62 @@ export const useStore = create<AppState>()(
     get().toast(`Invoice ${inv?.number ?? ''} created from ${src.number}`, 'success');
     return invId;
   },
-  recordPayment: (id, amount) => {
+  recordPayment: (id, amount, method = 'Card') => {
     const inv = get().salesDocs.find((d) => d.id === id);
     if (!inv || inv.kind !== 'invoice') return;
+    const amt = Math.max(0, amount);
+    if (!amt) return;
     const total = inv.lines.reduce((s, l) => s + l.qty * l.unit, 0);
     const disc = Math.round((total * (inv.discount || 0)) / 100);
     const tax = Math.round(((total - disc) * (inv.tax || 0)) / 100);
     const grand = total - disc + tax;
-    const paid = Math.min(grand, (inv.paid || 0) + Math.max(0, amount));
+    const paid = Math.min(grand, (inv.paid || 0) + amt);
     const status = paid >= grand ? 'Paid' : 'Open';
     get().updateSalesDoc(id, { paid, status, dueW: status === 'Paid' ? 'paid' : inv.dueW });
+    const count = get().payments.length;
+    const payment: Payment = {
+      id: 'pay-' + uid('n').slice(-5), number: 'PAY-' + (5000 + count + 1),
+      invoiceId: inv.id, invoiceNumber: inv.number, party: inv.party,
+      amount: Math.min(amt, grand - (inv.paid || 0)), currency: inv.currency, method, status: 'Succeeded', w: 'now',
+    };
+    set((s) => ({ payments: [payment, ...s.payments] }));
     get().toast(status === 'Paid' ? `${inv.number} paid in full` : `Payment recorded on ${inv.number}`, 'success');
+  },
+  refundPayment: (paymentId) => {
+    const pay = get().payments.find((p) => p.id === paymentId);
+    if (!pay || pay.status !== 'Succeeded') return;
+    set((s) => ({ payments: s.payments.map((p) => (p.id === paymentId ? { ...p, status: 'Refunded' } : p)) }));
+    if (pay.invoiceId) {
+      const inv = get().salesDocs.find((d) => d.id === pay.invoiceId);
+      if (inv) get().updateSalesDoc(inv.id, { paid: Math.max(0, (inv.paid || 0) - pay.amount), status: 'Open' });
+    }
+    get().toast(`${pay.number} refunded`, 'warn');
+  },
+  createSubscription: (partial = {}) => {
+    const id = 'sub-' + uid('n').slice(-5);
+    const count = get().subscriptions.length;
+    const sub: Subscription = {
+      id, number: 'SUB-' + (6000 + count + 1),
+      party: partial.party ?? '', currency: partial.currency ?? 'USD',
+      lines: partial.lines ?? [], interval: partial.interval ?? 'monthly',
+      status: partial.status ?? 'Active', startedW: 'now', nextW: partial.nextW ?? 'in 1m',
+    };
+    set((s) => ({ subscriptions: [sub, ...s.subscriptions] }));
+    return id;
+  },
+  updateSubscription: (id, patch) =>
+    set((s) => ({ subscriptions: s.subscriptions.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+  removeSubscription: (id) => set((s) => ({ subscriptions: s.subscriptions.filter((x) => x.id !== id) })),
+  generateInvoiceFromSub: (id) => {
+    const sub = get().subscriptions.find((x) => x.id === id);
+    if (!sub) return null;
+    const invId = get().createSalesDoc('invoice', {
+      party: sub.party, currency: sub.currency, lines: sub.lines.map((l) => ({ ...l })),
+      status: 'Open', dueW: 'in 30d', notes: `Recurring invoice for ${sub.number} (${SUB_INTERVALS.find((i) => i.k === sub.interval)?.label})`,
+    });
+    const inv = get().salesDocs.find((d) => d.id === invId);
+    get().toast(`Invoice ${inv?.number ?? ''} generated for ${sub.number}`, 'success');
+    return invId;
   },
   receivePO: (id) => {
     const po = get().salesDocs.find((d) => d.id === id);
@@ -1517,6 +1574,8 @@ export const useStore = create<AppState>()(
       productTypes: [],
       productCategories: [...PRODUCT_CATEGORIES],
       salesDocs: seedSalesDocs(),
+      payments: seedPayments(),
+      subscriptions: seedSubscriptions(),
       openDealId: null,
       openObjectId: null,
       nav: 'deals',
@@ -1531,7 +1590,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 8,
+      version: 9,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1571,6 +1630,10 @@ export const useStore = create<AppState>()(
         if (s && version < 8) {
           s.salesDocs = s.salesDocs ?? seedSalesDocs();
         }
+        if (s && version < 9) {
+          s.payments = s.payments ?? seedPayments();
+          s.subscriptions = s.subscriptions ?? seedSubscriptions();
+        }
         return s as AppState;
       },
       // Persist data + a couple of preferences; skip transient UI state.
@@ -1581,6 +1644,8 @@ export const useStore = create<AppState>()(
         productTypes: s.productTypes,
         productCategories: s.productCategories,
         salesDocs: s.salesDocs,
+        payments: s.payments,
+        subscriptions: s.subscriptions,
         role: s.role,
         tableCols: s.tableCols,
         density: s.density,

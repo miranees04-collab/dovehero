@@ -10,7 +10,11 @@ import { RecordView } from './components/record/RecordView';
 import { ObjectView } from './components/objects/ObjectView';
 import { ProductWorkspace } from './components/products/ProductWorkspace';
 import { ProductRecord } from './components/products/ProductRecord';
-import { CommerceWorkspace } from './components/commerce/CommerceWorkspace';
+import { CommerceWorkspace, type CommerceSection } from './components/commerce/CommerceWorkspace';
+
+const COMMERCE_NAV: Record<string, CommerceSection> = {
+  commerce: 'overview', quotes: 'quote', orders: 'order', invoices: 'invoice', payments: 'payment', subscriptions: 'subscription',
+};
 import { PipelineBar } from './components/deals/PipelineBar';
 import { NovaPanel } from './components/nova/NovaPanel';
 import { CommandPalette } from './components/command/CommandPalette';
@@ -67,8 +71,8 @@ export default function App() {
   }, [setPalette, setNova, undo, redo, setFocusMode]);
 
   let content;
-  if (nav === 'commerce') {
-    content = <CommerceWorkspace />;
+  if (COMMERCE_NAV[nav]) {
+    content = <CommerceWorkspace key={nav} section={COMMERCE_NAV[nav]} />;
   } else if (nav === 'product') {
     content = openObjectId ? <ProductRecord id={openObjectId} /> : <ProductWorkspace />;
   } else if (nav !== 'deals') {

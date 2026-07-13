@@ -245,6 +245,37 @@ export interface SalesLine {
   unit: number; // unit price (quote/order/invoice) or unit cost (po)
 }
 
+export type PaymentMethod = 'Card' | 'ACH' | 'Wire' | 'Cash';
+export type PaymentStatus = 'Succeeded' | 'Pending' | 'Failed' | 'Refunded';
+
+export interface Payment {
+  id: string;
+  number: string; // PAY-5001
+  invoiceId?: string;
+  invoiceNumber?: string;
+  party: string;
+  amount: number;
+  currency: CurrencyCode;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  w: string; // relative time label
+}
+
+export type SubInterval = 'monthly' | 'quarterly' | 'annual';
+export type SubStatus = 'Active' | 'Paused' | 'Cancelled';
+
+export interface Subscription {
+  id: string;
+  number: string; // SUB-6001
+  party: string;
+  currency: CurrencyCode;
+  lines: SalesLine[];
+  interval: SubInterval;
+  status: SubStatus;
+  startedW: string;
+  nextW: string; // next billing
+}
+
 export interface SalesDoc {
   id: string;
   kind: SalesDocKind;

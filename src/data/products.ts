@@ -9,6 +9,11 @@ import type {
   Activity,
   SalesDoc,
   SalesDocKind,
+  Payment,
+  PaymentStatus,
+  Subscription,
+  SubInterval,
+  SubStatus,
 } from '@/types';
 
 export type TypeMeta = { label: string; icon: string; hue: string; blurb: string };
@@ -142,6 +147,47 @@ export function docTotals(d: Pick<SalesDoc, 'lines' | 'discount' | 'tax'>) {
 /** Outstanding balance on an invoice (total − collected). */
 export function docBalance(d: SalesDoc): number {
   return Math.max(0, docTotals(d).total - (d.paid || 0));
+}
+
+// ---- Payments ----
+export const PAYMENT_METHODS = ['Card', 'ACH', 'Wire', 'Cash'] as const;
+export function payStatusTone(s: PaymentStatus): 'green' | 'amber' | 'red' | 'neutral' {
+  return s === 'Succeeded' ? 'green' : s === 'Pending' ? 'amber' : s === 'Failed' ? 'red' : 'neutral';
+}
+
+// ---- Subscriptions (recurring billing) ----
+export const SUB_INTERVALS: { k: SubInterval; label: string; perMonth: number }[] = [
+  { k: 'monthly', label: 'Monthly', perMonth: 1 },
+  { k: 'quarterly', label: 'Quarterly', perMonth: 1 / 3 },
+  { k: 'annual', label: 'Annual', perMonth: 1 / 12 },
+];
+export const SUB_STATUSES: SubStatus[] = ['Active', 'Paused', 'Cancelled'];
+export function subStatusTone(s: SubStatus): 'green' | 'amber' | 'red' | 'neutral' {
+  return s === 'Active' ? 'green' : s === 'Paused' ? 'amber' : 'red';
+}
+export const intervalLabel = (k: SubInterval) => SUB_INTERVALS.find((i) => i.k === k)?.label ?? k;
+/** Normalized monthly recurring revenue for a subscription. */
+export function mrrOf(s: Subscription): number {
+  const total = s.lines.reduce((a, l) => a + l.qty * l.unit, 0);
+  const factor = SUB_INTERVALS.find((i) => i.k === s.interval)?.perMonth ?? 1;
+  return Math.round(total * factor);
+}
+
+export function seedPayments(): Payment[] {
+  return [
+    { id: 'pay-1', number: 'PAY-5001', invoiceId: 'sd-i2', invoiceNumber: 'INV-4002', party: 'Prestige Worldwide', amount: 114000, currency: 'USD', method: 'Wire', status: 'Succeeded', w: '1w' },
+    { id: 'pay-2', number: 'PAY-5002', invoiceId: 'sd-i3', invoiceNumber: 'INV-4003', party: 'Northwind Robotics', amount: 30000, currency: 'USD', method: 'Card', status: 'Succeeded', w: '2w' },
+    { id: 'pay-3', number: 'PAY-5003', party: 'Helios Retail Group', amount: 4200, currency: 'USD', method: 'ACH', status: 'Pending', w: '2d' },
+  ];
+}
+
+export function seedSubscriptions(): Subscription[] {
+  return [
+    { id: 'sub-1', number: 'SUB-6001', party: 'Prestige Worldwide', currency: 'USD', interval: 'annual', status: 'Active', startedW: '5m', nextW: 'in 7m', lines: [{ productId: pid(2), name: 'Aurora Platform — Enterprise', qty: 1, unit: 120000 }, { productId: pid(6), name: 'Premium Support — SLA', qty: 1, unit: 12000 }] },
+    { id: 'sub-2', number: 'SUB-6002', party: 'Helios Retail Group', currency: 'USD', interval: 'annual', status: 'Active', startedW: '2m', nextW: 'in 10m', lines: [{ productId: pid(1), name: 'Aurora Platform — Growth', qty: 1, unit: 72000 }] },
+    { id: 'sub-3', number: 'SUB-6003', party: 'Vantage Cloud', currency: 'USD', interval: 'monthly', status: 'Active', startedW: '3w', nextW: 'in 1w', lines: [{ productId: pid(3), name: 'Additional Seats — 10 pack', qty: 3, unit: 300 }] },
+    { id: 'sub-4', number: 'SUB-6004', party: 'Orbit Health', currency: 'USD', interval: 'annual', status: 'Paused', startedW: '8m', nextW: 'paused', lines: [{ productId: pid(7), name: 'Advanced Analytics', qty: 1, unit: 6000 }] },
+  ];
 }
 
 /** Deterministic id helper for seeded products. */
