@@ -1,0 +1,53 @@
+/* ============================================================
+   Commerce module — billing dashboard, doc lists & status boards.
+   Builds on the products.css tokens (creative theme) + dh-pp board.
+   ============================================================ */
+.dh-cm-kpis { grid-template-columns: repeat(6, 1fr); }
+
+.dh-cm-overview { padding: 0; }
+.dh-cm-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; padding: 18px 22px; align-items: start; }
+.dh-cm-panel {
+  border: 1px solid var(--p-border, var(--border));
+  border-radius: var(--r-lg);
+  background: linear-gradient(162deg, var(--p-card-a, var(--surface)), var(--p-card-b, var(--surface-2)));
+  overflow: hidden;
+}
+.dh-cm-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px; border-bottom: 1px solid var(--border);
+}
+.dh-cm-panel-head b { font-size: 13.5px; color: var(--ink); }
+.dh-cm-panel-head span { font-size: 12px; color: var(--sub); font-weight: 600; }
+
+/* billing bars */
+.dh-cm-billbars { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.dh-cm-billbar { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 12px; cursor: pointer; }
+.dh-cm-billbar-label { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); }
+.dh-cm-billbar-label .dot { width: 9px; height: 9px; border-radius: 50%; }
+.dot.green { background: var(--green); } .dot.amber { background: var(--amber); } .dot.red { background: var(--red); }
+.dh-cm-billbar-track { height: 9px; border-radius: var(--r-pill); background: var(--surface-active); overflow: hidden; }
+.dh-cm-billbar-fill { height: 100%; border-radius: var(--r-pill); transition: width var(--t) var(--ease); min-width: 2px; }
+.dh-cm-billbar-fill.green { background: var(--green); } .dh-cm-billbar-fill.amber { background: var(--amber); } .dh-cm-billbar-fill.red { background: var(--red); }
+.dh-cm-billbar-val { font-size: 12.5px; font-weight: 650; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.dh-cm-billfoot { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }
+.dh-cm-billfoot > div { padding: 11px 14px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.dh-cm-billfoot > div:last-child { border-right: none; }
+.dh-cm-billfoot span { font-size: 11px; color: var(--sub); }
+.dh-cm-billfoot b { font-size: 14.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dh-cm-billfoot b.g { color: var(--green); } .dh-cm-billfoot b.a { color: var(--amber); }
+
+.dh-cm-recent { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+
+/* board cards */
+.dh-cm-card { display: flex; flex-direction: column; gap: 5px; }
+.dh-cm-card-top { display: flex; align-items: center; justify-content: space-between; }
+.dh-cm-card-top b { font-size: 12.5px; color: var(--ink); }
+.dh-cm-card-total { font-size: 12.5px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dh-cm-card-party { font-size: 12px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dh-cm-card-bal { font-size: 11px; color: var(--amber); font-weight: 600; }
+
+@media (max-width: 1000px) {
+  .dh-cm-kpis { grid-template-columns: repeat(3, 1fr); }
+  .dh-cm-panels { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) { .dh-cm-kpis { grid-template-columns: repeat(2, 1fr); } }

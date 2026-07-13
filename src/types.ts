@@ -236,26 +236,28 @@ export interface PriceBookEntry {
 
 // ---- Sales documents (CPQ): quotes, orders, purchase orders ----
 
-export type SalesDocKind = 'quote' | 'order' | 'po';
+export type SalesDocKind = 'quote' | 'order' | 'invoice' | 'po';
 
 export interface SalesLine {
   productId: string;
   name: string;
   qty: number;
-  unit: number; // unit price (quote/order) or unit cost (po)
+  unit: number; // unit price (quote/order/invoice) or unit cost (po)
 }
 
 export interface SalesDoc {
   id: string;
   kind: SalesDocKind;
-  number: string; // e.g. Q-1001, SO-2001, PO-3001
+  number: string; // e.g. Q-1001, SO-2001, INV-4001, PO-3001
   status: string; // per-kind status
-  party: string; // customer (quote/order) or vendor (po)
+  party: string; // customer (quote/order/invoice) or vendor (po)
   currency: CurrencyCode;
   lines: SalesLine[];
   discount: number; // %
   tax: number; // %
   notes?: string;
+  dueW?: string; // invoices — relative due label
+  paid?: number; // invoices — amount collected so far
   createdW: string;
   updatedW: string;
 }

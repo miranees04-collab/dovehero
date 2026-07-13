@@ -87,7 +87,7 @@ export function ProductRecord({ id }: { id: string }) {
             trigger={({ toggle }) => <button className="dh-btn v-primary s-sm" onClick={toggle}><Icon name="plus" size={15} /> Create <Icon name="chevronDown" size={13} /></button>}>
             {(close) => (
               <div className="dh-pw-sortmenu">
-                {(['quote', 'order', 'po'] as SalesDocKind[]).map((k) => {
+                {(['quote', 'order', 'invoice', 'po'] as SalesDocKind[]).map((k) => {
                   if (k === 'po' && !p.tracked) return null;
                   const meta = DOC_META[k];
                   return (

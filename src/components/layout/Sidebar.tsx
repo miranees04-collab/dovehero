@@ -6,6 +6,7 @@ import './layout.css';
 
 const PRIMARY = [
   { key: 'deals', label: 'Deals', icon: 'layers' },
+  { key: 'commerce', label: 'Commerce', icon: 'receipt' },
 ];
 
 export function Sidebar() {

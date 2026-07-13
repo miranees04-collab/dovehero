@@ -10,6 +10,7 @@ import { RecordView } from './components/record/RecordView';
 import { ObjectView } from './components/objects/ObjectView';
 import { ProductWorkspace } from './components/products/ProductWorkspace';
 import { ProductRecord } from './components/products/ProductRecord';
+import { CommerceWorkspace } from './components/commerce/CommerceWorkspace';
 import { PipelineBar } from './components/deals/PipelineBar';
 import { NovaPanel } from './components/nova/NovaPanel';
 import { CommandPalette } from './components/command/CommandPalette';
@@ -66,7 +67,9 @@ export default function App() {
   }, [setPalette, setNova, undo, redo, setFocusMode]);
 
   let content;
-  if (nav === 'product') {
+  if (nav === 'commerce') {
+    content = <CommerceWorkspace />;
+  } else if (nav === 'product') {
     content = openObjectId ? <ProductRecord id={openObjectId} /> : <ProductWorkspace />;
   } else if (nav !== 'deals') {
     content = <ObjectView />;

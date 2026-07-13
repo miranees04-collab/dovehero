@@ -382,6 +382,8 @@ export interface AppState {
   updateSalesDoc: (id: string, patch: Partial<SalesDoc>) => void;
   removeSalesDoc: (id: string) => void;
   convertQuoteToOrder: (id: string) => string | null;
+  convertToInvoice: (id: string) => string | null;
+  recordPayment: (id: string, amount: number) => void;
   receivePO: (id: string) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
@@ -1432,6 +1434,7 @@ export const useStore = create<AppState>()(
       discount: partial.discount ?? 0,
       tax: partial.tax ?? 0,
       notes: partial.notes,
+      ...(kind === 'invoice' ? { dueW: partial.dueW ?? 'in 30d', paid: partial.paid ?? 0 } : {}),
       createdW: 'now', updatedW: 'now',
     };
     set((s) => ({ salesDocs: [doc, ...s.salesDocs] }));
@@ -1451,6 +1454,30 @@ export const useStore = create<AppState>()(
     const order = get().salesDocs.find((d) => d.id === orderId);
     get().toast(`Order ${order?.number ?? ''} created from ${q.number}`, 'success');
     return orderId;
+  },
+  convertToInvoice: (id) => {
+    const src = get().salesDocs.find((d) => d.id === id);
+    if (!src || (src.kind !== 'quote' && src.kind !== 'order')) return null;
+    const invId = get().createSalesDoc('invoice', {
+      party: src.party, currency: src.currency, lines: src.lines.map((l) => ({ ...l })), discount: src.discount, tax: src.tax,
+      status: 'Open', dueW: 'in 30d', notes: `Invoiced from ${src.number}`,
+    });
+    get().updateSalesDoc(id, src.kind === 'quote' ? { status: 'Accepted' } : { status: 'Invoiced' });
+    const inv = get().salesDocs.find((d) => d.id === invId);
+    get().toast(`Invoice ${inv?.number ?? ''} created from ${src.number}`, 'success');
+    return invId;
+  },
+  recordPayment: (id, amount) => {
+    const inv = get().salesDocs.find((d) => d.id === id);
+    if (!inv || inv.kind !== 'invoice') return;
+    const total = inv.lines.reduce((s, l) => s + l.qty * l.unit, 0);
+    const disc = Math.round((total * (inv.discount || 0)) / 100);
+    const tax = Math.round(((total - disc) * (inv.tax || 0)) / 100);
+    const grand = total - disc + tax;
+    const paid = Math.min(grand, (inv.paid || 0) + Math.max(0, amount));
+    const status = paid >= grand ? 'Paid' : 'Open';
+    get().updateSalesDoc(id, { paid, status, dueW: status === 'Paid' ? 'paid' : inv.dueW });
+    get().toast(status === 'Paid' ? `${inv.number} paid in full` : `Payment recorded on ${inv.number}`, 'success');
   },
   receivePO: (id) => {
     const po = get().salesDocs.find((d) => d.id === id);

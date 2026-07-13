@@ -4,7 +4,7 @@ import { Button, Badge } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
 import { useStore } from '@/store/useStore';
 import type { SalesLine, Product, CurrencyCode } from '@/types';
-import { DOC_META, docTotals, docStatusTone, price as fmtPrice, CURRENCIES } from '@/data/products';
+import { DOC_META, docTotals, docBalance, docStatusTone, price as fmtPrice, CURRENCIES } from '@/data/products';
 
 /** CPQ editor for a quote / sales order / purchase order. Edits live in the store. */
 export function DocBuilder({ id, onClose }: { id: string; onClose: () => void }) {
@@ -13,6 +13,8 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
   const update = useStore((s) => s.updateSalesDoc);
   const remove = useStore((s) => s.removeSalesDoc);
   const convert = useStore((s) => s.convertQuoteToOrder);
+  const toInvoice = useStore((s) => s.convertToInvoice);
+  const recordPayment = useStore((s) => s.recordPayment);
   const receive = useStore((s) => s.receivePO);
 
   useEffect(() => {
@@ -57,6 +59,12 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
               <label>{meta.partyLabel}</label>
               <input className="dh-pw-input" value={doc.party} placeholder={`${meta.partyLabel} name`} onChange={(e) => update(id, { party: e.target.value })} />
             </div>
+            {doc.kind === 'invoice' && (
+              <div className="dh-doc-field sm">
+                <label>Due</label>
+                <input className="dh-pw-input" value={doc.dueW ?? ''} placeholder="in 30d" onChange={(e) => update(id, { dueW: e.target.value })} />
+              </div>
+            )}
             <div className="dh-doc-field sm">
               <label>Currency</label>
               <select className="dh-pw-input" value={doc.currency} onChange={(e) => update(id, { currency: e.target.value as CurrencyCode })}>
@@ -101,6 +109,12 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
                 <b>{fmtPrice(t.taxAmt, doc.currency)}</b>
               </div>
               <div className="total"><span>Total</span><b>{fmtPrice(t.total, doc.currency)}</b></div>
+              {doc.kind === 'invoice' && (
+                <>
+                  <div><span>Paid</span><b>{fmtPrice(doc.paid || 0, doc.currency)}</b></div>
+                  <div className="balance"><span>Balance due</span><b>{fmtPrice(docBalance(doc), doc.currency)}</b></div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -108,8 +122,16 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
         <div className="dh-doc-foot">
           <button className="dh-doc-del" onClick={() => { if (confirm(`Delete ${doc.number}?`)) { remove(id); onClose(); } }}><Icon name="trash" size={14} /> Delete</button>
           <div className="dh-doc-foot-btns">
-            {doc.kind === 'quote' && <Button variant="ghost" onClick={() => { convert(id); onClose(); }}><Icon name="receipt" size={15} /> Convert to order</Button>}
+            {doc.kind === 'quote' && <Button variant="ghost" onClick={() => { convert(id); onClose(); }}><Icon name="boxes" size={15} /> To order</Button>}
+            {(doc.kind === 'quote' || doc.kind === 'order') && <Button variant="ghost" onClick={() => { toInvoice(id); onClose(); }}><Icon name="receipt" size={15} /> Invoice</Button>}
             {doc.kind === 'po' && doc.status !== 'Received' && <Button variant="ghost" onClick={() => { receive(id); }}><Icon name="truck" size={15} /> Receive stock</Button>}
+            {doc.kind === 'invoice' && docBalance(doc) > 0 && doc.status !== 'Void' && (
+              <Button variant="ghost" onClick={() => {
+                const bal = docBalance(doc);
+                const raw = window.prompt(`Payment amount (balance ${fmtPrice(bal, doc.currency)})`, String(bal));
+                if (raw != null) recordPayment(id, Number(raw) || 0);
+              }}><Icon name="dollar" size={15} /> Record payment</Button>
+            )}
             <Button variant="primary" onClick={onClose}><Icon name="check" size={15} /> Done</Button>
           </div>
         </div>

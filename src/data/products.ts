@@ -117,14 +117,17 @@ export const DOC_META: Record<SalesDocKind, {
   partyLabel: string; statuses: string[]; unitFrom: 'price' | 'cost';
 }> = {
   quote: { label: 'Quote', plural: 'Quotes', icon: 'fileText', hue: '#6366F1', prefix: 'Q-', base: 1000, partyLabel: 'Customer', statuses: ['Draft', 'Sent', 'Accepted', 'Expired'], unitFrom: 'price' },
-  order: { label: 'Sales order', plural: 'Orders', icon: 'receipt', hue: '#10B981', prefix: 'SO-', base: 2000, partyLabel: 'Customer', statuses: ['Open', 'Fulfilled', 'Invoiced', 'Cancelled'], unitFrom: 'price' },
+  order: { label: 'Sales order', plural: 'Orders', icon: 'boxes', hue: '#10B981', prefix: 'SO-', base: 2000, partyLabel: 'Customer', statuses: ['Open', 'Fulfilled', 'Invoiced', 'Cancelled'], unitFrom: 'price' },
+  invoice: { label: 'Invoice', plural: 'Invoices', icon: 'receipt', hue: '#EC4899', prefix: 'INV-', base: 4000, partyLabel: 'Bill to', statuses: ['Draft', 'Open', 'Paid', 'Overdue', 'Void'], unitFrom: 'price' },
   po: { label: 'Purchase order', plural: 'Purchase orders', icon: 'truck', hue: '#F59E0B', prefix: 'PO-', base: 3000, partyLabel: 'Vendor', statuses: ['Draft', 'Ordered', 'Received', 'Cancelled'], unitFrom: 'cost' },
 };
 
+export const DOC_KIND_ORDER: SalesDocKind[] = ['quote', 'order', 'invoice', 'po'];
+
 export function docStatusTone(_kind: SalesDocKind, status: string): 'green' | 'amber' | 'red' | 'neutral' {
-  if (['Accepted', 'Fulfilled', 'Invoiced', 'Received'].includes(status)) return 'green';
+  if (['Accepted', 'Fulfilled', 'Invoiced', 'Received', 'Paid'].includes(status)) return 'green';
   if (['Sent', 'Open', 'Ordered'].includes(status)) return 'amber';
-  if (['Expired', 'Cancelled'].includes(status)) return 'red';
+  if (['Expired', 'Cancelled', 'Overdue'].includes(status)) return 'red';
   return 'neutral';
 }
 
@@ -134,6 +137,11 @@ export function docTotals(d: Pick<SalesDoc, 'lines' | 'discount' | 'tax'>) {
   const taxAmt = Math.round(((subtotal - discountAmt) * (d.tax || 0)) / 100);
   const total = subtotal - discountAmt + taxAmt;
   return { subtotal, discountAmt, taxAmt, total };
+}
+
+/** Outstanding balance on an invoice (total − collected). */
+export function docBalance(d: SalesDoc): number {
+  return Math.max(0, docTotals(d).total - (d.paid || 0));
 }
 
 /** Deterministic id helper for seeded products. */
@@ -164,6 +172,24 @@ export function seedSalesDocs(): SalesDoc[] {
       id: 'sd-p1', kind: 'po', number: 'PO-3001', status: 'Ordered', party: 'Meridian Hardware', currency: 'USD',
       lines: [{ productId: pid(8), name: 'Aurora Edge Gateway', qty: 40, unit: 1150 }],
       discount: 0, tax: 0, notes: 'Restock — desktop & rack-mount.', createdW: '5d', updatedW: '2d',
+    },
+    {
+      id: 'sd-i1', kind: 'invoice', number: 'INV-4001', status: 'Open', party: 'Helios Retail Group', currency: 'USD',
+      lines: [{ productId: pid(8), name: 'Aurora Edge Gateway', qty: 6, unit: 2400 }],
+      discount: 0, tax: 8.5, dueW: 'in 12d', paid: 0, createdW: '4d', updatedW: '1d',
+    },
+    {
+      id: 'sd-i2', kind: 'invoice', number: 'INV-4002', status: 'Paid', party: 'Prestige Worldwide', currency: 'USD',
+      lines: [{ productId: pid(2), name: 'Aurora Platform — Enterprise', qty: 1, unit: 120000 }],
+      discount: 5, tax: 0, dueW: 'paid', paid: 114000, createdW: '3w', updatedW: '1w',
+    },
+    {
+      id: 'sd-i3', kind: 'invoice', number: 'INV-4003', status: 'Overdue', party: 'Northwind Robotics', currency: 'USD',
+      lines: [
+        { productId: pid(1), name: 'Aurora Platform — Growth', qty: 1, unit: 72000 },
+        { productId: pid(6), name: 'Premium Support — SLA', qty: 1, unit: 12000 },
+      ],
+      discount: 0, tax: 0, dueW: '9d overdue', paid: 30000, createdW: '6w', updatedW: '2w',
     },
   ];
 }
