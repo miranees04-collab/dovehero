@@ -54,6 +54,21 @@ npm run build:dashboard    # bundle it into ONE self-contained HTML file
                            # (dist-dashboard/dashboard.html — shareable anywhere)
 ```
 
+### Sharing & export
+
+Any dashboard (top-nav **Share**) or individual report (tile ••• → **Share & export**)
+opens a share dialog with three tabs:
+
+- **Live link** — a shareable, always-current view link with access scope and
+  expiry controls. Links are generated realistically but are mock (no backend).
+- **Email** — recipients, subject, message, an **Attach CSV** option, and a
+  delivery schedule (once / daily / weekly / monthly) for recurring emailed
+  reports. Sending is mocked.
+- **Export** — **CSV** and **Excel (.xls)** are real downloads built from the
+  report engine's output; **PDF** uses the browser's print dialog against a
+  print stylesheet that hides the app chrome and adds a report header. Every
+  export reflects the dashboard's current global filters.
+
 ### Nova AI — connecting the real Claude API
 
 Nova (`src/dashboard/ai.ts`) answers from a deterministic rules engine over the

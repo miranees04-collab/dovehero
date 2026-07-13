@@ -1346,6 +1346,97 @@
   margin-left: 4px; font-size: 13px; line-height: 1; padding: 0;
 }
 
+/* ---- share & export modal ---- */
+.cd-modal.share { width: min(560px, 100%); }
+.cd-share-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cd-share-body {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cd-share-linkrow { display: flex; gap: 8px; }
+.cd-share-linkrow .cd-input { font-size: 12.5px; color: var(--ink-2); }
+.cd-share-linkrow .cd-btn { flex: none; white-space: nowrap; }
+
+.cd-recip-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-height: 38px;
+}
+.cd-recip-box .cd-tag-input { border: 0; padding: 3px 2px; min-width: 160px; }
+.cd-recip-box:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.cd-export-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.cd-export-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.cd-export-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.cd-export-card svg { color: var(--accent); }
+.cd-export-card b { font-size: 13px; }
+.cd-export-card small { font-size: 10.5px; color: var(--muted); line-height: 1.25; }
+.cd-export-preview { border-top: 1px solid var(--border); padding-top: 12px; }
+
+.cd-share-txt { }
+@media (max-width: 900px) { .cd-share-txt { display: none; } }
+
+/* ---- print / Save-as-PDF ---- */
+.cd-print-head { display: none; }
+@media print {
+  @page { margin: 12mm; }
+  .cd-topnav, .cd-side, .cd-header, .cd-aistrip, .cd-crossbar, .cd-scrim,
+  .cd-ai, .cd-toast, .cd-toasts, .cd-resize-handle, .cd-card-edit, .cd-card-max,
+  .cd-popwrap, .cd-drag, .cd-placeholder .cd-btn { display: none !important; }
+  html, body, .cd-app, .cd-body, .cd-main { background: #fff !important; }
+  .cd-app, .cd-body, .cd-main { display: block !important; height: auto !important; min-height: 0 !important; }
+  .cd-canvas { padding: 0 !important; overflow: visible !important; }
+  .cd-print-head {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid #2a3f54;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    color: #2a3f54;
+  }
+  .cd-print-head b { font-size: 16px; }
+  .cd-print-head .cd-print-meta { font-size: 11px; color: #516f90; }
+  .cd-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #cbd6e2 !important;
+  }
+  .cd-grid { gap: 10px !important; }
+}
+
 .cd-gal-cat { margin-bottom: 6px; }
 .cd-gal-cat + .cd-gal-cat { margin-top: 4px; }
 

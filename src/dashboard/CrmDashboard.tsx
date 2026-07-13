@@ -123,6 +123,8 @@ import {
 } from './chartKit';
 import { ReportView, measureLabel, type DrillTarget } from './ReportView';
 import { ReportBuilder } from './ReportBuilder';
+import { ShareModal } from './ShareModal';
+import { reportTable, type ExportTable } from './share';
 import { AiPanel } from './AiPanel';
 import { CommandPalette, type Command } from './CommandPalette';
 import { morningBrief, recommendations, forecast, churnRisk } from './ai';
@@ -1373,6 +1375,7 @@ function TileCard({
   canEdit,
   copyTargets,
   onCopyTo,
+  onShare,
   dragging,
   dropTarget,
   onDragStart,
@@ -1395,6 +1398,7 @@ function TileCard({
   canEdit: boolean;
   copyTargets: Array<{ id: string; name: string }>;
   onCopyTo: (dashId: string) => void;
+  onShare: () => void;
   dragging: boolean;
   dropTarget: boolean;
   onDragStart: () => void;
@@ -1503,6 +1507,9 @@ function TileCard({
               </button>
               <button className="cd-pop-row" onClick={() => { setOpen(false); setFlash((f) => f + 1); onRefresh(); }}>
                 <RefreshCw size={14} /> Refresh
+              </button>
+              <button className="cd-pop-row" onClick={() => { setOpen(false); onShare(); }}>
+                <Share2 size={14} /> Share &amp; export
               </button>
               <button className="cd-pop-row" onClick={() => { setOpen(false); onDuplicate(); }}>
                 <Copy size={14} /> Duplicate here
@@ -1813,6 +1820,7 @@ export default function CrmDashboard() {
   const [addOpen, setAddOpen] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const [builder, setBuilder] = useState<{ initial?: ReportConfig; tileId?: string; libraryEdit?: boolean } | null>(null);
+  const [share, setShare] = useState<{ kind: 'dashboard' } | { kind: 'report'; tileId: string } | null>(null);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<ReportConfig[]>([]);
@@ -1912,6 +1920,30 @@ export default function CrmDashboard() {
     const destName = dashboards.find((d) => d.id === destId)?.name ?? 'dashboard';
     const title = tile.kind === 'custom' ? tile.report.title : WIDGETS[tile.preset]?.title ?? 'Report';
     toast(`Copied “${title}” to ${destName}`);
+  };
+
+  // The editable report config behind a tile, if it has one.
+  const tileConfig = (t: Tile): ReportConfig | null =>
+    t.kind === 'custom' ? t.report : WIDGETS[t.preset]?.editableAs?.() ?? null;
+
+  const tileTitle = (t: Tile): string =>
+    t.kind === 'custom' ? t.report.title : WIDGETS[t.preset]?.title ?? 'Report';
+
+  // Build an export table for a tile (falls back to a note for widgets that
+  // aren't a single tabular report, e.g. multi-metric KPI strips).
+  const tileTable = (t: Tile): ExportTable => {
+    const cfg = tileConfig(t);
+    if (cfg) return reportTable(cfg, engineCtx);
+    return { title: tileTitle(t), headers: [], rows: [], note: 'Interactive widget — open it as a report to export its data.' };
+  };
+
+  // Print the current dashboard (browser print dialog → Save as PDF).
+  const printDashboard = () => {
+    document.body.classList.add('cd-printing');
+    requestAnimationFrame(() => {
+      window.print();
+      setTimeout(() => document.body.classList.remove('cd-printing'), 500);
+    });
   };
 
   const upsertLibrary = (cfg: ReportConfig) =>
@@ -2029,6 +2061,11 @@ export default function CrmDashboard() {
         <button className="cd-btn nova" onClick={() => setAiOpen(true)} title="Ask Nova AI">
           <Sparkles size={15} /> Nova
         </button>
+        {nav === 'dashboards' && (
+          <button className="cd-btn" onClick={() => setShare({ kind: 'dashboard' })} title="Share or export this dashboard">
+            <Share2 size={15} /> <span className="cd-share-txt">Share</span>
+          </button>
+        )}
         <button className="cd-btn ghost" onClick={refreshAll} title="Refresh all widgets">
           <RefreshCw size={15} />
         </button>
@@ -2038,7 +2075,7 @@ export default function CrmDashboard() {
           tv={tv} setTv={setTv}
           imported={!!imported}
           onImport={() => setImportOpen(true)}
-          onShare={() => toast('Share link copied to clipboard (mock)')}
+          onShare={() => setShare({ kind: 'dashboard' })}
         />
       </nav>
 
@@ -2111,6 +2148,16 @@ export default function CrmDashboard() {
         </div>
 
         <main className="cd-canvas">
+          <div className="cd-print-head" aria-hidden>
+            <div>
+              <b>{dash.name}</b>
+              <span> · {dash.role}</span>
+            </div>
+            <div className="cd-print-meta">
+              {RANGE_LABELS[filters.range]} · {filters.owner === 'all' ? 'All owners' : rep.name} · {filters.pipeline === 'all' ? 'All pipelines' : filters.pipeline}
+              {' · '}Generated {new Date(now).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+          </div>
           {nav === 'reports' ? (
             <ReportsLibrary
               reports={savedReports}
@@ -2197,6 +2244,7 @@ export default function CrmDashboard() {
                         canEdit={canEdit}
                         copyTargets={dashboards.filter((d) => d.id !== dash.id).map((d) => ({ id: d.id, name: d.name }))}
                         onCopyTo={(destId) => copyTileToDashboard(tile, destId)}
+                        onShare={() => setShare({ kind: 'report', tileId: tile.id })}
                         onRemove={() => mutateDash((ts) => ts.filter((t) => t.id !== tile.id))}
                         onRefresh={() => setJitters((j) => ({ ...j, [tile.id]: (j[tile.id] ?? 0) + 1 }))}
                         onExport={() => toast(`Export queued (mock) — ${label}.csv`)}
@@ -2269,6 +2317,30 @@ export default function CrmDashboard() {
       )}
 
       {drill && <DrillPanel target={drill} ctx={engineCtx} onClose={() => setDrill(null)} />}
+
+      {share && (() => {
+        if (share.kind === 'report') {
+          const t = dash.tiles.find((x) => x.id === share.tileId);
+          if (!t) return null;
+          return (
+            <ShareModal
+              scope={{ kind: 'report', name: tileTitle(t) }}
+              tables={[tileTable(t)]}
+              onToast={toast}
+              onClose={() => setShare(null)}
+            />
+          );
+        }
+        return (
+          <ShareModal
+            scope={{ kind: 'dashboard', name: dash.name }}
+            tables={dash.tiles.map(tileTable)}
+            onPrint={printDashboard}
+            onToast={toast}
+            onClose={() => setShare(null)}
+          />
+        );
+      })()}
 
       {aiOpen && (
         <AiPanel
