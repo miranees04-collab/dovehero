@@ -27,7 +27,9 @@ const defaultBilling = (type: string): BillingPeriod =>
 export function CreateProduct({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p: Product) => void }) {
   const customTypes = useStore((s) => s.productTypes);
   const addProductType = useStore((s) => s.addProductType);
+  const removeProductType = useStore((s) => s.removeProductType);
   const addProductCategory = useStore((s) => s.addProductCategory);
+  const catalog = useStore((s) => s.objectRecords.product ?? []) as unknown as Product[];
   const toast = useStore((s) => s.toast);
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -108,7 +110,13 @@ export function CreateProduct({ onCancel, onCreate }: { onCancel: () => void; on
 
         {step === 1 ? (
           <StepType type={type} customTypes={customTypes} onChoose={chooseType}
-            onAddType={(t) => { addProductType(t); chooseType(t.k); toast(`“${t.label}” type added`, 'success'); }} />
+            onAddType={(t) => { addProductType(t); chooseType(t.k); toast(`“${t.label}” type added`, 'success'); }}
+            onRemoveType={(k) => {
+              if (catalog.some((pr) => pr.type === k)) { toast('That type is in use by a product', 'warn'); return; }
+              removeProductType(k);
+              if (type === k) chooseType('subscription');
+              toast('Custom type removed', 'default');
+            }} />
         ) : (
           <StepDetails
             meta={meta} type={type}
@@ -150,12 +158,14 @@ export function CreateProduct({ onCancel, onCreate }: { onCancel: () => void; on
 }
 
 /* ---------------- Step 1: type ---------------- */
-function StepType({ type, customTypes, onChoose, onAddType }: {
+function StepType({ type, customTypes, onChoose, onAddType, onRemoveType }: {
   type: string;
   customTypes: { k: string; label: string; icon: string; hue: string; blurb?: string }[];
   onChoose: (k: string) => void;
   onAddType: (t: { k: string; label: string; icon: string; hue: string; blurb?: string }) => void;
+  onRemoveType: (k: string) => void;
 }) {
+  const isCustom = (k: string) => customTypes.some((c) => c.k === k);
   const [creating, setCreating] = useState(false);
   const [label, setLabel] = useState('');
   const [icon, setIcon] = useState(TYPE_ICON_CHOICES[0]);
@@ -182,13 +192,18 @@ function StepType({ type, customTypes, onChoose, onAddType }: {
       </div>
       <div className="dh-cp-typelist">
         {rows.map((r) => (
-          <button key={r.k} className={`dh-cp-typerow ${type === r.k ? 'on' : ''}`} onClick={() => onChoose(r.k)} style={type === r.k ? { borderColor: r.hue } : undefined}>
+          <div key={r.k} className={`dh-cp-typerow ${type === r.k ? 'on' : ''}`} role="button" tabIndex={0}
+            onClick={() => onChoose(r.k)} onKeyDown={(e) => { if (e.key === 'Enter') onChoose(r.k); }}
+            style={type === r.k ? { borderColor: r.hue } : undefined}>
             <span className="dh-cp-typeico" style={{ background: r.hue + '18', color: r.hue }}><Icon name={r.icon} size={18} /></span>
             <span className="dh-cp-typetxt"><b>{r.label}</b><small>{r.blurb}</small></span>
+            {isCustom(r.k) && (
+              <button className="dh-cp-typedel" title="Delete custom type" onClick={(e) => { e.stopPropagation(); onRemoveType(r.k); }}><Icon name="trash" size={13} /></button>
+            )}
             <span className={`dh-cp-radio ${type === r.k ? 'on' : ''}`} style={type === r.k ? { borderColor: r.hue, background: r.hue } : undefined}>
               {type === r.k && <Icon name="check" size={12} color="#fff" />}
             </span>
-          </button>
+          </div>
         ))}
 
         {creating ? (

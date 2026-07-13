@@ -104,7 +104,7 @@ export function ProductRecord({ id }: { id: string }) {
           {activeLeft === 'details' && <Properties p={p} onChange={set} />}
           {activeLeft === 'pricing' && <Pricing p={p} onChange={set} />}
           {activeLeft === 'variants' && <Variants p={p} onChange={set} />}
-          {activeLeft === 'bundle' && <Bundle p={p} />}
+          {activeLeft === 'bundle' && <Bundle p={p} onChange={set} />}
           {activeLeft === 'inventory' && <Inventory p={p} onChange={set} />}
         </section>
 
@@ -117,7 +117,7 @@ export function ProductRecord({ id }: { id: string }) {
         {/* RIGHT — associations */}
         <section className="dh-pr-col">
           <div className="dh-pr-colhead"><Icon name="layers" size={14} /> Associations</div>
-          <Associations product={p} onBrochure={() => setBrochure(true)} />
+          <Associations product={p} onChange={set} onBrochure={() => setBrochure(true)} />
         </section>
       </div>
 
@@ -199,11 +199,30 @@ function ProductActivity({ product: p }: { product: Product }) {
 }
 
 /* ---------------- Right: associations ---------------- */
-function Associations({ product: p, onBrochure }: { product: Product; onBrochure: () => void }) {
+const MEDIA_EMOJI = ['🖼️', '📸', '🎨', '📐', '🏷️', '📊', '🎬', '🧩'];
+
+function Associations({ product: p, onChange, onBrochure }: { product: Product; onChange: (patch: Partial<Product>) => void; onBrochure: () => void }) {
   const deals = useStore((s) => s.deals);
   const products = useProducts();
+  const companyRecs = useStore((s) => s.objectRecords.company ?? []);
+  const setNav = useStore((s) => s.setNav);
+  const openObject = useStore((s) => s.openObject);
+  const toast = useStore((s) => s.toast);
   const link = useMemo(() => productDealLinks(products, deals).byId[p.id], [products, deals, p.id]);
   const companies = Array.from(new Set((link?.deals ?? []).map((d) => d.company)));
+
+  const openCompany = (name: string) => {
+    const rec = companyRecs.find((r) => String(r.name) === name);
+    setNav('company');
+    if (rec) openObject(rec.id);
+  };
+  const addMedia = () => {
+    const media = p.media ?? [];
+    onChange({ media: [...media, { name: `Image ${media.length + 1}`, emoji: MEDIA_EMOJI[media.length % MEDIA_EMOJI.length], hue: p.image.hue }] });
+    toast('Media added', 'success');
+  };
+  const removeMedia = (i: number) => onChange({ media: (p.media ?? []).filter((_, j) => j !== i) });
+  const downloadDoc = (name: string) => toast(`Downloading ${name}`, 'default');
 
   return (
     <div className="dh-pr-assoc">
@@ -213,23 +232,32 @@ function Associations({ product: p, onBrochure }: { product: Product; onBrochure
         <div className="dh-pw-subhead"><Icon name="building" size={14} /><b>Accounts</b><span className="dh-pw-subhead-hint">{companies.length}</span></div>
         {companies.length ? (
           <div className="dh-pr-chiplist">
-            {companies.map((c) => <span key={c} className="dh-pr-chip"><Icon name="building" size={12} /> {c}</span>)}
+            {companies.map((c) => (
+              <button key={c} className="dh-pr-chip" onClick={() => openCompany(c)} title={`Open ${c}`}><Icon name="building" size={12} /> {c}</button>
+            ))}
           </div>
         ) : <p className="dh-pw-mini-empty">No accounts linked yet.</p>}
 
         <div className="dh-pw-subhead"><Icon name="image" size={14} /><b>Media</b><span className="dh-pw-subhead-hint">{p.media?.length ?? 0}</span></div>
         <div className="dh-pr-media">
           {(p.media ?? []).map((mm, i) => (
-            <span key={i} className="dh-pr-mediatile" style={{ background: mm.hue + '1a', color: mm.hue }} title={mm.name}>{mm.emoji}</span>
+            <span key={i} className="dh-pr-mediatile" style={{ background: mm.hue + '1a', color: mm.hue }} title={mm.name}>
+              {mm.emoji}
+              <button className="dh-pr-mediatile-x" onClick={() => removeMedia(i)} aria-label={`Remove ${mm.name}`}><Icon name="x" size={10} /></button>
+            </span>
           ))}
-          <span className="dh-pr-mediatile add" title="Add image"><Icon name="plus" size={16} /></span>
+          <button className="dh-pr-mediatile add" title="Add image" onClick={addMedia}><Icon name="plus" size={16} /></button>
         </div>
 
         <div className="dh-pw-subhead"><Icon name="paperclip" size={14} /><b>Documents</b><span className="dh-pw-subhead-hint">{p.docs?.length ?? 0}</span></div>
         {(p.docs ?? []).length ? (
           <div className="dh-pr-doclist">
             {(p.docs ?? []).map((d, i) => (
-              <div key={i} className="dh-pr-doc"><Icon name={d.k === 'pdf' ? 'fileText' : d.k === 'sheet' ? 'receipt' : 'file'} size={14} /><span>{d.n}</span><Icon name="download" size={13} className="dh-pr-doc-dl" /></div>
+              <button key={i} className="dh-pr-doc" onClick={() => downloadDoc(d.n)}>
+                <Icon name={d.k === 'pdf' ? 'fileText' : d.k === 'sheet' ? 'receipt' : 'file'} size={14} />
+                <span>{d.n}</span>
+                <Icon name="download" size={13} className="dh-pr-doc-dl" />
+              </button>
             ))}
           </div>
         ) : <p className="dh-pw-mini-empty">No documents.</p>}

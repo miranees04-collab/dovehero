@@ -1364,3 +1364,38 @@ select.dh-pw-input { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .dh-pw-kpi, .dh-pp-card, .dh-btn { transition: none !important; }
 }
+
+/* ============================================================
+   Audit fixes — interactive elements & a11y focus
+   ============================================================ */
+/* chips / docs / media are now real buttons — reset native styling */
+.dh-pr-chip { font-family: inherit; cursor: pointer; }
+.dh-pr-chip:hover { background: color-mix(in srgb, var(--phue) 12%, var(--surface)) !important; border-color: color-mix(in srgb, var(--phue) 34%, var(--border)) !important; }
+.dh-pr-doc { width: 100%; font-family: inherit; text-align: left; }
+.dh-pr-media { align-items: center; }
+.dh-pr-mediatile { position: relative; border: none; font-family: inherit; }
+.dh-pr-mediatile-x {
+  position: absolute; top: -5px; right: -5px;
+  width: 17px; height: 17px; border-radius: 50%;
+  border: 1.5px solid var(--surface); background: var(--red); color: #fff;
+  display: none; place-items: center; cursor: pointer;
+}
+.dh-pr-mediatile:hover .dh-pr-mediatile-x { display: grid; }
+button.dh-pr-mediatile.add { cursor: pointer; }
+
+/* editable bundle: the add-component select */
+.dh-bundle-add { margin-top: 10px; cursor: pointer; color: var(--accent-700); font-weight: 600; }
+[data-theme='dark'] .dh-bundle-add { color: var(--accent); }
+
+/* delete affordance on custom type rows */
+.dh-cp-typedel {
+  border: none; background: none; cursor: pointer; color: var(--faint);
+  width: 26px; height: 26px; border-radius: var(--r-sm); display: grid; place-items: center;
+  transition: all var(--t-fast) var(--ease);
+}
+.dh-cp-typedel:hover { background: var(--red-soft); color: var(--red); }
+
+/* keyboard focus rings for card/row/type-row */
+.dh-pw-table tbody tr:focus-visible { outline: 2px solid var(--accent-500); outline-offset: -2px; }
+.dh-pp-card:focus-visible,
+.dh-cp-typerow:focus-visible { outline: 2px solid var(--accent-500); outline-offset: 2px; border-radius: var(--r-md); }

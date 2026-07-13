@@ -77,9 +77,13 @@ function PipelineCard({ p, dragging, onOpen, onDragStart, onDragEnd }: {
     <div
       className={`dh-pp-card ${dragging ? 'dragging' : ''}`}
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${p.name}`}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(); } }}
     >
       <div className="dh-pp-card-top">
         <span className="dh-pw-thumb sm" style={{ background: p.image.hue + '1a', color: p.image.hue }}>{p.image.emoji}</span>

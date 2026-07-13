@@ -17,6 +17,7 @@ import type {
 } from '@/types';
 import {
   PRODUCT_STATUSES,
+  PRODUCT_TYPE_ORDER,
   resolveType,
   BILLING_LABEL,
   CURRENCIES,
@@ -65,6 +66,9 @@ export function StatTiles({ p, link }: { p: Product; link?: ProductLink }) {
 /* ---------------- Properties (record left column) ---------------- */
 export function Properties({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
   const categories = useStore((s) => s.productCategories);
+  const customTypes = useStore((s) => s.productTypes);
+  const typeOpts = [...(PRODUCT_TYPE_ORDER as string[]), ...customTypes.map((t) => t.k)]
+    .map((k) => ({ value: k, label: resolveType(k, customTypes).label }));
   return (
     <div className="dh-pw-sect">
       <Field label="Description">
@@ -76,7 +80,9 @@ export function Properties({ p, onChange }: { p: Product; onChange: (patch: Part
       </Field>
       <div className="dh-pw-detailrows">
         <Row label="SKU"><span className="mono"><InlineEdit value={p.sku} onCommit={(v) => onChange({ sku: v.trim() || p.sku })} /></span></Row>
-        <Row label="Type"><TypeBadge type={p.type} /></Row>
+        <Row label="Type">
+          <InlineEdit value={p.type} display={<TypeBadge type={p.type} />} options={typeOpts} onCommit={(v) => onChange({ type: v })} />
+        </Row>
         <Row label="Category">
           <InlineEdit value={p.category} display={<span>{p.category}</span>}
             options={categories.map((c) => ({ value: c, label: c }))} onCommit={(v) => onChange({ category: v })} />
@@ -231,25 +237,37 @@ export function Variants({ p, onChange }: { p: Product; onChange: (patch: Partia
   );
 }
 
-/* ---------------- Bundle ---------------- */
-export function Bundle({ p }: { p: Product }) {
+/* ---------------- Bundle (editable) ---------------- */
+export function Bundle({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
+  const catalog = (useStore((s) => s.objectRecords.product) ?? []) as unknown as Product[];
   const items: BundleItem[] = p.bundleItems ?? [];
   const componentSum = items.reduce((s, it) => s + it.qty * it.unit, 0);
   const savings = componentSum - p.price;
+
+  const options = catalog.filter((x) => x.id !== p.id && x.type !== 'bundle' && !items.some((it) => it.productId === x.id));
+  const add = (id: string) => {
+    const src = catalog.find((x) => x.id === id);
+    if (!src) return;
+    onChange({ bundleItems: [...items, { productId: src.id, name: src.name, qty: 1, unit: src.price }] });
+  };
+  const setQty = (i: number, qty: number) => onChange({ bundleItems: items.map((it, j) => (j === i ? { ...it, qty: Math.max(1, qty) } : it)) });
+  const del = (i: number) => onChange({ bundleItems: items.filter((_, j) => j !== i) });
+
   return (
     <div className="dh-pw-sect">
       <SubHead icon="boxes" title="Bundle components" hint="Products included in this kit" />
       {items.length ? (
         <>
           <table className="dh-pw-mini">
-            <thead><tr><th>Component</th><th className="col-num">Qty</th><th className="col-num">Unit</th><th className="col-num">Line</th></tr></thead>
+            <thead><tr><th>Component</th><th className="col-num">Qty</th><th className="col-num">Unit</th><th className="col-num">Line</th><th></th></tr></thead>
             <tbody>
               {items.map((it, i) => (
-                <tr key={i}>
+                <tr key={it.productId}>
                   <td>{it.name} <span className="mono dh-pw-dim">{it.productId}</span></td>
-                  <td className="col-num">{it.qty}</td>
+                  <td className="col-num"><InlineEdit value={it.qty} type="number" onCommit={(v) => setQty(i, Number(v) || 1)} /></td>
                   <td className="col-num">{fmtPrice(it.unit, p.currency)}</td>
                   <td className="col-num">{fmtPrice(it.qty * it.unit, p.currency)}</td>
+                  <td className="col-menu"><button className="dh-pw-rowx" onClick={() => del(i)} aria-label="Remove component"><Icon name="x" size={13} /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -263,7 +281,14 @@ export function Bundle({ p }: { p: Product }) {
             </div>
           </div>
         </>
-      ) : <Empty text="No components. Add products to compose this bundle." />}
+      ) : <Empty text="No components yet — add products below to compose this bundle." />}
+
+      {options.length > 0 && (
+        <select className="dh-pw-input dh-bundle-add" value="" onChange={(e) => { if (e.target.value) add(e.target.value); }}>
+          <option value="">＋ Add a component…</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.name} — {fmtPrice(o.price, o.currency)}</option>)}
+        </select>
+      )}
     </div>
   );
 }

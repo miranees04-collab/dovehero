@@ -373,6 +373,7 @@ export interface AppState {
   moveProductStage: (id: string, stage: ProductStage) => void;
   addProductActivity: (id: string, act: Activity) => void;
   addProductType: (t: CustomProductType) => void;
+  removeProductType: (k: string) => void;
   addProductCategory: (c: string) => string;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
@@ -1407,6 +1408,7 @@ export const useStore = create<AppState>()(
     }),
   addProductType: (t) =>
     set((s) => (s.productTypes.some((x) => x.k === t.k) ? {} : { productTypes: [...s.productTypes, t] })),
+  removeProductType: (k) => set((s) => ({ productTypes: s.productTypes.filter((t) => t.k !== k) })),
   addProductCategory: (c) => {
     const name = c.trim();
     if (!name) return name;

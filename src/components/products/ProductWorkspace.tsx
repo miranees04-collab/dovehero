@@ -9,6 +9,7 @@ import type {
 import {
   PRODUCT_TYPE_ORDER,
   PRODUCT_STATUSES,
+  PRODUCT_STAGES,
   resolveType,
   BILLING_LABEL,
   price as fmtPrice,
@@ -38,6 +39,7 @@ export function ProductWorkspace() {
   const removeObjectRecord = useStore((s) => s.removeObjectRecord);
   const duplicateObjectRecord = useStore((s) => s.duplicateObjectRecord);
   const openObject = useStore((s) => s.openObject);
+  const moveProductStage = useStore((s) => s.moveProductStage);
   const customTypes = useStore((s) => s.productTypes);
   const categories = useStore((s) => s.productCategories);
   const toast = useStore((s) => s.toast);
@@ -247,6 +249,20 @@ export function ProductWorkspace() {
               </div>
             )}
           </Popover>
+          <Popover
+            trigger={({ toggle }) => <button className="dh-btn v-ghost s-sm" onClick={toggle}><Icon name="repeat" size={14} /> Stage</button>}
+          >
+            {(close) => (
+              <div className="dh-pw-sortmenu">
+                {PRODUCT_STAGES.map((st) => (
+                  <MenuItem key={st.k} icon={<span className="dh-pp-coldot" style={{ background: st.hue }} />}
+                    onClick={() => { const ids = [...sel]; ids.forEach((id) => moveProductStage(id, st.k)); setSel([]); toast(`${ids.length} moved to ${st.label}`, 'success'); close(); }}>
+                    {st.label}
+                  </MenuItem>
+                ))}
+              </div>
+            )}
+          </Popover>
           <Button variant="ghost" size="sm" onClick={bulkDelete} className="danger-text"><Icon name="trash" size={14} /> Delete</Button>
           <button className="dh-pw-bulk-clear" onClick={() => setSel([])}>Clear</button>
         </div>
@@ -277,7 +293,9 @@ export function ProductWorkspace() {
               const ss = stockState(p);
               const link = links.byId[p.id];
               return (
-                <tr key={p.id} className={sel.includes(p.id) ? 'is-sel' : ''} onClick={() => openObject(p.id)}>
+                <tr key={p.id} className={sel.includes(p.id) ? 'is-sel' : ''} tabIndex={0} role="button" aria-label={`Open ${p.name}`}
+                  onClick={() => openObject(p.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); openObject(p.id); } }}>
                   <td className="col-check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={`Select ${p.name}`} />
                   </td>
