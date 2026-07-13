@@ -20,6 +20,7 @@ import type {
   CustomProductType,
   SalesDoc,
   SalesDocKind,
+  SalesLine,
   Payment,
   PaymentMethod,
   Subscription,
@@ -390,6 +391,8 @@ export interface AppState {
   convertToInvoice: (id: string) => string | null;
   recordPayment: (id: string, amount: number, method?: PaymentMethod) => void;
   refundPayment: (paymentId: string) => void;
+  sendDunning: (invoiceId: string) => void;
+  addSubscriptionItem: (subId: string, line: SalesLine, prorate: boolean) => string | null;
   createSubscription: (partial?: Partial<Subscription>) => string;
   updateSubscription: (id: string, patch: Partial<Subscription>) => void;
   removeSubscription: (id: string) => void;
@@ -1446,7 +1449,7 @@ export const useStore = create<AppState>()(
       discount: partial.discount ?? 0,
       tax: partial.tax ?? 0,
       notes: partial.notes,
-      ...(kind === 'invoice' ? { dueW: partial.dueW ?? 'in 30d', paid: partial.paid ?? 0 } : {}),
+      ...(kind === 'invoice' ? { dueDays: partial.dueDays ?? 30, paid: partial.paid ?? 0, dunning: 0 } : {}),
       createdW: 'now', updatedW: 'now',
     };
     set((s) => ({ salesDocs: [doc, ...s.salesDocs] }));
@@ -1509,6 +1512,30 @@ export const useStore = create<AppState>()(
       if (inv) get().updateSalesDoc(inv.id, { paid: Math.max(0, (inv.paid || 0) - pay.amount), status: 'Open' });
     }
     get().toast(`${pay.number} refunded`, 'warn');
+  },
+  sendDunning: (invoiceId) => {
+    const inv = get().salesDocs.find((d) => d.id === invoiceId);
+    if (!inv || inv.kind !== 'invoice') return;
+    const n = (inv.dunning || 0) + 1;
+    get().updateSalesDoc(invoiceId, { dunning: n });
+    get().toast(`Payment reminder sent to ${inv.party || 'customer'} (attempt ${n})`, 'success');
+  },
+  addSubscriptionItem: (subId, line, prorate) => {
+    const sub = get().subscriptions.find((x) => x.id === subId);
+    if (!sub) return null;
+    get().updateSubscription(subId, { lines: [...sub.lines, line] });
+    if (!prorate) return null;
+    const frac = sub.cycleRemaining ?? 0.5;
+    const amount = Math.round(line.qty * line.unit * frac);
+    if (amount <= 0) return null;
+    const invId = get().createSalesDoc('invoice', {
+      party: sub.party, currency: sub.currency, status: 'Open', dueDays: 14,
+      lines: [{ productId: line.productId, name: `Proration — ${line.name} (${Math.round(frac * 100)}% of period)`, qty: 1, unit: amount }],
+      notes: `Prorated add-on for ${sub.number}`,
+    });
+    const inv = get().salesDocs.find((d) => d.id === invId);
+    get().toast(`Added to ${sub.number} · prorated invoice ${inv?.number ?? ''} for ${amount.toLocaleString()}`, 'success');
+    return invId;
   },
   createSubscription: (partial = {}) => {
     const id = 'sub-' + uid('n').slice(-5);

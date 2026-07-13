@@ -10,6 +10,9 @@ import {
   docTotals,
   docBalance,
   docStatusTone,
+  dueLabel,
+  invoiceAging,
+  AGING_BUCKETS,
   mrrOf,
   price as fmtPrice,
 } from '@/data/products';
@@ -135,6 +138,7 @@ export function CommerceWorkspace({ section }: { section: CommerceSection }) {
 
       {(section === 'quote' || section === 'order' || section === 'invoice' || section === 'po') && (
         <>
+          {section === 'invoice' && view === 'list' && <AgingPanel invoices={invoices} />}
           <Toolbar q={q} setQ={setQ} view={view} setView={setView} label={DOC_META[section].plural} count={by(section).length} />
           {view === 'board' ? <StatusBoard kind={section} docs={filterDocs(by(section), q)} onOpen={setDocId} />
             : <DocTable kind={section} docs={filterDocs(by(section), q)} onOpen={setDocId} />}
@@ -255,21 +259,41 @@ function Overview({ docs, kpi, onOpen }: { docs: SalesDoc[]; kpi: { invoiced: nu
   );
 }
 
+function AgingPanel({ invoices }: { invoices: SalesDoc[] }) {
+  const aging = invoiceAging(invoices);
+  const total = AGING_BUCKETS.reduce((s, b) => s + aging[b.k], 0);
+  if (total <= 0) return null;
+  return (
+    <div className="dh-aging">
+      <div className="dh-aging-title"><Icon name="clock" size={14} /> Accounts receivable aging <span className="dh-pw-dim">· {fmtPrice(total)} outstanding</span></div>
+      <div className="dh-aging-buckets">
+        {AGING_BUCKETS.map((b) => (
+          <div key={b.k} className={`dh-aging-bucket tone-${b.tone}`}>
+            <span className="dh-aging-amt">{fmtPrice(aging[b.k])}</span>
+            <span className="dh-aging-lab">{b.label}</span>
+            <div className="dh-aging-bar"><div className={`dh-aging-fill ${b.tone}`} style={{ width: `${total ? (aging[b.k] / total) * 100 : 0}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DocTable({ kind, docs, onOpen }: { kind: SalesDocKind; docs: SalesDoc[]; onOpen: (id: string) => void }) {
   const meta = DOC_META[kind];
   return (
     <div className="dh-pw-scroll">
       <table className="dh-pw-table">
-        <thead><tr><th>Number</th><th>{meta.partyLabel}</th><th>Status</th><th className="col-num">Items</th><th className="col-num">Total</th>{kind === 'invoice' && <th className="col-num">Balance</th>}<th>Updated</th></tr></thead>
+        <thead><tr><th>Number</th><th>{meta.partyLabel}</th><th>Status</th><th className="col-num">Items</th><th className="col-num">Total</th>{kind === 'invoice' && <><th className="col-num">Balance</th><th>Due</th></>}<th>Updated</th></tr></thead>
         <tbody>
           {docs.map((d) => (
             <tr key={d.id} tabIndex={0} role="button" aria-label={`Open ${d.number}`} onClick={() => onOpen(d.id)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(d.id); } }}>
-              <td><b className="mono">{d.number}</b></td>
+              <td><b className="mono">{d.number}</b>{d.dunning ? <span className="dh-doc-dun-dot" title={`${d.dunning} reminder(s) sent`}><Icon name="clock" size={11} /> {d.dunning}</span> : null}</td>
               <td>{d.party || <span className="dh-pw-dim">—</span>}</td>
               <td><Badge tone={docStatusTone(d.kind, d.status)}>{d.status}</Badge></td>
               <td className="col-num">{d.lines.length}</td>
               <td className="col-num"><b>{fmtPrice(docTotals(d).total, d.currency)}</b></td>
-              {kind === 'invoice' && <td className="col-num">{d.status === 'Paid' ? <span className="dh-pw-dim">—</span> : fmtPrice(docBalance(d), d.currency)}</td>}
+              {kind === 'invoice' && <><td className="col-num">{d.status === 'Paid' ? <span className="dh-pw-dim">—</span> : fmtPrice(docBalance(d), d.currency)}</td><td><span className={(d.dueDays ?? 30) < 0 && d.status !== 'Paid' ? 'dh-doc-overdue' : 'dh-pw-dim'}>{d.status === 'Paid' ? '—' : dueLabel(d.dueDays)}</span></td></>}
               <td><span className="dh-pw-dim">{d.updatedW} ago</span></td>
             </tr>
           ))}

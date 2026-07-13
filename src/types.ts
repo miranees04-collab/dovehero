@@ -274,6 +274,7 @@ export interface Subscription {
   status: SubStatus;
   startedW: string;
   nextW: string; // next billing
+  cycleRemaining?: number; // fraction (0–1) of the current period left — used for proration
 }
 
 export interface SalesDoc {
@@ -288,7 +289,9 @@ export interface SalesDoc {
   tax: number; // %
   notes?: string;
   dueW?: string; // invoices — relative due label
+  dueDays?: number; // invoices — days until due (negative = overdue), drives aging
   paid?: number; // invoices — amount collected so far
+  dunning?: number; // invoices — number of reminders sent
   createdW: string;
   updatedW: string;
 }

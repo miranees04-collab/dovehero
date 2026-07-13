@@ -67,3 +67,73 @@
 /* payment → invoice link */
 .dh-pw-link { color: var(--accent-600); }
 [data-theme='dark'] .dh-pw-link { color: var(--accent); }
+
+/* ============================================================
+   Aging report (invoices)
+   ============================================================ */
+.dh-aging { padding: 14px 22px 0; }
+.dh-aging-title { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 10px; }
+.dh-aging-buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.dh-aging-bucket { border: 1px solid var(--p-border, var(--border)); border-radius: var(--r-md); padding: 11px 13px; background: linear-gradient(162deg, var(--p-card-a, var(--surface)), var(--p-card-b, var(--surface-2))); display: flex; flex-direction: column; gap: 4px; }
+.dh-aging-amt { font-size: 16px; font-weight: 720; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dh-aging-lab { font-size: 11px; color: var(--sub); }
+.dh-aging-bar { height: 5px; border-radius: var(--r-pill); background: var(--surface-active); overflow: hidden; margin-top: 3px; }
+.dh-aging-fill { height: 100%; border-radius: var(--r-pill); }
+.dh-aging-fill.green { background: var(--green); } .dh-aging-fill.amber { background: var(--amber); } .dh-aging-fill.red { background: var(--red); }
+.dh-aging-bucket.tone-red .dh-aging-amt { color: var(--red); }
+
+/* dunning */
+.dh-doc-dun { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--amber); font-weight: 600; }
+.dh-doc-dun-dot { display: inline-flex; align-items: center; gap: 3px; margin-left: 7px; font-size: 10.5px; color: var(--amber); font-weight: 700; }
+.dh-doc-overdue { color: var(--red) !important; font-weight: 650; }
+
+/* doc footer left cluster + PDF */
+.dh-doc-foot-left { display: flex; align-items: center; gap: 14px; }
+.dh-doc-del.alt { color: var(--sub); }
+.dh-doc-del.alt:hover { color: var(--ink); }
+
+/* subscription add-on / proration */
+.dh-sub-addon { grid-column: 1 / -1; border: 1px dashed var(--border-2); border-radius: var(--r-md); padding: 12px; margin-top: 4px; }
+.dh-sub-addon-head { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 9px; display: flex; align-items: center; gap: 5px; }
+.dh-sub-addon-row { display: flex; gap: 8px; }
+.dh-sub-addon-row select { flex: 1; }
+.dh-sub-addon-est { margin-top: 8px; font-size: 12.5px; color: var(--sub); }
+.dh-sub-addon-est b { color: var(--violet); }
+
+/* checkout / payment page */
+.dh-checkout {
+  position: fixed; z-index: 321; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 400px; max-width: 94vw; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-pop);
+  padding: 22px; display: flex; flex-direction: column; gap: 12px; position: fixed;
+}
+.dh-checkout-x { position: absolute; top: 12px; right: 12px; }
+.dh-checkout-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); font-size: 14px; }
+.dh-checkout-logo { width: 26px; height: 26px; border-radius: var(--r-sm); background: var(--grad); display: grid; place-items: center; }
+.dh-checkout-head { text-align: center; padding: 8px 0; }
+.dh-checkout-head span { font-size: 12.5px; color: var(--sub); }
+.dh-checkout-head h1 { margin: 4px 0 2px; font-size: 32px; font-weight: 780; color: var(--ink); letter-spacing: -0.02em; }
+.dh-checkout-head small { font-size: 11.5px; color: var(--faint); }
+.dh-checkout-lines { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.dh-checkout-lines > div { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 12.5px; color: var(--ink-2); border-bottom: 1px solid var(--border); }
+.dh-checkout-lines > div:last-child { border-bottom: none; }
+.dh-checkout-methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dh-checkout-method { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px; border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface); color: var(--sub); font-size: 11px; font-family: inherit; cursor: pointer; }
+.dh-checkout-method.on { border-color: var(--accent-500); background: var(--accent-soft); color: var(--accent-700); }
+[data-theme='dark'] .dh-checkout-method.on { color: var(--accent); }
+.dh-checkout-card { font-family: var(--font-mono); font-size: 12.5px; color: var(--sub); padding: 10px 12px; border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-2); letter-spacing: 1px; }
+.dh-checkout-secure { text-align: center; font-size: 11px; color: var(--faint); display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0; }
+.dh-checkout-secure svg { color: var(--green); }
+.dh-checkout-done { text-align: center; padding: 18px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.dh-checkout-tick { width: 60px; height: 60px; border-radius: 50%; background: var(--green); display: grid; place-items: center; margin-bottom: 4px; }
+.dh-checkout-done h2 { margin: 0; font-size: 19px; color: var(--ink); }
+.dh-checkout-done p { margin: 0 0 8px; font-size: 13px; color: var(--sub); }
+
+/* import modal */
+.dh-import-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.dh-import-file { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--accent-700); cursor: pointer; padding: 6px 11px; border: 1px solid var(--accent-200); border-radius: var(--r-sm); background: var(--accent-soft); }
+[data-theme='dark'] .dh-import-file { color: var(--accent); border-color: var(--border-strong); }
+.dh-import-sample { border: none; background: none; color: var(--accent-600); font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.dh-import-sample:hover { text-decoration: underline; }
+.dh-import-preview-head { font-size: 12.5px; color: var(--sub); margin: 4px 0; }
+.dh-import-preview-head b { color: var(--ink); }

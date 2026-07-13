@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Badge } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
 import { useStore } from '@/store/useStore';
-import type { SalesLine, Product, CurrencyCode } from '@/types';
-import { DOC_META, docTotals, docBalance, docStatusTone, price as fmtPrice, CURRENCIES } from '@/data/products';
+import type { SalesDoc, SalesLine, Product, CurrencyCode, PaymentMethod } from '@/types';
+import { DOC_META, docTotals, docBalance, docStatusTone, dueLabel, docHtml, checkoutUrl, price as fmtPrice, CURRENCIES, PAYMENT_METHODS } from '@/data/products';
 
 /** CPQ editor for a quote / sales order / purchase order. Edits live in the store. */
 export function DocBuilder({ id, onClose }: { id: string; onClose: () => void }) {
@@ -15,7 +15,10 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
   const convert = useStore((s) => s.convertQuoteToOrder);
   const toInvoice = useStore((s) => s.convertToInvoice);
   const recordPayment = useStore((s) => s.recordPayment);
+  const sendDunning = useStore((s) => s.sendDunning);
   const receive = useStore((s) => s.receivePO);
+  const toast = useStore((s) => s.toast);
+  const [checkout, setCheckout] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -61,8 +64,8 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
             </div>
             {doc.kind === 'invoice' && (
               <div className="dh-doc-field sm">
-                <label>Due</label>
-                <input className="dh-pw-input" value={doc.dueW ?? ''} placeholder="in 30d" onChange={(e) => update(id, { dueW: e.target.value })} />
+                <label>Due in (days)</label>
+                <input className="dh-pw-input" type="number" value={doc.dueDays ?? 30} onChange={(e) => update(id, { dueDays: Number(e.target.value) || 0 })} />
               </div>
             )}
             <div className="dh-doc-field sm">
@@ -112,6 +115,7 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
               {doc.kind === 'invoice' && (
                 <>
                   <div><span>Paid</span><b>{fmtPrice(doc.paid || 0, doc.currency)}</b></div>
+                  <div><span>Due</span><b className={(doc.dueDays ?? 30) < 0 ? 'dh-doc-overdue' : ''}>{dueLabel(doc.dueDays)}</b></div>
                   <div className="balance"><span>Balance due</span><b>{fmtPrice(docBalance(doc), doc.currency)}</b></div>
                 </>
               )}
@@ -120,11 +124,21 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
         </div>
 
         <div className="dh-doc-foot">
-          <button className="dh-doc-del" onClick={() => { if (confirm(`Delete ${doc.number}?`)) { remove(id); onClose(); } }}><Icon name="trash" size={14} /> Delete</button>
+          <div className="dh-doc-foot-left">
+            <button className="dh-doc-del" onClick={() => { if (confirm(`Delete ${doc.number}?`)) { remove(id); onClose(); } }}><Icon name="trash" size={14} /> Delete</button>
+            <button className="dh-doc-del alt" onClick={() => { downloadDoc(doc); toast(`${doc.number} downloaded`, 'success'); }}><Icon name="download" size={14} /> PDF</button>
+            {doc.dunning ? <span className="dh-doc-dun"><Icon name="clock" size={12} /> {doc.dunning} reminder{doc.dunning > 1 ? 's' : ''} sent</span> : null}
+          </div>
           <div className="dh-doc-foot-btns">
             {doc.kind === 'quote' && <Button variant="ghost" onClick={() => { convert(id); onClose(); }}><Icon name="boxes" size={15} /> To order</Button>}
             {(doc.kind === 'quote' || doc.kind === 'order') && <Button variant="ghost" onClick={() => { toInvoice(id); onClose(); }}><Icon name="receipt" size={15} /> Invoice</Button>}
             {doc.kind === 'po' && doc.status !== 'Received' && <Button variant="ghost" onClick={() => { receive(id); }}><Icon name="truck" size={15} /> Receive stock</Button>}
+            {doc.kind === 'invoice' && ['Open', 'Overdue'].includes(doc.status) && (
+              <Button variant="ghost" onClick={() => { sendDunning(id); }}><Icon name="mail" size={15} /> Send reminder</Button>
+            )}
+            {doc.kind === 'invoice' && docBalance(doc) > 0 && doc.status !== 'Void' && (
+              <Button variant="ghost" onClick={() => { navigator.clipboard?.writeText(checkoutUrl(doc)).catch(() => {}); setCheckout(true); }}><Icon name="globe" size={15} /> Payment link</Button>
+            )}
             {doc.kind === 'invoice' && docBalance(doc) > 0 && doc.status !== 'Void' && (
               <Button variant="ghost" onClick={() => {
                 const bal = docBalance(doc);
@@ -135,6 +149,60 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
             <Button variant="primary" onClick={onClose}><Icon name="check" size={15} /> Done</Button>
           </div>
         </div>
+      </div>
+      {checkout && <CheckoutModal doc={doc} onClose={() => setCheckout(false)} />}
+    </>
+  );
+}
+
+function downloadDoc(doc: SalesDoc) {
+  const url = URL.createObjectURL(new Blob([docHtml(doc)], { type: 'text/html' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `${doc.number}.html`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Simulated customer-facing checkout / payment page. */
+function CheckoutModal({ doc, onClose }: { doc: SalesDoc; onClose: () => void }) {
+  const recordPayment = useStore((s) => s.recordPayment);
+  const [method, setMethod] = useState<PaymentMethod>('Card');
+  const [paid, setPaid] = useState(false);
+  const bal = docBalance(doc);
+
+  return (
+    <>
+      <div className="dh-pw-scrim center" style={{ zIndex: 320 }} onClick={onClose} />
+      <div className="dh-checkout" role="dialog" aria-label="Checkout">
+        <div className="dh-checkout-brand"><span className="dh-checkout-logo"><Icon name="zap" size={16} color="#fff" /></span> Dovehero Pay</div>
+        {paid ? (
+          <div className="dh-checkout-done">
+            <span className="dh-checkout-tick"><Icon name="check" size={30} color="#fff" /></span>
+            <h2>Payment received</h2>
+            <p>Thank you — {doc.number} is settled.</p>
+            <Button variant="primary" onClick={onClose}>Close</Button>
+          </div>
+        ) : (
+          <>
+            <div className="dh-checkout-head"><span>{doc.party || 'Customer'}</span><h1>{fmtPrice(bal, doc.currency)}</h1><small>{doc.number} · balance due</small></div>
+            <div className="dh-checkout-lines">
+              {doc.lines.map((l, i) => <div key={i}><span>{l.name} × {l.qty}</span><b>{fmtPrice(l.qty * l.unit, doc.currency)}</b></div>)}
+            </div>
+            <label className="dh-pw-flabel">Pay with</label>
+            <div className="dh-checkout-methods">
+              {PAYMENT_METHODS.map((m) => (
+                <button key={m} className={`dh-checkout-method ${method === m ? 'on' : ''}`} onClick={() => setMethod(m)}>
+                  <Icon name={m === 'Card' ? 'dollar' : m === 'Wire' ? 'globe' : m === 'ACH' ? 'building' : 'receipt'} size={14} /> {m}
+                </button>
+              ))}
+            </div>
+            <div className="dh-checkout-card">•••• •••• •••• 4242 · {method}</div>
+            <Button variant="primary" onClick={() => { recordPayment(doc.id, bal, method); setPaid(true); }} style={{ width: '100%' }}>
+              <Icon name="dollar" size={15} /> Pay {fmtPrice(bal, doc.currency)}
+            </Button>
+            <p className="dh-checkout-secure"><Icon name="check" size={12} /> Secured payment · simulated</p>
+          </>
+        )}
+        <button className="dh-pw-x dh-checkout-x" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
       </div>
     </>
   );

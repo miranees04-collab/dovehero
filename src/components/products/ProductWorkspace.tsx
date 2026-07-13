@@ -21,6 +21,7 @@ import {
 import { TypeBadge } from './ProductSections';
 import { ProductPipeline } from './ProductPipeline';
 import { CreateProduct } from './CreateProduct';
+import { ImportModal } from './ImportModal';
 import { productDealLinks } from './assoc';
 import './products.css';
 
@@ -52,6 +53,7 @@ export function ProductWorkspace() {
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: 'updated', dir: 1 });
   const [sel, setSel] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const links = useMemo(() => productDealLinks(products, deals), [products, deals]);
 
@@ -157,6 +159,7 @@ export function ProductWorkspace() {
               <button className={pview === 'table' ? 'on' : ''} onClick={() => setPview('table')} title="Table"><Icon name="list" size={15} /> Table</button>
               <button className={pview === 'pipeline' ? 'on' : ''} onClick={() => setPview('pipeline')} title="Pipeline"><Icon name="grid" size={15} /> Pipeline</button>
             </div>
+            <Button variant="ghost" size="sm" onClick={() => setImporting(true)}><Icon name="arrowUp" size={15} /> Import</Button>
             <Button variant="ghost" size="sm" onClick={exportCsv}><Icon name="download" size={15} /> Export</Button>
             <Button variant="primary" size="sm" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> New product</Button>
           </div>
@@ -355,6 +358,7 @@ export function ProductWorkspace() {
       )}
 
       {creating && <CreateProduct onCancel={() => setCreating(false)} onCreate={createProduct} />}
+      {importing && <ImportModal onClose={() => setImporting(false)} />}
     </div>
   );
 }

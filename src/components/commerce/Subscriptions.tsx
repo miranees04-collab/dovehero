@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Badge, Button } from '@/components/ui/primitives';
@@ -77,6 +77,8 @@ export function SubBuilder({ id, onClose }: { id: string; onClose: () => void })
   const update = useStore((s) => s.updateSubscription);
   const remove = useStore((s) => s.removeSubscription);
   const genInvoice = useStore((s) => s.generateInvoiceFromSub);
+  const addItem = useStore((s) => s.addSubscriptionItem);
+  const [addonId, setAddonId] = useState('');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -138,6 +140,25 @@ export function SubBuilder({ id, onClose }: { id: string; onClose: () => void })
               <option value="">＋ Add a product…</option>
               {options.map((o) => <option key={o.id} value={o.id}>{o.name} — {fmtPrice(o.price, o.currency)}</option>)}
             </select>
+          )}
+
+          {sub.status === 'Active' && (
+            <div className="dh-sub-addon">
+              <div className="dh-sub-addon-head"><Icon name="plus" size={13} /> Mid-cycle add-on <span className="dh-pw-dim">· bills a prorated invoice for the remaining {Math.round((sub.cycleRemaining ?? 0.5) * 100)}% of the period</span></div>
+              <div className="dh-sub-addon-row">
+                <select className="dh-pw-input" value={addonId} onChange={(e) => setAddonId(e.target.value)}>
+                  <option value="">Choose a product…</option>
+                  {options.map((o) => <option key={o.id} value={o.id}>{o.name} — {fmtPrice(o.price, o.currency)}</option>)}
+                </select>
+                <Button variant="ghost" size="sm" disabled={!addonId} onClick={() => {
+                  const src = catalog.find((p) => p.id === addonId);
+                  if (!src) return;
+                  addItem(id, { productId: src.id, name: src.name, qty: 1, unit: src.price }, true);
+                  setAddonId('');
+                }}><Icon name="dollar" size={14} /> Add &amp; prorate</Button>
+              </div>
+              {addonId && (() => { const src = catalog.find((p) => p.id === addonId); const est = src ? Math.round(src.price * (sub.cycleRemaining ?? 0.5)) : 0; return <div className="dh-sub-addon-est">Prorated charge now: <b>{fmtPrice(est, sub.currency)}</b> · then {src ? fmtPrice(src.price, sub.currency) : ''}/{intervalLabel(sub.interval).toLowerCase()}</div>; })()}
+            </div>
           )}
 
           <div className="dh-doc-bottom">
