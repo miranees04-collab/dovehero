@@ -40,6 +40,7 @@ import {
   Check,
   ChevronDown,
   Contact,
+  CopyPlus,
   Download,
   Gauge as GaugeIcon,
   GripVertical,
@@ -133,6 +134,7 @@ import {
   type ReportConfig,
   type EngineCtx,
   type CrossFilter,
+  type FilterGroup,
   type Row,
 } from './reportEngine';
 import './dashboard.css';
@@ -934,7 +936,21 @@ interface WidgetDef {
   icon: ReactNode;
   sub?: (ctx: Ctx) => string | null;
   render: (ctx: Ctx) => ReactNode;
+  /** If set, this preset can be opened in the report builder as an editable
+   *  custom report seeded from this config (converts the tile on save). */
+  editableAs?: () => ReportConfig;
 }
+
+// A blank report config seed (mirrors ReportBuilder.blankConfig) used to build
+// the editable equivalents of the single-report preset widgets.
+const reportSeed = (over: Partial<ReportConfig>): ReportConfig => ({
+  id: uid('rep'), title: 'Report', object: 'deals', viz: 'bar',
+  measure: { agg: 'count' }, dimension: { field: 'stage' }, breakdown: null,
+  filterGroups: [{ id: uid('g'), filters: [] }], dateField: 'createdAt',
+  sort: 'natural', limit: 10, goal: null, rules: [], span: 6, ...over,
+});
+const wonF = (): FilterGroup => ({ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['won'] }] });
+const openF = (): FilterGroup => ({ id: uid('g'), filters: [{ id: uid('f'), field: 'status', op: 'in', value: ['open'] }] });
 
 const WIDGETS: Record<string, WidgetDef> = {
   kpis: {
@@ -950,6 +966,7 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 4,
     icon: <Target size={15} />,
     render: (ctx) => <RevenueGauge ctx={ctx} />,
+    editableAs: () => reportSeed({ title: 'Revenue vs goal', viz: 'gauge', span: 4, measure: { agg: 'sum', field: 'amount' }, dimension: null, dateField: 'closedAt', goal: 1_200_000, filterGroups: [wonF()], rules: [{ id: uid('rl'), op: 'lt', value: 900_000, tone: 'bad', label: 'Behind target' }] }),
   },
   funnel: {
     title: 'Deal funnel',
@@ -957,6 +974,7 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 4,
     icon: <BarChart3 size={15} />,
     render: (ctx) => <DealFunnel ctx={ctx} />,
+    editableAs: () => reportSeed({ title: 'Deal funnel', viz: 'funnel', span: 4, measure: { agg: 'count' }, dimension: { field: 'stage' }, sort: 'natural' }),
   },
   stageValue: {
     title: 'Pipeline value by stage',
@@ -964,6 +982,7 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 4,
     icon: <BarChart3 size={15} />,
     render: (ctx) => <StageValue ctx={ctx} />,
+    editableAs: () => reportSeed({ title: 'Pipeline value by stage', viz: 'hbar', span: 6, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'stage' }, dateField: null, filterGroups: [openF()], sort: 'natural' }),
   },
   createdClosed: {
     title: 'Deals created vs won',
@@ -978,6 +997,7 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 4,
     icon: <PieChartIcon size={15} />,
     render: (ctx) => <SourceDonut ctx={ctx} />,
+    editableAs: () => reportSeed({ title: 'Deal source breakdown', viz: 'donut', span: 4, measure: { agg: 'count' }, dimension: { field: 'source' }, sort: 'value-desc', limit: 6 }),
   },
   leaderboard: {
     title: 'Rep leaderboard',
@@ -985,6 +1005,7 @@ const WIDGETS: Record<string, WidgetDef> = {
     span: 7,
     icon: <Trophy size={15} />,
     render: (ctx) => <Leaderboard ctx={ctx} />,
+    editableAs: () => reportSeed({ title: 'Rep leaderboard', viz: 'leaderboard', span: 7, measure: { agg: 'sum', field: 'amount' }, dimension: { field: 'owner' }, dateField: 'closedAt', filterGroups: [wonF()], sort: 'value-desc' }),
   },
   activityFeed: {
     title: 'Live activity',
@@ -1349,6 +1370,9 @@ function TileCard({
   onDuplicate,
   onResize,
   onMaximize,
+  canEdit,
+  copyTargets,
+  onCopyTo,
   dragging,
   dropTarget,
   onDragStart,
@@ -1368,6 +1392,9 @@ function TileCard({
   onDuplicate: () => void;
   onResize: (span: ReportConfig['span']) => void;
   onMaximize: () => void;
+  canEdit: boolean;
+  copyTargets: Array<{ id: string; name: string }>;
+  onCopyTo: (dashId: string) => void;
   dragging: boolean;
   dropTarget: boolean;
   onDragStart: () => void;
@@ -1376,6 +1403,7 @@ function TileCard({
 }) {
   const { open, setOpen, ref } = usePop();
   const [flash, setFlash] = useState(0);
+  const [copyOpen, setCopyOpen] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   const [resizing, setResizing] = useState(false);
 
@@ -1430,14 +1458,15 @@ function TileCard({
         </span>
         <span
           className="cd-card-title"
-          onDoubleClick={isCustom ? onEdit : undefined}
-          title={isCustom ? `${title} — double-click to edit` : title}
-          style={isCustom ? { cursor: 'pointer' } : undefined}
+          onDoubleClick={canEdit ? onEdit : undefined}
+          title={canEdit ? `${title} — double-click to edit` : title}
+          style={canEdit ? { cursor: 'pointer' } : undefined}
         >
           {title}
         </span>
+        {isCustom && tile.report.tags?.map((t) => <span key={t} className="cd-tiletag">{t}</span>)}
         {isCustom && <span className="cd-customtag">Custom</span>}
-        {isCustom && (
+        {canEdit && (
           <button className="cd-iconbtn cd-card-edit" onClick={onEdit} title="Edit report" aria-label="Edit report">
             <Pencil size={14} />
           </button>
@@ -1458,17 +1487,17 @@ function TileCard({
                 ))}
               </div>
               <div className="cd-pop-sep" />
-              {isCustom && (
-                <>
-                  <button className="cd-pop-row primary-row" onClick={() => { setOpen(false); onEdit(); }}>
-                    <Pencil size={14} /> Edit report
-                  </button>
-                  <button className="cd-pop-row" onClick={() => { setOpen(false); onViewRecords(); }}>
-                    <Table2 size={14} /> View records
-                  </button>
-                  <div className="cd-pop-sep" />
-                </>
+              {canEdit && (
+                <button className="cd-pop-row primary-row" onClick={() => { setOpen(false); onEdit(); }}>
+                  <Pencil size={14} /> {isCustom ? 'Edit report' : 'Edit as custom report'}
+                </button>
               )}
+              {isCustom && (
+                <button className="cd-pop-row" onClick={() => { setOpen(false); onViewRecords(); }}>
+                  <Table2 size={14} /> View records
+                </button>
+              )}
+              {canEdit && <div className="cd-pop-sep" />}
               <button className="cd-pop-row" onClick={() => { setOpen(false); onMaximize(); }}>
                 <Maximize2 size={14} /> Maximize
               </button>
@@ -1476,8 +1505,25 @@ function TileCard({
                 <RefreshCw size={14} /> Refresh
               </button>
               <button className="cd-pop-row" onClick={() => { setOpen(false); onDuplicate(); }}>
-                <Copy size={14} /> Duplicate
+                <Copy size={14} /> Duplicate here
               </button>
+              {copyTargets.length > 0 && (
+                <div className="cd-submenu">
+                  <button className="cd-pop-row" onClick={() => setCopyOpen((v) => !v)}>
+                    <CopyPlus size={14} /> Copy to dashboard
+                    <ChevronDown size={13} style={{ marginLeft: 'auto', transform: copyOpen ? 'rotate(180deg)' : 'none' }} />
+                  </button>
+                  {copyOpen && (
+                    <div className="cd-submenu-list">
+                      {copyTargets.map((d) => (
+                        <button key={d.id} className="cd-pop-row sub" onClick={() => { setOpen(false); setCopyOpen(false); onCopyTo(d.id); }}>
+                          <LayoutDashboard size={13} /> {d.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <button className="cd-pop-row" onClick={() => { setOpen(false); onExport(); }}>
                 <Download size={14} /> Export CSV
               </button>
@@ -1857,6 +1903,17 @@ export default function CrmDashboard() {
     });
   };
 
+  // Clone a tile onto another dashboard as an independent copy.
+  const copyTileToDashboard = (tile: Tile, destId: string) => {
+    const clone: Tile = tile.kind === 'custom'
+      ? { id: tid(), kind: 'custom', report: { ...tile.report, id: uid('rep') }, span: tile.span }
+      : { id: tid(), kind: 'preset', preset: tile.preset, span: tile.span };
+    setDashboards((ds) => ds.map((d) => (d.id === destId ? { ...d, tiles: [...d.tiles, clone] } : d)));
+    const destName = dashboards.find((d) => d.id === destId)?.name ?? 'dashboard';
+    const title = tile.kind === 'custom' ? tile.report.title : WIDGETS[tile.preset]?.title ?? 'Report';
+    toast(`Copied “${title}” to ${destName}`);
+  };
+
   const upsertLibrary = (cfg: ReportConfig) =>
     setSavedReports((rs) => (rs.some((r) => r.id === cfg.id) ? rs.map((r) => (r.id === cfg.id ? cfg : r)) : [...rs, cfg]));
 
@@ -2128,6 +2185,8 @@ export default function CrmDashboard() {
                     };
                     const tileCtx: EngineCtx = { ...engineCtx, jitter: (jitters[tile.id] ?? 0) + globalJit };
                     const label = tile.kind === 'custom' ? tile.report.title : WIDGETS[tile.preset]?.title ?? 'Report';
+                    const presetEditable = tile.kind === 'preset' ? WIDGETS[tile.preset]?.editableAs : undefined;
+                    const canEdit = tile.kind === 'custom' || !!presetEditable;
                     return (
                       <TileCard
                         key={tile.id}
@@ -2135,10 +2194,16 @@ export default function CrmDashboard() {
                         presetCtx={presetCtx}
                         engineCtx={tileCtx}
                         span={tileSpan(tile)}
+                        canEdit={canEdit}
+                        copyTargets={dashboards.filter((d) => d.id !== dash.id).map((d) => ({ id: d.id, name: d.name }))}
+                        onCopyTo={(destId) => copyTileToDashboard(tile, destId)}
                         onRemove={() => mutateDash((ts) => ts.filter((t) => t.id !== tile.id))}
                         onRefresh={() => setJitters((j) => ({ ...j, [tile.id]: (j[tile.id] ?? 0) + 1 }))}
                         onExport={() => toast(`Export queued (mock) — ${label}.csv`)}
-                        onEdit={() => tile.kind === 'custom' && setBuilder({ initial: tile.report, tileId: tile.id })}
+                        onEdit={() => {
+                          if (tile.kind === 'custom') setBuilder({ initial: tile.report, tileId: tile.id });
+                          else if (presetEditable) setBuilder({ initial: presetEditable(), tileId: tile.id });
+                        }}
                         onCross={toggleCross}
                         onViewRecords={() => tile.kind === 'custom' && setDrill({ config: tile.report, bucketKey: null, bucketLabel: tile.report.title })}
                         onDuplicate={() => mutateDash((ts) => {

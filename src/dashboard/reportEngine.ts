@@ -459,6 +459,7 @@ export interface ReportConfig {
   compareTo?: string; // custom baseline end (yyyy-mm-dd, inclusive)
   anomalies?: boolean; // rolling-band anomaly highlighting (time series)
   showValues?: boolean; // draw data labels on bars (default on)
+  tags?: string[]; // free-form labels shown on the tile
   rules: ThresholdRule[];
   span: 3 | 4 | 5 | 6 | 7 | 8 | 12;
 }

@@ -11,7 +11,7 @@ import {
   BarChart3, BarChartHorizontal, LineChart, AreaChart, PieChart, CircleDashed,
   Gauge, Hash, Table2, Filter, Plus, Trash2, X, Check, ChevronLeft, Sparkles,
   TrendingUp, Users, DollarSign, Trophy, Timer, Target, ArrowRight, Grid2x2, Grid3x3,
-  Copy, Tags, Layers, SlidersHorizontal, CalendarRange,
+  Copy, Tags, Layers, SlidersHorizontal, CalendarRange, Tag as TagIcon,
 } from 'lucide-react';
 import { ReportView } from './ReportView';
 import {
@@ -20,7 +20,6 @@ import {
   type FilterRule, type FilterGroup, type ThresholdRule, type Operator, type DateGrain,
   type CompareMode,
 } from './reportEngine';
-import { measureLabel } from './ReportView';
 
 const VIZ_META: Array<{ key: Viz; label: string; icon: ReactNode }> = [
   { key: 'kpi', label: 'Single value', icon: <Hash size={16} /> },
@@ -176,6 +175,7 @@ export function ReportBuilder({
   onClose: () => void;
 }) {
   const [stage, setStage] = useState<'gallery' | 'build'>(initial ? 'build' : 'gallery');
+  const [tab, setTab] = useState<'setup' | 'filters'>('setup');
   const [cfg, setCfg] = useState<ReportConfig>(initial ?? blankConfig());
   const def = OBJECTS[cfg.object];
   const patch = (p: Partial<ReportConfig>) => setCfg((c) => ({ ...c, ...p }));
@@ -309,9 +309,14 @@ export function ReportBuilder({
   const unit = measureUnit(cfg.object, cfg.measure);
   const goalPlaceholder = unit === 'money' ? 'e.g. 1200000' : unit === 'pct' ? 'e.g. 20' : 'e.g. 100';
 
+  const filterCount = cfg.filterGroups.reduce((n, g) => n + g.filters.length, 0);
+  const SPAN_OPTS: Array<{ s: ReportConfig['span']; label: string }> = [
+    { s: 3, label: 'S' }, { s: 4, label: 'M' }, { s: 6, label: 'L' }, { s: 8, label: 'XL' }, { s: 12, label: 'Full' },
+  ];
+
   return (
-    <div className="cd-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="cd-modal builder wide" role="dialog" aria-label="Build report">
+    <div className="cd-scrim full" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cd-modal builder full" role="dialog" aria-label="Build report">
         <div className="cd-modal-head">
           {!initial && (
             <button className="cd-iconbtn" onClick={() => setStage('gallery')} title="Back to templates"><ChevronLeft size={17} /></button>
@@ -321,181 +326,214 @@ export function ReportBuilder({
         </div>
 
         <div className="cd-builder-split">
-          {/* config column */}
+          {/* config column — two toggle tabs: Report setup / Filters */}
           <div className="cd-builder-config">
-            <Row label="Report name">
-              <input className="cd-input" value={cfg.title} onChange={(e) => patch({ title: e.target.value })} />
-            </Row>
-
-            <Row label="Data source">
-              <div className="cd-seg">
-                {(Object.keys(OBJECTS) as ObjectKey[]).map((k) => (
-                  <button key={k} className={cfg.object === k ? 'on' : ''} onClick={() => setObject(k)}>{OBJECTS[k].label}</button>
-                ))}
-              </div>
-            </Row>
-
-            <SectionHead icon={<Layers size={13} />}>Visualization</SectionHead>
-            <div className="cd-vizgrid">
-              {VIZ_META.map((v) => (
-                <button key={v.key} className={`cd-vizbtn ${cfg.viz === v.key ? 'on' : ''}`} onClick={() => setViz(v.key)} title={v.label}>
-                  {v.icon}<span>{v.label}</span>
-                </button>
-              ))}
+            <div className="cd-builder-tabs">
+              <button className={`cd-btab ${tab === 'setup' ? 'on' : ''}`} onClick={() => setTab('setup')}>
+                <SlidersHorizontal size={14} /> Report setup
+              </button>
+              <button className={`cd-btab ${tab === 'filters' ? 'on' : ''}`} onClick={() => setTab('filters')}>
+                <Filter size={14} /> Advanced filters
+                {filterCount > 0 && <span className="cd-btab-count">{filterCount}</span>}
+              </button>
             </div>
 
-            <SectionHead icon={<Tags size={13} />}>Measure &amp; grouping</SectionHead>
-
-            {showMeasure && (
-              <Row label={isScatter ? 'X measure' : 'Measure by'} hint="the value">
-                <div className="cd-inline">
-                  <Sel value={cfg.measure.agg} onChange={(v) => setMeasureAgg(v as Aggregation)}>
-                    {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
-                      <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
+            {tab === 'setup' ? (
+              <div className="cd-builder-tabpanel">
+                <Row label="Data source">
+                  <div className="cd-seg">
+                    {(Object.keys(OBJECTS) as ObjectKey[]).map((k) => (
+                      <button key={k} className={cfg.object === k ? 'on' : ''} onClick={() => setObject(k)}>{OBJECTS[k].label}</button>
                     ))}
-                  </Sel>
-                  {needsField && (
-                    <Sel value={cfg.measure.field ?? ''} onChange={(v) => patch({ measure: { ...cfg.measure, field: v } })}>
-                      {fieldsFor(cfg.measure.agg).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                    </Sel>
-                  )}
+                  </div>
+                </Row>
+
+                <SectionHead icon={<Layers size={13} />}>Report type</SectionHead>
+                <div className="cd-vizgrid">
+                  {VIZ_META.map((v) => (
+                    <button key={v.key} className={`cd-vizbtn ${cfg.viz === v.key ? 'on' : ''}`} onClick={() => setViz(v.key)} title={v.label}>
+                      {v.icon}<span>{v.label}</span>
+                    </button>
+                  ))}
                 </div>
-              </Row>
-            )}
 
-            {isScatter && (
-              <Row label="Y measure" hint="second axis">
-                <div className="cd-inline">
-                  <Sel value={cfg.measureY?.agg ?? 'count'} onChange={(v) => setMeasureYAgg(v as Aggregation)}>
-                    {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
-                      <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
-                    ))}
-                  </Sel>
-                  {needsFieldY && (
-                    <Sel value={cfg.measureY?.field ?? ''} onChange={(v) => patch({ measureY: { ...cfg.measureY!, field: v } })}>
-                      {fieldsFor(cfg.measureY?.agg ?? 'count').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                    </Sel>
-                  )}
-                </div>
-              </Row>
-            )}
+                <SectionHead icon={<Tags size={13} />}>Measure &amp; grouping</SectionHead>
 
-            {cfg.viz === 'funnel' && <p className="cd-fnote">Funnel always groups by deal stage and shows cumulative reach.</p>}
-            {isCohort && <p className="cd-fnote">Cohort groups deals by their create month and tracks cumulative win rate across the following months — no other setup needed.</p>}
+                {showMeasure && (
+                  <Row label={isScatter ? 'X measure' : 'Measure by'} hint="the value">
+                    <div className="cd-inline">
+                      <Sel value={cfg.measure.agg} onChange={(v) => setMeasureAgg(v as Aggregation)}>
+                        {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
+                          <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
+                        ))}
+                      </Sel>
+                      {needsField && (
+                        <Sel value={cfg.measure.field ?? ''} onChange={(v) => patch({ measure: { ...cfg.measure, field: v } })}>
+                          {fieldsFor(cfg.measure.agg).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                        </Sel>
+                      )}
+                    </div>
+                  </Row>
+                )}
 
-            {showDim && (
-              <Row label={isScatter ? 'Plot each' : 'View by'} hint={isScatter ? 'one point per' : 'group / X-axis'}>
-                <div className="cd-inline">
-                  <Sel value={cfg.dimension?.field ?? ''} onChange={(v) => patch({ dimension: { field: v, grain: def.fields.find((f) => f.key === v)?.type === 'date' ? 'month' : undefined } })}>
-                    {(isScatter ? groupable.filter((f) => f.type !== 'date') : groupable).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                  </Sel>
-                  {!isScatter && dimField?.type === 'date' && (
-                    <Sel value={cfg.dimension?.grain ?? 'month'} onChange={(v) => patch({ dimension: { ...cfg.dimension!, grain: v as DateGrain } })}>
-                      {(['day', 'week', 'month', 'quarter'] as DateGrain[]).map((g) => <option key={g} value={g}>by {g}</option>)}
-                    </Sel>
-                  )}
-                </div>
-              </Row>
-            )}
+                {isScatter && (
+                  <Row label="Y measure" hint="second axis">
+                    <div className="cd-inline">
+                      <Sel value={cfg.measureY?.agg ?? 'count'} onChange={(v) => setMeasureYAgg(v as Aggregation)}>
+                        {AGG_OPTIONS.filter((a) => a !== 'winRate' || cfg.object === 'deals').map((a) => (
+                          <option key={a} value={a}>{a === 'count' ? `Count of ${def.label.toLowerCase()}` : AGG_LABELS[a].replace(' of', '')}</option>
+                        ))}
+                      </Sel>
+                      {needsFieldY && (
+                        <Sel value={cfg.measureY?.field ?? ''} onChange={(v) => patch({ measureY: { ...cfg.measureY!, field: v } })}>
+                          {fieldsFor(cfg.measureY?.agg ?? 'count').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                        </Sel>
+                      )}
+                    </div>
+                  </Row>
+                )}
 
-            {showBreakdown && (
-              <Row label="Break down by" hint="series / stack">
-                <Sel value={cfg.breakdown?.field ?? ''} onChange={(v) => patch({ breakdown: v ? { field: v } : null })}>
-                  <option value="">None</option>
-                  {groupable.filter((f) => f.key !== cfg.dimension?.field && f.type !== 'date').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                </Sel>
-              </Row>
-            )}
+                {cfg.viz === 'funnel' && <p className="cd-fnote">Funnel always groups by deal stage and shows cumulative reach.</p>}
+                {isCohort && <p className="cd-fnote">Cohort groups deals by their create month and tracks cumulative win rate across the following months — no other setup needed.</p>}
 
-            {showSortLimit && (
-              <>
-                <SectionHead icon={<SlidersHorizontal size={13} />}>Sort &amp; limit</SectionHead>
-                <div className="cd-inline">
-                  <Row label="Sort">
-                    <Sel value={cfg.sort} onChange={(v) => patch({ sort: v as ReportConfig['sort'] })}>
-                      {dimField?.options && <option value="natural">Group order</option>}
-                      <option value="value-desc">Value, high → low</option>
-                      <option value="value-asc">Value, low → high</option>
-                      <option value="label-asc">Label, A → Z</option>
+                {showDim && (
+                  <Row label={isScatter ? 'Plot each' : 'View by'} hint={isScatter ? 'one point per' : 'group / X-axis'}>
+                    <div className="cd-inline">
+                      <Sel value={cfg.dimension?.field ?? ''} onChange={(v) => patch({ dimension: { field: v, grain: def.fields.find((f) => f.key === v)?.type === 'date' ? 'month' : undefined } })}>
+                        {(isScatter ? groupable.filter((f) => f.type !== 'date') : groupable).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      </Sel>
+                      {!isScatter && dimField?.type === 'date' && (
+                        <Sel value={cfg.dimension?.grain ?? 'month'} onChange={(v) => patch({ dimension: { ...cfg.dimension!, grain: v as DateGrain } })}>
+                          {(['day', 'week', 'month', 'quarter'] as DateGrain[]).map((g) => <option key={g} value={g}>by {g}</option>)}
+                        </Sel>
+                      )}
+                    </div>
+                  </Row>
+                )}
+
+                {showBreakdown && (
+                  <Row label="Break down by" hint="series / stack">
+                    <Sel value={cfg.breakdown?.field ?? ''} onChange={(v) => patch({ breakdown: v ? { field: v } : null })}>
+                      <option value="">None</option>
+                      {groupable.filter((f) => f.key !== cfg.dimension?.field && f.type !== 'date').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </Sel>
                   </Row>
-                  <Row label="Limit (top N)">
-                    <input className="cd-input" type="number" min={1} max={50} value={cfg.limit} onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 10) })} />
+                )}
+
+                {showSortLimit && (
+                  <>
+                    <SectionHead icon={<SlidersHorizontal size={13} />}>Sort &amp; limit</SectionHead>
+                    <div className="cd-inline">
+                      <Row label="Sort">
+                        <Sel value={cfg.sort} onChange={(v) => patch({ sort: v as ReportConfig['sort'] })}>
+                          {dimField?.options && <option value="natural">Group order</option>}
+                          <option value="value-desc">Value, high → low</option>
+                          <option value="value-asc">Value, low → high</option>
+                          <option value="label-asc">Label, A → Z</option>
+                        </Sel>
+                      </Row>
+                      <Row label="Limit (top N)">
+                        <input className="cd-input" type="number" min={1} max={50} value={cfg.limit} onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 10) })} />
+                      </Row>
+                    </div>
+                  </>
+                )}
+
+                <SectionHead icon={<CalendarRange size={13} />}>Date range{showCompare ? ' & comparison' : ''}</SectionHead>
+                <Row label="Filter this report's date by">
+                  <Sel value={cfg.dateField ?? ''} onChange={(v) => patch({ dateField: v || null })}>
+                    {def.dateFields.map((k) => <option key={k} value={k}>{def.fields.find((f) => f.key === k)?.label}</option>)}
+                    <option value="">Don't filter by date (snapshot)</option>
+                  </Sel>
+                </Row>
+                {showCompare && (
+                  <Row label="Compare to" hint="baseline delta">
+                    <Sel value={compareMode} onChange={(v) => patch({ compareMode: v as CompareMode, compare: undefined })}>
+                      <option value="none">No comparison</option>
+                      <option value="prevPeriod">Previous period</option>
+                      <option value="prevYear">Previous year</option>
+                      <option value="custom">Custom range…</option>
+                    </Sel>
                   </Row>
-                </div>
-              </>
-            )}
+                )}
+                {showCompare && compareMode === 'custom' && (
+                  <div className="cd-inline">
+                    <Row label="Baseline from">
+                      <input className="cd-input" type="date" value={cfg.compareFrom ?? ''} onChange={(e) => patch({ compareFrom: e.target.value })} />
+                    </Row>
+                    <Row label="Baseline to">
+                      <input className="cd-input" type="date" value={cfg.compareTo ?? ''} onChange={(e) => patch({ compareTo: e.target.value })} />
+                    </Row>
+                  </div>
+                )}
+                {showCompare && compareMode !== 'none' && !cfg.dateField && (
+                  <p className="cd-fnote">Pick a date property above for the comparison to resolve a baseline window.</p>
+                )}
 
-            <FilterEditor def={def} groups={cfg.filterGroups} onChange={(g) => patch({ filterGroups: g })} />
-
-            <SectionHead icon={<CalendarRange size={13} />}>Date range{showCompare ? ' & comparison' : ''}</SectionHead>
-            <Row label="Filter this report's date by">
-              <Sel value={cfg.dateField ?? ''} onChange={(v) => patch({ dateField: v || null })}>
-                {def.dateFields.map((k) => <option key={k} value={k}>{def.fields.find((f) => f.key === k)?.label}</option>)}
-                <option value="">Don't filter by date (snapshot)</option>
-              </Sel>
-            </Row>
-            {showCompare && (
-              <Row label="Compare to" hint="baseline delta">
-                <Sel value={compareMode} onChange={(v) => patch({ compareMode: v as CompareMode, compare: undefined })}>
-                  <option value="none">No comparison</option>
-                  <option value="prevPeriod">Previous period</option>
-                  <option value="prevYear">Previous year</option>
-                  <option value="custom">Custom range…</option>
-                </Sel>
-              </Row>
-            )}
-            {showCompare && compareMode === 'custom' && (
-              <div className="cd-inline">
-                <Row label="Baseline from">
-                  <input className="cd-input" type="date" value={cfg.compareFrom ?? ''} onChange={(e) => patch({ compareFrom: e.target.value })} />
-                </Row>
-                <Row label="Baseline to">
-                  <input className="cd-input" type="date" value={cfg.compareTo ?? ''} onChange={(e) => patch({ compareTo: e.target.value })} />
-                </Row>
+                {hasDisplaySection && <SectionHead icon={<SlidersHorizontal size={13} />}>Display &amp; rules</SectionHead>}
+                {showGoal && (
+                  <Row label="Target / goal" hint="optional">
+                    <input className="cd-input" type="number" placeholder={goalPlaceholder} value={cfg.goal ?? ''} onChange={(e) => patch({ goal: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </Row>
+                )}
+                {showDataLabels && (
+                  <label className="cd-check">
+                    <input type="checkbox" checked={cfg.showValues !== false} onChange={(e) => patch({ showValues: e.target.checked })} />
+                    Show data labels on bars
+                  </label>
+                )}
+                {showAnomalies && (
+                  <label className="cd-check">
+                    <input type="checkbox" checked={!!cfg.anomalies} onChange={(e) => patch({ anomalies: e.target.checked })} />
+                    Highlight anomalies (trailing mean ± 1.8σ)
+                  </label>
+                )}
+                {showRules && <RuleEditor rules={cfg.rules} unit={unit} onChange={(r) => patch({ rules: r })} />}
+              </div>
+            ) : (
+              <div className="cd-builder-tabpanel">
+                <p className="cd-fnote" style={{ marginBottom: 8 }}>
+                  Build the conditions that scope this report. Conditions inside a group are AND'd; add an OR group for
+                  alternative criteria. These stack on top of the dashboard's global filters.
+                </p>
+                <FilterEditor def={def} groups={cfg.filterGroups} onChange={(g) => patch({ filterGroups: g })} />
               </div>
             )}
-            {showCompare && compareMode !== 'none' && !cfg.dateField && (
-              <p className="cd-fnote">Pick a date property above for the comparison to resolve a baseline window.</p>
-            )}
-
-            {hasDisplaySection && <SectionHead icon={<SlidersHorizontal size={13} />}>Display &amp; rules</SectionHead>}
-            {showGoal && (
-              <Row label="Target / goal" hint="optional">
-                <input className="cd-input" type="number" placeholder={goalPlaceholder} value={cfg.goal ?? ''} onChange={(e) => patch({ goal: e.target.value === '' ? null : Number(e.target.value) })} />
-              </Row>
-            )}
-            {showDataLabels && (
-              <label className="cd-check">
-                <input type="checkbox" checked={cfg.showValues !== false} onChange={(e) => patch({ showValues: e.target.checked })} />
-                Show data labels on bars
-              </label>
-            )}
-            {showAnomalies && (
-              <label className="cd-check">
-                <input type="checkbox" checked={!!cfg.anomalies} onChange={(e) => patch({ anomalies: e.target.checked })} />
-                Highlight anomalies (trailing mean ± 1.8σ)
-              </label>
-            )}
-            {showRules && <RuleEditor rules={cfg.rules} unit={unit} onChange={(r) => patch({ rules: r })} />}
           </div>
 
           {/* preview column */}
           <div className="cd-builder-preview">
-            <div className="cd-preview-head">
-              <span className="cd-flabel" style={{ margin: 0 }}>Live preview</span>
+            <div className="cd-preview-toolbar">
+              <input
+                className="cd-preview-title-input"
+                value={cfg.title}
+                placeholder="Untitled report"
+                onChange={(e) => patch({ title: e.target.value })}
+                aria-label="Report name"
+              />
               <span className="cd-preview-badge">{VIZ_META.find((v) => v.key === cfg.viz)?.icon}{VIZ_META.find((v) => v.key === cfg.viz)?.label}</span>
-              <span className="cd-preview-measure">{measureLabel(cfg)}</span>
-            </div>
-            <div className={`cd-preview-card w-${cfg.span}`}>
-              <div className="cd-card-head" style={{ padding: '10px 12px 0' }}>
-                <span className="cd-card-title">{cfg.title || 'Untitled report'}</span>
-              </div>
-              <div className="cd-card-body">
-                <ReportView config={cfg} ctx={ctx} />
+              <div className="cd-preview-width" title="Tile width on the dashboard">
+                {SPAN_OPTS.map((w) => (
+                  <button key={w.s} className={cfg.span === w.s ? 'on' : ''} onClick={() => patch({ span: w.s })}>{w.label}</button>
+                ))}
               </div>
             </div>
-            <p className="cd-fnote">This preview is rendered by the exact engine the saved report uses, under the dashboard's current global filters — what you see is what you'll get.</p>
+
+            <div className="cd-preview-stage">
+              <div className={`cd-preview-card w-${cfg.span}`}>
+                <div className="cd-card-head" style={{ padding: '10px 12px 0' }}>
+                  <span className="cd-card-title">{cfg.title || 'Untitled report'}</span>
+                  {cfg.tags?.map((t) => <span key={t} className="cd-tiletag">{t}</span>)}
+                </div>
+                <div className="cd-card-body">
+                  <ReportView config={cfg} ctx={ctx} />
+                </div>
+              </div>
+            </div>
+
+            <TagEditor tags={cfg.tags ?? []} onChange={(tags) => patch({ tags })} />
+            <p className="cd-fnote">Live preview — rendered by the exact engine the saved report uses, under the dashboard's current global filters. What you see is what you'll get.</p>
+
             <div className="cd-builder-actions">
               <button className="cd-btn ghost" onClick={onClose}>Cancel</button>
               {initial && onDuplicate && (
@@ -509,6 +547,38 @@ export function ReportBuilder({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Tags editor (chips shown on the tile) ----------------------------------
+
+function TagEditor({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const t = draft.trim();
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setDraft('');
+  };
+  return (
+    <div className="cd-tageditor">
+      <span className="cd-flabel" style={{ margin: 0 }}><TagIcon size={13} /> Tags</span>
+      <div className="cd-tag-row">
+        {tags.map((t) => (
+          <span key={t} className="cd-tiletag">
+            {t}
+            <button className="cd-tag-x" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
+          </span>
+        ))}
+        <input
+          className="cd-input cd-tag-input"
+          value={draft}
+          placeholder={tags.length ? 'Add another…' : 'e.g. Board, QBR, Priority'}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          onBlur={add}
+        />
       </div>
     </div>
   );
