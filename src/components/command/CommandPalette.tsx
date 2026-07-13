@@ -8,12 +8,17 @@ import './command.css';
 
 const ADVANCE: StageKey[] = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
 const OBJECTS: { k: string; label: string; icon: string }[] = [
+  { k: 'product', label: 'Products', icon: 'box' },
+  { k: 'quotes', label: 'Quotes', icon: 'fileText' },
+  { k: 'orders', label: 'Orders', icon: 'boxes' },
+  { k: 'invoices', label: 'Invoices', icon: 'receipt' },
+  { k: 'payments', label: 'Payments', icon: 'dollar' },
+  { k: 'subscriptions', label: 'Subscriptions', icon: 'repeat' },
+  { k: 'connectors', label: 'Connectors', icon: 'zap' },
   { k: 'company', label: 'Companies', icon: 'building' },
   { k: 'contact', label: 'Contacts', icon: 'users' },
-  { k: 'product', label: 'Products', icon: 'box' },
   { k: 'lead', label: 'Leads', icon: 'target' },
   { k: 'ticket', label: 'Tickets', icon: 'flag' },
-  { k: 'invoice', label: 'Invoices', icon: 'receipt' },
 ];
 
 interface ActionItem {

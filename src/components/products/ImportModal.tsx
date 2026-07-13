@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/primitives';
+import { useEsc } from '@/components/ui/useEsc';
 import { useStore } from '@/store/useStore';
 import { uid } from '@/lib/format';
 import type { Product, BillingPeriod } from '@/types';
@@ -53,6 +54,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
   const customTypes = useStore((s) => s.productTypes);
   const toast = useStore((s) => s.toast);
   const [text, setText] = useState('');
+  useEsc(onClose);
 
   const rows = useMemo(() => parseCsv(text), [text]);
 

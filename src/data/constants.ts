@@ -159,20 +159,6 @@ export const OBJECT_DEFS: ObjectDef[] = [
       { k: 'status', label: 'Status', type: 'select', opts: ['Open', 'Pending', 'Solved'] },
     ],
   },
-  {
-    k: 'invoice',
-    name: 'Invoice',
-    plural: 'Invoices',
-    icon: 'receipt',
-    system: true,
-    fields: [
-      { k: 'name', label: 'Number', type: 'text' },
-      { k: 'company', label: 'Company', type: 'relation' },
-      { k: 'amount', label: 'Amount', type: 'currency' },
-      { k: 'due', label: 'Due date', type: 'date' },
-      { k: 'paid', label: 'Paid', type: 'checkbox' },
-    ],
-  },
 ];
 
 export const hueOf = (k: string): string =>

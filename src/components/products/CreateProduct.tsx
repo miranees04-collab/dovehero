@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Badge } from '@/components/ui/primitives';
+import { useEsc } from '@/components/ui/useEsc';
 import { useStore } from '@/store/useStore';
 import { uid } from '@/lib/format';
 import type { Product, BillingPeriod, CurrencyCode } from '@/types';
@@ -48,6 +49,7 @@ export function CreateProduct({ onCancel, onCreate }: { onCancel: () => void; on
 
   const meta = resolveType(type, customTypes);
   const m = calcMargin({ price: Number(priceV) || 0, cost: Number(cost) || 0 });
+  useEsc(onCancel);
 
   const chooseType = (k: string) => {
     setType(k);

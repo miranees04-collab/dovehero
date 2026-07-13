@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Badge, Button, Popover, MenuItem } from '@/components/ui/primitives';
+import { useEsc } from '@/components/ui/useEsc';
 import { money } from '@/lib/format';
 import type { Payment, PaymentMethod, PaymentStatus } from '@/types';
 import { PAYMENT_METHODS, payStatusTone, docBalance, price as fmtPrice } from '@/data/products';
@@ -98,6 +99,7 @@ export function PaymentModal({ onClose }: { onClose: () => void }) {
   const inv = invoices.find((d) => d.id === invId);
   const bal = inv ? docBalance(inv) : 0;
   const [amount, setAmount] = useState(String(bal));
+  useEsc(onClose);
 
   const submit = () => {
     if (!inv) { toast('Pick an invoice', 'warn'); return; }

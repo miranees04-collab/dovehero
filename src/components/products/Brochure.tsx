@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Badge } from '@/components/ui/primitives';
+import { useEsc } from '@/components/ui/useEsc';
 import { useStore } from '@/store/useStore';
 import { uid } from '@/lib/format';
 import type { Product } from '@/types';
@@ -17,6 +18,7 @@ export function Brochure({ product: p, onClose }: { product: Product; onClose: (
   const [message, setMessage] = useState(`Hi,\n\nSharing the brochure for ${p.name}. Happy to set up a walkthrough whenever suits.\n\nBest,\nAmara`);
 
   const fileName = `${p.sku}-brochure.pdf`;
+  useEsc(onClose);
   const meta = resolveType(p.type, customTypes);
   const highlights = (p.tags ?? []).slice(0, 6);
 

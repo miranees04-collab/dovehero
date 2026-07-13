@@ -103,7 +103,6 @@ function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
     product: [],
     lead: [],
     ticket: [],
-    invoice: [],
   };
   const seenCo = new Set<string>();
   deals.forEach((d, i) => {
@@ -138,9 +137,6 @@ function seedObjectRecords(deals: Deal[]): Record<string, ObjectRecord[]> {
   });
   ['Login SSO failing', 'Export to CSV slow', 'Webhook retries', 'Seat count mismatch'].forEach((n, i) => {
     recs.ticket.push({ id: 'TK-' + (i + 1), name: n, company: ['Helios Retail Group', 'Meridian Logistics', 'Stark Industries', 'Northwind Robotics'][i], priority: ['High', 'Medium', 'Urgent', 'Low'][i], status: ['Open', 'Pending', 'Open', 'Solved'][i] });
-  });
-  ['INV-2041', 'INV-2042', 'INV-2043'].forEach((n, i) => {
-    recs.invoice.push({ id: 'IN-' + (i + 1), name: n, company: ['Northwind Robotics', 'Helios Retail Group', 'Prestige Worldwide'][i], amount: [108000, 47000, 38000][i], due: ['Jul 1', 'Jun 28', 'Jul 10'][i], paid: i === 2 });
   });
   return recs;
 }
