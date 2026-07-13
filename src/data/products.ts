@@ -7,6 +7,8 @@ import type {
   BillingPeriod,
   CurrencyCode,
   Activity,
+  SalesDoc,
+  SalesDocKind,
 } from '@/types';
 
 export type TypeMeta = { label: string; icon: string; hue: string; blurb: string };
@@ -108,8 +110,63 @@ export const STOCK_META: Record<StockState, { label: string; tone: 'green' | 'am
   untracked: { label: 'Not tracked', tone: 'neutral' },
 };
 
+// ---- Sales documents (CPQ) ----
+
+export const DOC_META: Record<SalesDocKind, {
+  label: string; plural: string; icon: string; hue: string; prefix: string; base: number;
+  partyLabel: string; statuses: string[]; unitFrom: 'price' | 'cost';
+}> = {
+  quote: { label: 'Quote', plural: 'Quotes', icon: 'fileText', hue: '#6366F1', prefix: 'Q-', base: 1000, partyLabel: 'Customer', statuses: ['Draft', 'Sent', 'Accepted', 'Expired'], unitFrom: 'price' },
+  order: { label: 'Sales order', plural: 'Orders', icon: 'receipt', hue: '#10B981', prefix: 'SO-', base: 2000, partyLabel: 'Customer', statuses: ['Open', 'Fulfilled', 'Invoiced', 'Cancelled'], unitFrom: 'price' },
+  po: { label: 'Purchase order', plural: 'Purchase orders', icon: 'truck', hue: '#F59E0B', prefix: 'PO-', base: 3000, partyLabel: 'Vendor', statuses: ['Draft', 'Ordered', 'Received', 'Cancelled'], unitFrom: 'cost' },
+};
+
+export function docStatusTone(_kind: SalesDocKind, status: string): 'green' | 'amber' | 'red' | 'neutral' {
+  if (['Accepted', 'Fulfilled', 'Invoiced', 'Received'].includes(status)) return 'green';
+  if (['Sent', 'Open', 'Ordered'].includes(status)) return 'amber';
+  if (['Expired', 'Cancelled'].includes(status)) return 'red';
+  return 'neutral';
+}
+
+export function docTotals(d: Pick<SalesDoc, 'lines' | 'discount' | 'tax'>) {
+  const subtotal = d.lines.reduce((s, l) => s + l.qty * l.unit, 0);
+  const discountAmt = Math.round((subtotal * (d.discount || 0)) / 100);
+  const taxAmt = Math.round(((subtotal - discountAmt) * (d.tax || 0)) / 100);
+  const total = subtotal - discountAmt + taxAmt;
+  return { subtotal, discountAmt, taxAmt, total };
+}
+
 /** Deterministic id helper for seeded products. */
 const pid = (n: number) => 'PR-' + (100 + n);
+
+/** A few demo sales documents so the flow isn't empty on first load. */
+export function seedSalesDocs(): SalesDoc[] {
+  return [
+    {
+      id: 'sd-q1', kind: 'quote', number: 'Q-1001', status: 'Sent', party: 'Northwind Robotics', currency: 'USD',
+      lines: [
+        { productId: pid(1), name: 'Aurora Platform — Growth', qty: 1, unit: 72000 },
+        { productId: pid(5), name: 'Onboarding & Implementation', qty: 1, unit: 9000 },
+      ],
+      discount: 10, tax: 0, notes: 'Annual commitment, net-30.', createdW: '3d', updatedW: '3d',
+    },
+    {
+      id: 'sd-q2', kind: 'quote', number: 'Q-1002', status: 'Accepted', party: 'Prestige Worldwide', currency: 'USD',
+      lines: [{ productId: pid(2), name: 'Aurora Platform — Enterprise', qty: 1, unit: 120000 }],
+      discount: 5, tax: 0, createdW: '1w', updatedW: '2d',
+    },
+    {
+      id: 'sd-o1', kind: 'order', number: 'SO-2001', status: 'Open', party: 'Helios Retail Group', currency: 'USD',
+      lines: [{ productId: pid(8), name: 'Aurora Edge Gateway', qty: 6, unit: 2400 }],
+      discount: 0, tax: 8.5, createdW: '2d', updatedW: '1d',
+    },
+    {
+      id: 'sd-p1', kind: 'po', number: 'PO-3001', status: 'Ordered', party: 'Meridian Hardware', currency: 'USD',
+      lines: [{ productId: pid(8), name: 'Aurora Edge Gateway', qty: 40, unit: 1150 }],
+      discount: 0, tax: 0, notes: 'Restock — desktop & rack-mount.', createdW: '5d', updatedW: '2d',
+    },
+  ];
+}
 
 const STAGE_BY_ID: Record<string, ProductStage> = {
   'PR-104': 'Review', 'PR-107': 'Development', 'PR-110': 'Review',

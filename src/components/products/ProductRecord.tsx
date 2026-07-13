@@ -1,15 +1,20 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/primitives';
+import { Button, Popover, MenuItem, Badge } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
 import { uid } from '@/lib/format';
-import type { Product, ProductStatus, ProductStage, Activity, ActivityType } from '@/types';
+import type { Product, ProductStatus, ProductStage, Activity, ActivityType, SalesDocKind } from '@/types';
 import {
   PRODUCT_STAGES,
   stageMeta,
   margin as calcMargin,
+  DOC_META,
+  docTotals,
+  docStatusTone,
+  price as fmtPrice,
 } from '@/data/products';
+import { DocBuilder } from './DocBuilder';
 import {
   Properties, Pricing, Variants, Bundle, Inventory, DealsSection,
   StatTiles, StatusPicker, TypeBadge, novaInsight,
@@ -28,10 +33,12 @@ export function ProductRecord({ id }: { id: string }) {
   const removeObjectRecord = useStore((s) => s.removeObjectRecord);
   const duplicateObjectRecord = useStore((s) => s.duplicateObjectRecord);
   const moveProductStage = useStore((s) => s.moveProductStage);
+  const createSalesDoc = useStore((s) => s.createSalesDoc);
   const toast = useStore((s) => s.toast);
 
   const [left, setLeft] = useState<LeftTab>('details');
   const [brochure, setBrochure] = useState(false);
+  const [docId, setDocId] = useState<string | null>(null);
 
   const p = products.find((x) => x.id === id);
   const links = useMemo(() => productDealLinks(products, deals), [products, deals]);
@@ -76,6 +83,23 @@ export function ProductRecord({ id }: { id: string }) {
           </div>
         </div>
         <div className="dh-pr-actions">
+          <Popover align="end"
+            trigger={({ toggle }) => <button className="dh-btn v-primary s-sm" onClick={toggle}><Icon name="plus" size={15} /> Create <Icon name="chevronDown" size={13} /></button>}>
+            {(close) => (
+              <div className="dh-pw-sortmenu">
+                {(['quote', 'order', 'po'] as SalesDocKind[]).map((k) => {
+                  if (k === 'po' && !p.tracked) return null;
+                  const meta = DOC_META[k];
+                  return (
+                    <MenuItem key={k} icon={<Icon name={meta.icon} size={14} />} onClick={() => {
+                      const did = createSalesDoc(k, { lines: [{ productId: p.id, name: p.name, qty: 1, unit: meta.unitFrom === 'cost' ? p.cost : p.price }] });
+                      setDocId(did); close();
+                    }}>{meta.label}</MenuItem>
+                  );
+                })}
+              </div>
+            )}
+          </Popover>
           <Button variant="ghost" size="sm" onClick={() => setBrochure(true)}><Icon name="fileText" size={15} /> Brochure</Button>
           <Button variant="ghost" size="sm" onClick={() => { duplicateObjectRecord('product', p.id); toast('Product duplicated', 'success'); }}><Icon name="copy" size={15} /> Duplicate</Button>
           <Button variant="ghost" size="sm" className="danger-text" onClick={() => { if (confirm(`Delete “${p.name}”?`)) { removeObjectRecord('product', p.id); openObject(null); toast('Product deleted', 'warn'); } }}><Icon name="trash" size={15} /></Button>
@@ -117,11 +141,12 @@ export function ProductRecord({ id }: { id: string }) {
         {/* RIGHT — associations */}
         <section className="dh-pr-col">
           <div className="dh-pr-colhead"><Icon name="layers" size={14} /> Associations</div>
-          <Associations product={p} onChange={set} onBrochure={() => setBrochure(true)} />
+          <Associations product={p} onChange={set} onBrochure={() => setBrochure(true)} onOpenDoc={setDocId} />
         </section>
       </div>
 
       {brochure && <Brochure product={p} onClose={() => setBrochure(false)} />}
+      {docId && <DocBuilder id={docId} onClose={() => setDocId(null)} />}
     </div>
   );
 }
@@ -201,15 +226,17 @@ function ProductActivity({ product: p }: { product: Product }) {
 /* ---------------- Right: associations ---------------- */
 const MEDIA_EMOJI = ['🖼️', '📸', '🎨', '📐', '🏷️', '📊', '🎬', '🧩'];
 
-function Associations({ product: p, onChange, onBrochure }: { product: Product; onChange: (patch: Partial<Product>) => void; onBrochure: () => void }) {
+function Associations({ product: p, onChange, onBrochure, onOpenDoc }: { product: Product; onChange: (patch: Partial<Product>) => void; onBrochure: () => void; onOpenDoc: (id: string) => void }) {
   const deals = useStore((s) => s.deals);
   const products = useProducts();
   const companyRecs = useStore((s) => s.objectRecords.company ?? []);
+  const salesDocs = useStore((s) => s.salesDocs);
   const setNav = useStore((s) => s.setNav);
   const openObject = useStore((s) => s.openObject);
   const toast = useStore((s) => s.toast);
   const link = useMemo(() => productDealLinks(products, deals).byId[p.id], [products, deals, p.id]);
   const companies = Array.from(new Set((link?.deals ?? []).map((d) => d.company)));
+  const docs = salesDocs.filter((d) => d.lines.some((l) => l.productId === p.id));
 
   const openCompany = (name: string) => {
     const rec = companyRecs.find((r) => String(r.name) === name);
@@ -229,6 +256,26 @@ function Associations({ product: p, onChange, onBrochure }: { product: Product; 
       <DealsSection p={p} link={link} />
 
       <div className="dh-pw-sect">
+        <div className="dh-pw-subhead"><Icon name="fileText" size={14} /><b>Quotes &amp; orders</b><span className="dh-pw-subhead-hint">{docs.length}</span></div>
+        {docs.length ? (
+          <div className="dh-pr-doclist">
+            {docs.map((d) => {
+              const meta = DOC_META[d.kind];
+              return (
+                <button key={d.id} className="dh-pr-docrow" onClick={() => onOpenDoc(d.id)}>
+                  <span className="dh-pr-docrow-ico" style={{ background: meta.hue + '18', color: meta.hue }}><Icon name={meta.icon} size={14} /></span>
+                  <div className="dh-pr-docrow-main">
+                    <b>{d.number} <span className="dh-pw-dim">· {meta.label}</span></b>
+                    <small>{d.party || '—'}</small>
+                  </div>
+                  <Badge tone={docStatusTone(d.kind, d.status)}>{d.status}</Badge>
+                  <span className="dh-pr-docrow-total mono">{fmtPrice(docTotals(d).total, d.currency)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : <p className="dh-pw-mini-empty">No quotes or orders yet — use “Create” above.</p>}
+
         <div className="dh-pw-subhead"><Icon name="building" size={14} /><b>Accounts</b><span className="dh-pw-subhead-hint">{companies.length}</span></div>
         {companies.length ? (
           <div className="dh-pr-chiplist">

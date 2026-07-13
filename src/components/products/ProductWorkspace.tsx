@@ -6,6 +6,7 @@ import type {
   Product,
   ProductStatus,
 } from '@/types';
+import type { SalesDocKind } from '@/types';
 import {
   PRODUCT_TYPE_ORDER,
   PRODUCT_STATUSES,
@@ -17,10 +18,14 @@ import {
   marginTone,
   stockState,
   STOCK_META,
+  DOC_META,
+  docTotals,
+  docStatusTone,
 } from '@/data/products';
 import { TypeBadge } from './ProductSections';
 import { ProductPipeline } from './ProductPipeline';
 import { CreateProduct } from './CreateProduct';
+import { DocBuilder } from './DocBuilder';
 import { productDealLinks } from './assoc';
 import './products.css';
 
@@ -45,7 +50,8 @@ export function ProductWorkspace() {
   const toast = useStore((s) => s.toast);
 
   const [q, setQ] = useState('');
-  const [pview, setPview] = useState<'table' | 'pipeline'>('table');
+  const [pview, setPview] = useState<'table' | 'pipeline' | 'docs'>('table');
+  const [docId, setDocId] = useState<string | null>(null);
   const [typeF, setTypeF] = useState<string>('all');
   const [statusF, setStatusF] = useState<ProductStatus | 'all'>('all');
   const [catF, setCatF] = useState<string>('all');
@@ -156,6 +162,7 @@ export function ProductWorkspace() {
             <div className="dh-pw-viewtoggle">
               <button className={pview === 'table' ? 'on' : ''} onClick={() => setPview('table')} title="Table"><Icon name="list" size={15} /> Table</button>
               <button className={pview === 'pipeline' ? 'on' : ''} onClick={() => setPview('pipeline')} title="Pipeline"><Icon name="grid" size={15} /> Pipeline</button>
+              <button className={pview === 'docs' ? 'on' : ''} onClick={() => setPview('docs')} title="Documents"><Icon name="receipt" size={15} /> Documents</button>
             </div>
             <Button variant="ghost" size="sm" onClick={exportCsv}><Icon name="download" size={15} /> Export</Button>
             <Button variant="primary" size="sm" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> New product</Button>
@@ -173,6 +180,7 @@ export function ProductWorkspace() {
       </div>
 
       {/* Type tabs */}
+      {pview !== 'docs' && (
       <div className="dh-pw-types">
         <TypeTab k="all" label="All" count={typeCounts.all} active={typeF === 'all'} onClick={() => setTypeF('all')} />
         {typeKeys.map((t) => {
@@ -191,8 +199,10 @@ export function ProductWorkspace() {
           );
         })}
       </div>
+      )}
 
       {/* Toolbar */}
+      {pview !== 'docs' && (
       <div className="dh-pw-toolbar">
         <div className="dh-pw-search">
           <Icon name="search" size={15} />
@@ -231,6 +241,7 @@ export function ProductWorkspace() {
         </Popover>
         <span className="dh-pw-resultcount">{filtered.length} of {products.length}</span>
       </div>
+      )}
 
       {/* Bulk bar */}
       {pview === 'table' && sel.length > 0 && (
@@ -268,8 +279,10 @@ export function ProductWorkspace() {
         </div>
       )}
 
-      {/* Catalog — table or lifecycle pipeline */}
-      {pview === 'pipeline' ? (
+      {/* Catalog — table, lifecycle pipeline, or sales documents */}
+      {pview === 'docs' ? (
+        <DocsView onOpen={setDocId} />
+      ) : pview === 'pipeline' ? (
         <div className="dh-pw-scroll"><ProductPipeline items={filtered} /></div>
       ) : (
       <div className="dh-pw-scroll">
@@ -355,6 +368,7 @@ export function ProductWorkspace() {
       )}
 
       {creating && <CreateProduct onCancel={() => setCreating(false)} onCreate={createProduct} />}
+      {docId && <DocBuilder id={docId} onClose={() => setDocId(null)} />}
     </div>
   );
 }
@@ -383,3 +397,69 @@ function TypeTab({ k, label, count, active, onClick, hue, icon }: { k: string; l
   );
 }
 
+
+/* ---------------- Documents view (all quotes / orders / POs) ---------------- */
+function DocsView({ onOpen }: { onOpen: (id: string) => void }) {
+  const salesDocs = useStore((s) => s.salesDocs);
+  const createSalesDoc = useStore((s) => s.createSalesDoc);
+  const [kindF, setKindF] = useState<SalesDocKind | 'all'>('all');
+
+  const list = kindF === 'all' ? salesDocs : salesDocs.filter((d) => d.kind === kindF);
+  const kinds: (SalesDocKind | 'all')[] = ['all', 'quote', 'order', 'po'];
+  const countOf = (k: SalesDocKind | 'all') => (k === 'all' ? salesDocs.length : salesDocs.filter((d) => d.kind === k).length);
+
+  return (
+    <div className="dh-pw-scroll">
+      <div className="dh-docs-toolbar">
+        <div className="dh-docs-kinds">
+          {kinds.map((k) => (
+            <button key={k} className={`dh-pw-type ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>
+              {k === 'all' ? 'All' : DOC_META[k].plural}
+              <span className="dh-pw-type-count">{countOf(k)}</span>
+            </button>
+          ))}
+        </div>
+        <Popover align="end"
+          trigger={({ toggle }) => <button className="dh-btn v-primary s-sm" onClick={toggle}><Icon name="plus" size={15} /> New document <Icon name="chevronDown" size={13} /></button>}>
+          {(close) => (
+            <div className="dh-pw-sortmenu">
+              {(['quote', 'order', 'po'] as SalesDocKind[]).map((k) => (
+                <MenuItem key={k} icon={<Icon name={DOC_META[k].icon} size={14} />} onClick={() => { onOpen(createSalesDoc(k)); close(); }}>{DOC_META[k].label}</MenuItem>
+              ))}
+            </div>
+          )}
+        </Popover>
+      </div>
+
+      <table className="dh-pw-table">
+        <thead>
+          <tr><th>Number</th><th>Type</th><th>{kindF === 'po' ? 'Vendor' : 'Party'}</th><th>Status</th><th className="col-num">Items</th><th className="col-num">Total</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+          {list.map((d) => {
+            const meta = DOC_META[d.kind];
+            return (
+              <tr key={d.id} tabIndex={0} role="button" aria-label={`Open ${d.number}`}
+                onClick={() => onOpen(d.id)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(d.id); } }}>
+                <td><b className="mono">{d.number}</b></td>
+                <td><span className="dh-pw-typebadge" style={{ background: meta.hue + '18', color: meta.hue }}><Icon name={meta.icon} size={12} /> {meta.label}</span></td>
+                <td>{d.party || <span className="dh-pw-dim">—</span>}</td>
+                <td><Badge tone={docStatusTone(d.kind, d.status)}>{d.status}</Badge></td>
+                <td className="col-num">{d.lines.length}</td>
+                <td className="col-num"><b>{fmtPrice(docTotals(d).total, d.currency)}</b></td>
+                <td><span className="dh-pw-dim">{d.updatedW} ago</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {!list.length && (
+        <div className="dh-pw-empty">
+          <span className="dh-pw-empty-icon"><Icon name="receipt" size={26} /></span>
+          <b>No documents yet</b>
+          <span>Create a quote, order or PO — from here or any product.</span>
+        </div>
+      )}
+    </div>
+  );
+}

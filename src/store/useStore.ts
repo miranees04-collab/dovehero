@@ -18,6 +18,8 @@ import type {
   Product,
   ProductStage,
   CustomProductType,
+  SalesDoc,
+  SalesDocKind,
   Priority,
   Density,
   GroupBy,
@@ -29,7 +31,7 @@ import type {
   DocItem,
 } from '@/types';
 import { seedDeals } from '@/data/seed';
-import { seedProducts, PRODUCT_CATEGORIES } from '@/data/products';
+import { seedProducts, seedSalesDocs, DOC_META, PRODUCT_CATEGORIES } from '@/data/products';
 import { OBJECT_DEFS, OWNERS, ME, PIPELINES, SEQUENCES } from '@/data/constants';
 import { askNova, answerForDeal } from '@/lib/nova';
 import { DEFAULT_COLOR_RULES, RULE_COLORS, type ColorRule } from '@/lib/colorRules';
@@ -153,6 +155,7 @@ export interface AppState {
   objectRecords: Record<string, ObjectRecord[]>;
   productTypes: CustomProductType[];
   productCategories: string[];
+  salesDocs: SalesDoc[];
   pipelines: Pipeline[];
   automations: Automation[];
 
@@ -375,6 +378,11 @@ export interface AppState {
   addProductType: (t: CustomProductType) => void;
   removeProductType: (k: string) => void;
   addProductCategory: (c: string) => string;
+  createSalesDoc: (kind: SalesDocKind, partial?: Partial<SalesDoc>) => string;
+  updateSalesDoc: (id: string, patch: Partial<SalesDoc>) => void;
+  removeSalesDoc: (id: string) => void;
+  convertQuoteToOrder: (id: string) => string | null;
+  receivePO: (id: string) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
@@ -431,6 +439,7 @@ export const useStore = create<AppState>()(
   objectRecords: seedObjectRecords(seeded),
   productTypes: [],
   productCategories: [...PRODUCT_CATEGORIES],
+  salesDocs: seedSalesDocs(),
   pipelines: PIPELINES.map((p) => ({ ...p })),
   automations: DEFAULT_AUTOMATIONS.map((a) => ({ ...a })),
 
@@ -1409,6 +1418,55 @@ export const useStore = create<AppState>()(
   addProductType: (t) =>
     set((s) => (s.productTypes.some((x) => x.k === t.k) ? {} : { productTypes: [...s.productTypes, t] })),
   removeProductType: (k) => set((s) => ({ productTypes: s.productTypes.filter((t) => t.k !== k) })),
+  createSalesDoc: (kind, partial = {}) => {
+    const meta = DOC_META[kind];
+    const id = 'sd-' + uid('n').slice(-5);
+    const count = get().salesDocs.filter((d) => d.kind === kind).length;
+    const doc: SalesDoc = {
+      id, kind,
+      number: meta.prefix + (meta.base + count + 1),
+      status: partial.status ?? meta.statuses[0],
+      party: partial.party ?? '',
+      currency: partial.currency ?? 'USD',
+      lines: partial.lines ?? [],
+      discount: partial.discount ?? 0,
+      tax: partial.tax ?? 0,
+      notes: partial.notes,
+      createdW: 'now', updatedW: 'now',
+    };
+    set((s) => ({ salesDocs: [doc, ...s.salesDocs] }));
+    return id;
+  },
+  updateSalesDoc: (id, patch) =>
+    set((s) => ({ salesDocs: s.salesDocs.map((d) => (d.id === id ? { ...d, ...patch, updatedW: 'now' } : d)) })),
+  removeSalesDoc: (id) => set((s) => ({ salesDocs: s.salesDocs.filter((d) => d.id !== id) })),
+  convertQuoteToOrder: (id) => {
+    const q = get().salesDocs.find((d) => d.id === id);
+    if (!q || q.kind !== 'quote') return null;
+    const orderId = get().createSalesDoc('order', {
+      party: q.party, currency: q.currency, lines: q.lines.map((l) => ({ ...l })), discount: q.discount, tax: q.tax,
+      notes: `Converted from ${q.number}`,
+    });
+    get().updateSalesDoc(id, { status: 'Accepted' });
+    const order = get().salesDocs.find((d) => d.id === orderId);
+    get().toast(`Order ${order?.number ?? ''} created from ${q.number}`, 'success');
+    return orderId;
+  },
+  receivePO: (id) => {
+    const po = get().salesDocs.find((d) => d.id === id);
+    if (!po || po.kind !== 'po') return;
+    const products = (get().objectRecords.product || []) as unknown as Product[];
+    const next = products.map((p) => {
+      const recv = po.lines.filter((l) => l.productId === p.id).reduce((s, l) => s + l.qty, 0);
+      return recv && p.tracked ? { ...p, onHand: p.onHand + recv, updatedW: 'now' } : p;
+    });
+    set((s) => ({
+      objectRecords: { ...s.objectRecords, product: next as unknown as ObjectRecord[] },
+      salesDocs: s.salesDocs.map((d) => (d.id === id ? { ...d, status: 'Received', updatedW: 'now' } : d)),
+    }));
+    po.lines.forEach((l) => get().addProductActivity(l.productId, { id: uid('pa'), type: 'file', who: 'You', w: 'now', text: `Received ${l.qty} × ${l.name} on ${po.number}`, chan: po.number }));
+    get().toast(`${po.number} received — stock updated`, 'success');
+  },
   addProductCategory: (c) => {
     const name = c.trim();
     if (!name) return name;
@@ -1431,6 +1489,7 @@ export const useStore = create<AppState>()(
       objectRecords: seedObjectRecords(fresh),
       productTypes: [],
       productCategories: [...PRODUCT_CATEGORIES],
+      salesDocs: seedSalesDocs(),
       openDealId: null,
       openObjectId: null,
       nav: 'deals',
@@ -1445,7 +1504,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'dh-store',
-      version: 7,
+      version: 8,
       storage: createJSONStorage(() => localStorage),
       // v2 split docs into quotes/contracts/invoices/attachments; v3 introduced
       // the column-based customizable record dashboard. Reset stored layouts so
@@ -1482,6 +1541,9 @@ export const useStore = create<AppState>()(
           // Older seed products predate lifecycle/record surfaces — reseed once more.
           s.objectRecords = { ...(s.objectRecords ?? {}), product: seedProducts() as unknown as ObjectRecord[] };
         }
+        if (s && version < 8) {
+          s.salesDocs = s.salesDocs ?? seedSalesDocs();
+        }
         return s as AppState;
       },
       // Persist data + a couple of preferences; skip transient UI state.
@@ -1491,6 +1553,7 @@ export const useStore = create<AppState>()(
         objectRecords: s.objectRecords,
         productTypes: s.productTypes,
         productCategories: s.productCategories,
+        salesDocs: s.salesDocs,
         role: s.role,
         tableCols: s.tableCols,
         density: s.density,
