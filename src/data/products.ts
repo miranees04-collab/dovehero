@@ -2,8 +2,10 @@ import type {
   Product,
   ProductType,
   ProductStatus,
+  ProductStage,
   BillingPeriod,
   CurrencyCode,
+  Activity,
 } from '@/types';
 
 /** Per-type presentation + capability metadata (icon, colour, label, blurb). */
@@ -28,6 +30,18 @@ export const PRODUCT_STATUSES: Record<ProductStatus, { label: string; tone: 'gre
   draft: { label: 'Draft', tone: 'amber' },
   archived: { label: 'Archived', tone: 'neutral' },
 };
+
+/** Product lifecycle pipeline — board columns, in order. */
+export const PRODUCT_STAGES: { k: ProductStage; label: string; hue: string; blurb: string }[] = [
+  { k: 'Backlog', label: 'Backlog', hue: '#94A3B8', blurb: 'Proposed — not started' },
+  { k: 'Development', label: 'Development', hue: '#8B5CF6', blurb: 'Being built' },
+  { k: 'Review', label: 'In Review', hue: '#F59E0B', blurb: 'Pricing & GTM sign-off' },
+  { k: 'Live', label: 'Live', hue: '#10B981', blurb: 'Sellable in deals' },
+  { k: 'Retired', label: 'Retired', hue: '#EF4444', blurb: 'Sunset — existing only' },
+];
+export const STAGE_ORDER: ProductStage[] = PRODUCT_STAGES.map((s) => s.k);
+export const stageHue = (k: ProductStage): string => PRODUCT_STAGES.find((s) => s.k === k)?.hue ?? '#94A3B8';
+export const stageMeta = (k: ProductStage) => PRODUCT_STAGES.find((s) => s.k === k) ?? PRODUCT_STAGES[0];
 
 export const BILLING_LABEL: Record<BillingPeriod, string> = {
   one_time: 'One-time',
@@ -82,9 +96,51 @@ export const STOCK_META: Record<StockState, { label: string; tone: 'green' | 'am
 /** Deterministic id helper for seeded products. */
 const pid = (n: number) => 'PR-' + (100 + n);
 
+const STAGE_BY_ID: Record<string, ProductStage> = {
+  'PR-104': 'Review', 'PR-107': 'Development', 'PR-110': 'Review',
+  'PR-111': 'Backlog', 'PR-113': 'Retired',
+};
+
+/** A seed row before lifecycle/record surfaces are attached by `decorate`. */
+type SeedRow = Omit<Product, 'stage' | 'acts' | 'docs' | 'media'>;
+
+let actSeq = 5000;
+const aid = () => 'pa-' + (++actSeq).toString(36);
+
+/** A small, believable activity history for a seeded product. */
+function seedActs(p: SeedRow): Activity[] {
+  const owner = 'You';
+  const acts: Activity[] = [
+    { id: aid(), type: 'note', who: owner, w: p.updatedW, text: `Updated ${p.name} — refreshed positioning and pricing.` },
+    { id: aid(), type: 'file', who: 'Nova', w: '1w', text: `Generated brochure for ${p.name}.`, chan: `${p.sku}-brochure.pdf` },
+    { id: aid(), type: 'note', who: owner, w: '2w', text: `List price set to ${price(p.price, p.currency)}.` },
+    { id: aid(), type: 'note', who: owner, w: p.createdW, text: `${p.name} created as a ${PRODUCT_TYPES[p.type].label.toLowerCase()} product.` },
+  ];
+  return acts;
+}
+
+/** Attach lifecycle stage + record surfaces (activity, docs, media) to a seed row. */
+function decorate(p: SeedRow): Product {
+  const stage: ProductStage = STAGE_BY_ID[p.id] ?? (p.status === 'archived' ? 'Retired' : p.status === 'draft' ? 'Development' : 'Live');
+  return {
+    ...p,
+    stage,
+    acts: seedActs(p),
+    docs: [
+      { n: `${p.sku}-datasheet.pdf`, k: 'pdf' },
+      { n: `${p.sku}-brochure.pdf`, k: 'pdf' },
+      ...(p.type === 'physical' ? [{ n: `${p.sku}-spec.sheet`, k: 'sheet' as const }] : []),
+    ],
+    media: [
+      { name: 'Hero', emoji: p.image.emoji, hue: p.image.hue },
+      { name: 'Detail', emoji: '🖼️', hue: p.image.hue },
+    ],
+  };
+}
+
 /** A broad, realistic catalog that exercises every product type & capability. */
 export function seedProducts(): Product[] {
-  const list: Product[] = [
+  const list: SeedRow[] = [
     {
       id: pid(1),
       name: 'Aurora Platform — Growth',
@@ -305,5 +361,5 @@ export function seedProducts(): Product[] {
       createdW: '2y', updatedW: '5m',
     },
   ];
-  return list;
+  return list.map(decorate);
 }

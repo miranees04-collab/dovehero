@@ -20,7 +20,8 @@ import {
   stockState,
   STOCK_META,
 } from '@/data/products';
-import { ProductDrawer } from './ProductDrawer';
+import { TypeBadge } from './ProductSections';
+import { ProductPipeline } from './ProductPipeline';
 import { productDealLinks } from './assoc';
 import './products.css';
 
@@ -38,15 +39,16 @@ export function ProductWorkspace() {
   const updateObjectRecord = useStore((s) => s.updateObjectRecord);
   const removeObjectRecord = useStore((s) => s.removeObjectRecord);
   const duplicateObjectRecord = useStore((s) => s.duplicateObjectRecord);
+  const openObject = useStore((s) => s.openObject);
   const toast = useStore((s) => s.toast);
 
   const [q, setQ] = useState('');
+  const [pview, setPview] = useState<'table' | 'pipeline'>('table');
   const [typeF, setTypeF] = useState<ProductType | 'all'>('all');
   const [statusF, setStatusF] = useState<ProductStatus | 'all'>('all');
   const [catF, setCatF] = useState<string>('all');
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: 'updated', dir: 1 });
   const [sel, setSel] = useState<string[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const links = useMemo(() => productDealLinks(products, deals), [products, deals]);
@@ -128,11 +130,9 @@ export function ProductWorkspace() {
   const createProduct = (p: Product) => {
     addObjectRecord('product', p as unknown as Record<string, unknown> & { id: string });
     setCreating(false);
-    setOpenId(p.id);
+    openObject(p.id);
     toast('Product created', 'success');
   };
-
-  const openProduct = openId ? products.find((p) => p.id === openId) ?? null : null;
 
   return (
     <div className="dh-pw">
@@ -147,6 +147,10 @@ export function ProductWorkspace() {
             </div>
           </div>
           <div className="dh-pw-head-actions">
+            <div className="dh-pw-viewtoggle">
+              <button className={pview === 'table' ? 'on' : ''} onClick={() => setPview('table')} title="Table"><Icon name="list" size={15} /> Table</button>
+              <button className={pview === 'pipeline' ? 'on' : ''} onClick={() => setPview('pipeline')} title="Pipeline"><Icon name="grid" size={15} /> Pipeline</button>
+            </div>
             <Button variant="ghost" size="sm" onClick={exportCsv}><Icon name="download" size={15} /> Export</Button>
             <Button variant="primary" size="sm" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> New product</Button>
           </div>
@@ -220,7 +224,7 @@ export function ProductWorkspace() {
       </div>
 
       {/* Bulk bar */}
-      {sel.length > 0 && (
+      {pview === 'table' && sel.length > 0 && (
         <div className="dh-pw-bulk">
           <span className="dh-pw-bulk-count">{sel.length} selected</span>
           <Button variant="ghost" size="sm" onClick={() => bulkSet({ status: 'active' }, 'activated')}><Icon name="check" size={14} /> Activate</Button>
@@ -241,7 +245,10 @@ export function ProductWorkspace() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Catalog — table or lifecycle pipeline */}
+      {pview === 'pipeline' ? (
+        <div className="dh-pw-scroll"><ProductPipeline items={filtered} /></div>
+      ) : (
       <div className="dh-pw-scroll">
         <table className="dh-pw-table">
           <thead>
@@ -263,7 +270,7 @@ export function ProductWorkspace() {
               const ss = stockState(p);
               const link = links.byId[p.id];
               return (
-                <tr key={p.id} className={sel.includes(p.id) ? 'is-sel' : ''} onClick={() => setOpenId(p.id)}>
+                <tr key={p.id} className={sel.includes(p.id) ? 'is-sel' : ''} onClick={() => openObject(p.id)}>
                   <td className="col-check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={`Select ${p.name}`} />
                   </td>
@@ -294,7 +301,7 @@ export function ProductWorkspace() {
                       trigger={({ toggle }) => <button className="dh-pw-rowmenu" onClick={toggle} aria-label="Row actions"><Icon name="more" size={16} /></button>}>
                       {(close) => (
                         <div className="dh-pw-sortmenu">
-                          <MenuItem icon={<Icon name="eye" size={14} />} onClick={() => { setOpenId(p.id); close(); }}>Open</MenuItem>
+                          <MenuItem icon={<Icon name="eye" size={14} />} onClick={() => { openObject(p.id); close(); }}>Open</MenuItem>
                           <MenuItem icon={<Icon name="copy" size={14} />} onClick={() => { duplicateObjectRecord('product', p.id); close(); toast('Product duplicated', 'success'); }}>Duplicate</MenuItem>
                           {p.status !== 'active'
                             ? <MenuItem icon={<Icon name="check" size={14} />} onClick={() => { set(p.id, { status: 'active' }); close(); }}>Activate</MenuItem>
@@ -320,16 +327,6 @@ export function ProductWorkspace() {
           </div>
         )}
       </div>
-
-      {openProduct && (
-        <ProductDrawer
-          product={openProduct}
-          link={links.byId[openProduct.id]}
-          onClose={() => setOpenId(null)}
-          onChange={(patch) => set(openProduct.id, patch)}
-          onDelete={() => { removeObjectRecord('product', openProduct.id); setOpenId(null); toast('Product deleted', 'warn'); }}
-          onDuplicate={() => { duplicateObjectRecord('product', openProduct.id); toast('Product duplicated', 'success'); }}
-        />
       )}
 
       {creating && <NewProduct onCancel={() => setCreating(false)} onCreate={createProduct} />}
@@ -358,15 +355,6 @@ function TypeTab({ k, label, count, active, onClick, hue, icon }: { k: string; l
       {label}
       <span className="dh-pw-type-count">{count}</span>
     </button>
-  );
-}
-
-export function TypeBadge({ type }: { type: ProductType }) {
-  const t = PRODUCT_TYPES[type];
-  return (
-    <span className="dh-pw-typebadge" style={{ background: t.hue + '18', color: t.hue }}>
-      <Icon name={t.icon} size={12} /> {t.label}
-    </span>
   );
 }
 
@@ -401,9 +389,11 @@ function NewProduct({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p
       committed: 0,
       reorderPoint: tracked ? 5 : 0,
       warehouse: tracked ? 'Reno DC-1' : undefined,
+      stage: 'Backlog',
       tags: [],
       image: { emoji: type === 'service' ? '🧭' : type === 'physical' ? '📦' : type === 'bundle' ? '🎁' : type === 'digital' ? '☁️' : type === 'usage' ? '⚡' : '🚀', hue: meta.hue },
       createdW: 'now', updatedW: 'now',
+      acts: [{ id: uid('pa'), type: 'note', who: 'You', w: 'now', text: `${nm} created as a draft.` }],
     };
     onCreate(p);
   };

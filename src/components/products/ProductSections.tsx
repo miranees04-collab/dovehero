@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Badge, Avatar } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
@@ -7,6 +7,7 @@ import { useStore } from '@/store/useStore';
 import { OWNERS, hueOf } from '@/data/constants';
 import type {
   Product,
+  ProductType,
   ProductStatus,
   ProductVariant,
   BundleItem,
@@ -16,6 +17,7 @@ import type {
   CurrencyCode,
 } from '@/types';
 import {
+  PRODUCT_TYPES,
   PRODUCT_STATUSES,
   PRODUCT_CATEGORIES,
   BILLING_LABEL,
@@ -26,127 +28,60 @@ import {
   stockState,
   STOCK_META,
 } from '@/data/products';
-import { TypeBadge } from './ProductWorkspace';
 import type { ProductLink } from './assoc';
 
-interface Props {
-  product: Product;
-  link?: ProductLink;
-  onClose: () => void;
-  onChange: (patch: Partial<Product>) => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-}
-
-type Tab = 'overview' | 'pricing' | 'variants' | 'bundle' | 'inventory' | 'deals' | 'history';
-
-export function ProductDrawer({ product: p, link, onClose, onChange, onDelete, onDuplicate }: Props) {
-  const [tab, setTab] = useState<Tab>('overview');
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const tabs: { k: Tab; label: string; icon: string; show: boolean }[] = [
-    { k: 'overview', label: 'Overview', icon: 'list', show: true },
-    { k: 'pricing', label: 'Pricing', icon: 'dollar', show: true },
-    { k: 'variants', label: 'Variants', icon: 'layers', show: p.type === 'physical' || (p.variants?.length ?? 0) > 0 },
-    { k: 'bundle', label: 'Bundle', icon: 'boxes', show: p.type === 'bundle' || (p.bundleItems?.length ?? 0) > 0 },
-    { k: 'inventory', label: 'Inventory', icon: 'warehouse', show: p.tracked },
-    { k: 'deals', label: 'Deals', icon: 'briefcase', show: true },
-    { k: 'history', label: 'History', icon: 'clock', show: true },
-  ];
-  const shown = tabs.filter((t) => t.show);
-  const activeTab = shown.some((t) => t.k === tab) ? tab : 'overview';
-
+/* ---------------- shared badges ---------------- */
+export function TypeBadge({ type }: { type: ProductType }) {
+  const t = PRODUCT_TYPES[type];
   return (
-    <>
-      <div className="dh-pw-scrim" onClick={onClose} />
-      <aside className="dh-pw-drawer" role="dialog" aria-label={p.name}>
-        {/* Header */}
-        <div className="dh-pw-dhead">
-          <div className="dh-pw-dhead-top">
-            <div className="dh-pw-dhead-id">
-              <TypeBadge type={p.type} />
-              <span className="mono dh-pw-sku">{p.sku}</span>
-            </div>
-            <div className="dh-pw-dhead-actions">
-              <button className="dh-pw-iconbtn" title="Duplicate" onClick={onDuplicate}><Icon name="copy" size={15} /></button>
-              <button className="dh-pw-iconbtn" title="Delete" onClick={() => { if (confirm(`Delete “${p.name}”?`)) onDelete(); }}><Icon name="trash" size={15} /></button>
-              <button className="dh-pw-x" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
-            </div>
-          </div>
-          <div className="dh-pw-dhead-title">
-            <span className="dh-pw-dthumb" style={{ background: p.image.hue + '1a', color: p.image.hue }}>{p.image.emoji}</span>
-            <div className="dh-pw-dhead-name">
-              <h2><InlineEdit value={p.name} onCommit={(v) => onChange({ name: v.trim() || p.name })} /></h2>
-              <div className="dh-pw-dhead-meta">
-                <StatusPicker status={p.status} onChange={(status) => onChange({ status })} />
-                <span className="dh-pw-dot">·</span>
-                <InlineEdit value={p.category} display={<span className="dh-pw-cat">{p.category}</span>}
-                  options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }))} onCommit={(v) => onChange({ category: v })} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="dh-pw-dtabs">
-          {shown.map((t) => (
-            <button key={t.k} className={`dh-pw-dtab ${activeTab === t.k ? 'on' : ''}`} onClick={() => setTab(t.k)}>
-              <Icon name={t.icon} size={14} /> {t.label}
-              {t.k === 'deals' && link?.deals.length ? <span className="dh-pw-dtab-badge">{link.deals.length}</span> : null}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="dh-pw-dbody">
-          {activeTab === 'overview' && <Overview p={p} link={link} onChange={onChange} />}
-          {activeTab === 'pricing' && <Pricing p={p} onChange={onChange} />}
-          {activeTab === 'variants' && <Variants p={p} onChange={onChange} />}
-          {activeTab === 'bundle' && <Bundle p={p} />}
-          {activeTab === 'inventory' && <Inventory p={p} onChange={onChange} />}
-          {activeTab === 'deals' && <Deals p={p} link={link} />}
-          {activeTab === 'history' && <History p={p} />}
-        </div>
-      </aside>
-    </>
+    <span className="dh-pw-typebadge" style={{ background: t.hue + '18', color: t.hue }}>
+      <Icon name={t.icon} size={12} /> {t.label}
+    </span>
   );
 }
 
-/* ---------------- Overview ---------------- */
-function Overview({ p, link, onChange }: { p: Product; link?: ProductLink; onChange: (patch: Partial<Product>) => void }) {
+export function StatusPicker({ status, onChange }: { status: ProductStatus; onChange: (s: ProductStatus) => void }) {
+  return (
+    <InlineEdit
+      value={status}
+      display={<Badge tone={PRODUCT_STATUSES[status].tone}>{PRODUCT_STATUSES[status].label}</Badge>}
+      options={(Object.keys(PRODUCT_STATUSES) as ProductStatus[]).map((s) => ({ value: s, label: PRODUCT_STATUSES[s].label }))}
+      onCommit={(v) => onChange(v as ProductStatus)}
+    />
+  );
+}
+
+export function StatTiles({ p, link }: { p: Product; link?: ProductLink }) {
   const m = calcMargin(p);
-  const insight = novaInsight(p, m, link);
+  return (
+    <div className="dh-pw-statgrid">
+      <Stat label="List price" value={fmtPrice(p.price, p.currency)} sub={BILLING_LABEL[p.billing]} />
+      <Stat label="Unit cost" value={fmtPrice(p.cost, p.currency)} />
+      <Stat label="Margin" value={`${m}%`} tone={marginTone(m)} />
+      <Stat label="Won revenue" value={fmtPrice(link?.won ?? 0)} sub={`${link?.deals.length ?? 0} deals`} />
+    </div>
+  );
+}
+
+/* ---------------- Properties (record left column) ---------------- */
+export function Properties({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
   return (
     <div className="dh-pw-sect">
-      <div className="dh-pw-statgrid">
-        <Stat label="List price" value={fmtPrice(p.price, p.currency)} sub={BILLING_LABEL[p.billing]} />
-        <Stat label="Unit cost" value={fmtPrice(p.cost, p.currency)} />
-        <Stat label="Margin" value={`${m}%`} tone={marginTone(m)} />
-        <Stat label="Won revenue" value={fmtPrice(link?.won ?? 0)} sub={`${link?.deals.length ?? 0} deals`} />
-      </div>
-
-      <div className="dh-pw-nova">
-        <span className="dh-pw-nova-ico"><Icon name="sparkles" size={14} /></span>
-        <div><b>Nova insight</b><p>{insight}</p></div>
-      </div>
-
       <Field label="Description">
         <textarea className="dh-pw-textarea" value={p.description ?? ''} rows={3}
           placeholder="Describe this product…" onChange={(e) => onChange({ description: e.target.value })} />
       </Field>
-
       <Field label="Tags">
         <TagEditor tags={p.tags ?? []} onChange={(tags) => onChange({ tags })} />
       </Field>
-
       <div className="dh-pw-detailrows">
-        <Row label="SKU"><span className="mono">{p.sku}</span></Row>
+        <Row label="SKU"><span className="mono"><InlineEdit value={p.sku} onCommit={(v) => onChange({ sku: v.trim() || p.sku })} /></span></Row>
         <Row label="Type"><TypeBadge type={p.type} /></Row>
+        <Row label="Category">
+          <InlineEdit value={p.category} display={<span>{p.category}</span>}
+            options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }))} onCommit={(v) => onChange({ category: v })} />
+        </Row>
+        <Row label="Status"><StatusPicker status={p.status} onChange={(status) => onChange({ status })} /></Row>
         <Row label="Vendor">
           <InlineEdit value={p.vendor ?? ''} display={<span>{p.vendor || '—'}</span>} onCommit={(v) => onChange({ vendor: v })} />
         </Row>
@@ -163,7 +98,7 @@ function Overview({ p, link, onChange }: { p: Product; link?: ProductLink; onCha
 }
 
 /* ---------------- Pricing ---------------- */
-function Pricing({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
+export function Pricing({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
   const m = calcMargin(p);
   const books = p.priceBooks ?? [];
   const tiers = p.tiers ?? [];
@@ -215,7 +150,6 @@ function Pricing({ p, onChange }: { p: Product; onChange: (patch: Partial<Produc
         </Row>
       </div>
 
-      {/* Price books */}
       <SubHead icon="globe" title="Price books" hint="Same product, per-market pricing">
         <button className="dh-pw-addlink" onClick={addBook}><Icon name="plus" size={13} /> Add</button>
       </SubHead>
@@ -235,7 +169,6 @@ function Pricing({ p, onChange }: { p: Product; onChange: (patch: Partial<Produc
         </table>
       ) : <Empty text="No price books — the base currency price applies everywhere." />}
 
-      {/* Usage tiers */}
       {(p.type === 'usage' || tiers.length > 0) && (
         <>
           <SubHead icon="gauge" title="Volume tiers" hint="Per-unit price by quantity">
@@ -262,7 +195,7 @@ function Pricing({ p, onChange }: { p: Product; onChange: (patch: Partial<Produc
 }
 
 /* ---------------- Variants ---------------- */
-function Variants({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
+export function Variants({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
   const variants = p.variants ?? [];
   const set = (i: number, patch: Partial<ProductVariant>) =>
     onChange({ variants: variants.map((v, j) => (j === i ? { ...v, ...patch } : v)) });
@@ -299,7 +232,7 @@ function Variants({ p, onChange }: { p: Product; onChange: (patch: Partial<Produ
 }
 
 /* ---------------- Bundle ---------------- */
-function Bundle({ p }: { p: Product }) {
+export function Bundle({ p }: { p: Product }) {
   const items: BundleItem[] = p.bundleItems ?? [];
   const componentSum = items.reduce((s, it) => s + it.qty * it.unit, 0);
   const savings = componentSum - p.price;
@@ -336,7 +269,7 @@ function Bundle({ p }: { p: Product }) {
 }
 
 /* ---------------- Inventory ---------------- */
-function Inventory({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
+export function Inventory({ p, onChange }: { p: Product; onChange: (patch: Partial<Product>) => void }) {
   const available = p.onHand - p.committed;
   const ss = stockState(p);
   const pctToReorder = p.reorderPoint > 0 ? Math.min(100, (available / (p.reorderPoint * 2)) * 100) : 100;
@@ -355,7 +288,6 @@ function Inventory({ p, onChange }: { p: Product; onChange: (patch: Partial<Prod
         </div>
         <span className="dh-pw-marginbar-label">Reorder point at {p.reorderPoint}</span>
       </div>
-
       <div className="dh-pw-detailrows">
         <Row label="On hand"><InlineEdit value={p.onHand} type="number" onCommit={(v) => onChange({ onHand: Number(v) || 0 })} /></Row>
         <Row label="Committed"><InlineEdit value={p.committed} type="number" onCommit={(v) => onChange({ committed: Number(v) || 0 })} /></Row>
@@ -363,7 +295,6 @@ function Inventory({ p, onChange }: { p: Product; onChange: (patch: Partial<Prod
         <Row label="Reorder point"><InlineEdit value={p.reorderPoint} type="number" onCommit={(v) => onChange({ reorderPoint: Number(v) || 0 })} /></Row>
         <Row label="Warehouse"><InlineEdit value={p.warehouse ?? ''} display={<span>{p.warehouse || '—'}</span>} onCommit={(v) => onChange({ warehouse: v })} /></Row>
       </div>
-
       <SubHead icon="truck" title="Recent movements" hint="Simulated" />
       <ul className="dh-pw-moves">
         <li><Icon name="arrowDown" size={13} className="in" /> <b>+40</b> received · PO-3391 <span className="dh-pw-dim">2d ago</span></li>
@@ -375,7 +306,7 @@ function Inventory({ p, onChange }: { p: Product; onChange: (patch: Partial<Prod
 }
 
 /* ---------------- Deals (associations) ---------------- */
-function Deals({ p, link }: { p: Product; link?: ProductLink }) {
+export function DealsSection({ p, link }: { p: Product; link?: ProductLink }) {
   const openDeal = useStore((s) => s.openDeal);
   const setNav = useStore((s) => s.setNav);
   const deals = link?.deals ?? [];
@@ -407,7 +338,7 @@ function Deals({ p, link }: { p: Product; link?: ProductLink }) {
 }
 
 /* ---------------- History ---------------- */
-function History({ p }: { p: Product }) {
+export function History({ p }: { p: Product }) {
   const events = [
     { icon: 'pencil', txt: 'Description updated', w: p.updatedW },
     { icon: 'dollar', txt: `List price set to ${fmtPrice(p.price, p.currency)}`, w: '1w' },
@@ -428,8 +359,20 @@ function History({ p }: { p: Product }) {
   );
 }
 
+/** Deterministic, rule-based "AI" summary for the overview / record header. */
+export function novaInsight(p: Product, m: number, link?: ProductLink): string {
+  const ss = stockState(p);
+  if (ss === 'out') return `Out of stock — ${p.committed} units committed against ${p.onHand} on hand. Raise a purchase order before quoting new deals.`;
+  if (ss === 'low') return `Stock is below the reorder point (${p.onHand - p.committed} available vs ${p.reorderPoint}). Consider replenishing ${p.warehouse ?? 'the warehouse'}.`;
+  if (p.status === 'draft') return `Still a draft — set pricing and activate to make ${p.name} sellable in deals and quotes.`;
+  if (m < 40) return `Margin is thin at ${m}%. Review the ${fmtPrice(p.cost, p.currency)} unit cost or list price before discounting further.`;
+  if ((link?.pipeline ?? 0) > 0) return `Healthy ${m}% margin, and it's attached to ${fmtPrice(link!.pipeline)} of open pipeline across ${link!.deals.length} deals. A reliable performer.`;
+  if (p.type === 'bundle') return `Bundling drives larger deals — this kit is priced ${m}% above cost. Feature it in new proposals.`;
+  return `Looking healthy — ${m}% margin and active in the catalog. No action needed right now.`;
+}
+
 /* ---------------- small building blocks ---------------- */
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'amber' | 'red' }) {
+export function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'amber' | 'red' }) {
   return (
     <div className="dh-pw-stat">
       <span className={`dh-pw-stat-value ${tone ? 'tone-' + tone : ''}`}>{value}</span>
@@ -437,13 +380,13 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
     </div>
   );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="dh-pw-field"><label>{label}</label>{children}</div>;
 }
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+export function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div className="dh-pw-row"><span className="dh-pw-row-label">{label}</span><span className="dh-pw-row-value">{children}</span></div>;
 }
-function SubHead({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children?: React.ReactNode }) {
+export function SubHead({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children?: ReactNode }) {
   return (
     <div className="dh-pw-subhead">
       <Icon name={icon} size={14} />
@@ -453,32 +396,9 @@ function SubHead({ icon, title, hint, children }: { icon: string; title: string;
     </div>
   );
 }
-function Empty({ text }: { text: string }) {
+export function Empty({ text }: { text: string }) {
   return <p className="dh-pw-mini-empty">{text}</p>;
 }
-function StatusPicker({ status, onChange }: { status: ProductStatus; onChange: (s: ProductStatus) => void }) {
-  return (
-    <InlineEdit
-      value={status}
-      display={<Badge tone={PRODUCT_STATUSES[status].tone}>{PRODUCT_STATUSES[status].label}</Badge>}
-      options={(Object.keys(PRODUCT_STATUSES) as ProductStatus[]).map((s) => ({ value: s, label: PRODUCT_STATUSES[s].label }))}
-      onCommit={(v) => onChange(v as ProductStatus)}
-    />
-  );
-}
-
 function billingLabel(b: BillingPeriod): string {
   return b === 'one_time' ? 'One-time' : b === 'monthly' ? 'Monthly' : b === 'quarterly' ? 'Quarterly' : 'Annual';
-}
-
-/** Deterministic, rule-based "AI" summary for the Overview tab. */
-function novaInsight(p: Product, m: number, link?: ProductLink): string {
-  const ss = stockState(p);
-  if (ss === 'out') return `Out of stock — ${p.committed} units committed against ${p.onHand} on hand. Raise a purchase order before quoting new deals.`;
-  if (ss === 'low') return `Stock is below the reorder point (${p.onHand - p.committed} available vs ${p.reorderPoint}). Consider replenishing ${p.warehouse ?? 'the warehouse'}.`;
-  if (p.status === 'draft') return `Still a draft — set pricing and activate to make ${p.name} sellable in deals and quotes.`;
-  if (m < 40) return `Margin is thin at ${m}%. Review the ${fmtPrice(p.cost, p.currency)} unit cost or list price before discounting further.`;
-  if ((link?.pipeline ?? 0) > 0) return `Healthy ${m}% margin, and it's attached to ${fmtPrice(link!.pipeline)} of open pipeline across ${link!.deals.length} deals. A reliable performer.`;
-  if (p.type === 'bundle') return `Bundling drives larger deals — this kit is priced ${m}% above cost. Feature it in new proposals.`;
-  return `Looking healthy — ${m}% margin and active in the catalog. No action needed right now.`;
 }

@@ -15,6 +15,8 @@ import type {
   Toast,
   ObjectDef,
   ObjectRecord,
+  Product,
+  ProductStage,
   Priority,
   Density,
   GroupBy,
@@ -365,6 +367,8 @@ export interface AppState {
   updateObjectRecord: (objKey: string, id: string, patch: Partial<ObjectRecord>) => void;
   removeObjectRecord: (objKey: string, id: string) => void;
   duplicateObjectRecord: (objKey: string, id: string) => void;
+  moveProductStage: (id: string, stage: ProductStage) => void;
+  addProductActivity: (id: string, act: Activity) => void;
 
   toast: (text: string, tone?: Toast['tone'], undoable?: boolean) => void;
   dismissToast: (id: string) => void;
@@ -1377,6 +1381,22 @@ export const useStore = create<AppState>()(
       const next = list.slice();
       next.splice(i + 1, 0, copy);
       return { objectRecords: { ...s.objectRecords, [objKey]: next } };
+    }),
+  moveProductStage: (id, stage) =>
+    set((s) => {
+      const list = (s.objectRecords.product || []) as unknown as Product[];
+      const cur = list.find((r) => r.id === id);
+      if (!cur || cur.stage === stage) return {};
+      const status = stage === 'Live' ? 'active' : stage === 'Retired' ? 'archived' : cur.status === 'active' ? 'active' : cur.status;
+      const act: Activity = { id: uid('pa'), type: 'note', who: 'You', w: 'now', text: `Moved from ${cur.stage} to ${stage}.` };
+      const next = list.map((r) => (r.id === id ? { ...r, stage, status, updatedW: 'now', acts: [act, ...(r.acts ?? [])] } : r));
+      return { objectRecords: { ...s.objectRecords, product: next as unknown as ObjectRecord[] } };
+    }),
+  addProductActivity: (id, act) =>
+    set((s) => {
+      const list = (s.objectRecords.product || []) as unknown as Product[];
+      const next = list.map((r) => (r.id === id ? { ...r, updatedW: 'now', acts: [act, ...(r.acts ?? [])] } : r));
+      return { objectRecords: { ...s.objectRecords, product: next as unknown as ObjectRecord[] } };
     }),
 
   toast: (text, tone = 'default', undoable = false) => {

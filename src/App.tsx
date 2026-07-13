@@ -9,6 +9,7 @@ import { ActivityCenter } from './components/activity/ActivityCenter';
 import { RecordView } from './components/record/RecordView';
 import { ObjectView } from './components/objects/ObjectView';
 import { ProductWorkspace } from './components/products/ProductWorkspace';
+import { ProductRecord } from './components/products/ProductRecord';
 import { PipelineBar } from './components/deals/PipelineBar';
 import { NovaPanel } from './components/nova/NovaPanel';
 import { CommandPalette } from './components/command/CommandPalette';
@@ -30,6 +31,7 @@ export default function App() {
   const nav = useStore((s) => s.nav);
   const view = useStore((s) => s.view);
   const openDealId = useStore((s) => s.openDealId);
+  const openObjectId = useStore((s) => s.openObjectId);
   const setPalette = useStore((s) => s.setPalette);
   const setNova = useStore((s) => s.setNova);
   const undo = useStore((s) => s.undo);
@@ -65,7 +67,7 @@ export default function App() {
 
   let content;
   if (nav === 'product') {
-    content = <ProductWorkspace />;
+    content = openObjectId ? <ProductRecord id={openObjectId} /> : <ProductWorkspace />;
   } else if (nav !== 'deals') {
     content = <ObjectView />;
   } else if (openDealId) {

@@ -187,6 +187,9 @@ export type ProductType =
 
 export type ProductStatus = 'active' | 'draft' | 'archived';
 
+/** Product lifecycle / launch-pipeline stage. */
+export type ProductStage = 'Backlog' | 'Development' | 'Review' | 'Live' | 'Retired';
+
 export type BillingPeriod = 'one_time' | 'monthly' | 'quarterly' | 'annual';
 
 export type CurrencyCode = 'USD' | 'EUR' | 'GBP';
@@ -250,6 +253,9 @@ export interface Product {
   variants?: ProductVariant[];
   bundleItems?: BundleItem[];
 
+  // lifecycle
+  stage: ProductStage;
+
   // meta
   vendor?: string;
   owner?: string; // owner key
@@ -257,6 +263,11 @@ export interface Product {
   image: { emoji: string; hue: string };
   createdW: string; // relative-time label
   updatedW: string;
+
+  // record surfaces
+  acts?: Activity[]; // activity timeline
+  docs?: { n: string; k: 'pdf' | 'img' | 'doc' | 'sheet' }[]; // attachments
+  media?: { name: string; emoji: string; hue: string }[]; // product images / gallery
 }
 
 export type ThemeMode = 'light' | 'dark';
