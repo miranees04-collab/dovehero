@@ -91,6 +91,9 @@
 .dh-doc-foot-left { display: flex; align-items: center; gap: 14px; }
 .dh-doc-del.alt { color: var(--sub); }
 .dh-doc-del.alt:hover { color: var(--ink); }
+/* armed (2nd-click-to-confirm) destructive state — replaces blocked window.confirm() */
+.dh-doc-del.armed { color: #fff; background: var(--red); padding: 4px 11px; border-radius: var(--r-pill); font-weight: 650; }
+.dh-doc-del.armed:hover { filter: brightness(1.05); }
 
 /* subscription add-on / proration */
 .dh-sub-addon { grid-column: 1 / -1; border: 1px dashed var(--border-2); border-radius: var(--r-md); padding: 12px; margin-top: 4px; }

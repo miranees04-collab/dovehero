@@ -3,6 +3,7 @@ import { useStore } from '@/store/useStore';
 import { Icon } from '@/components/ui/Icon';
 import { Badge, Button } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { money } from '@/lib/format';
 import type { SalesLine, Product, SubInterval, SubStatus } from '@/types';
 import { SUB_INTERVALS, SUB_STATUSES, subStatusTone, intervalLabel, mrrOf, price as fmtPrice, CURRENCIES } from '@/data/products';
@@ -175,7 +176,7 @@ export function SubBuilder({ id, onClose }: { id: string; onClose: () => void })
         </div>
 
         <div className="dh-doc-foot">
-          <button className="dh-doc-del" onClick={() => { if (confirm(`Delete ${sub.number}?`)) { remove(id); onClose(); } }}><Icon name="trash" size={14} /> Delete</button>
+          <ConfirmButton className="dh-doc-del" confirmLabel={`Delete ${sub.number}?`} onConfirm={() => { remove(id); onClose(); }}>Delete</ConfirmButton>
           <div className="dh-doc-foot-btns">
             {sub.status === 'Active'
               ? <Button variant="ghost" onClick={() => update(id, { status: 'Paused', nextW: 'paused' })}><Icon name="clock" size={15} /> Pause</Button>

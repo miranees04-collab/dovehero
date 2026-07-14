@@ -1493,7 +1493,8 @@ export const useStore = create<AppState>()(
     const tax = Math.round(((total - disc) * (inv.tax || 0)) / 100);
     const grand = total - disc + tax;
     const paid = Math.min(grand, (inv.paid || 0) + amt);
-    const status = paid >= grand ? 'Paid' : 'Open';
+    const overdue = (inv.dueDays ?? 30) < 0;
+    const status = paid >= grand ? 'Paid' : overdue ? 'Overdue' : 'Open';
     get().updateSalesDoc(id, { paid, status, dueW: status === 'Paid' ? 'paid' : inv.dueW });
     const count = get().payments.length;
     const payment: Payment = {
@@ -1510,7 +1511,7 @@ export const useStore = create<AppState>()(
     set((s) => ({ payments: s.payments.map((p) => (p.id === paymentId ? { ...p, status: 'Refunded' } : p)) }));
     if (pay.invoiceId) {
       const inv = get().salesDocs.find((d) => d.id === pay.invoiceId);
-      if (inv) get().updateSalesDoc(inv.id, { paid: Math.max(0, (inv.paid || 0) - pay.amount), status: 'Open' });
+      if (inv) get().updateSalesDoc(inv.id, { paid: Math.max(0, (inv.paid || 0) - pay.amount), status: (inv.dueDays ?? 30) < 0 ? 'Overdue' : 'Open' });
     }
     get().toast(`${pay.number} refunded`, 'warn');
   },

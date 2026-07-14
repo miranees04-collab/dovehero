@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { useStore } from '@/store/useStore';
 import { Icon, ACTIVITY_ICONS } from '@/components/ui/Icon';
 import { Button, Popover, MenuItem, Badge } from '@/components/ui/primitives';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { InlineEdit } from '@/components/ui/InlineEdit';
 import { uid } from '@/lib/format';
 import type { Product, ProductStatus, ProductStage, Activity, ActivityType, SalesDocKind } from '@/types';
@@ -102,7 +103,7 @@ export function ProductRecord({ id }: { id: string }) {
           </Popover>
           <Button variant="ghost" size="sm" onClick={() => setBrochure(true)}><Icon name="fileText" size={15} /> Brochure</Button>
           <Button variant="ghost" size="sm" onClick={() => { duplicateObjectRecord('product', p.id); toast('Product duplicated', 'success'); }}><Icon name="copy" size={15} /> Duplicate</Button>
-          <Button variant="ghost" size="sm" className="danger-text" onClick={() => { if (confirm(`Delete “${p.name}”?`)) { removeObjectRecord('product', p.id); openObject(null); toast('Product deleted', 'warn'); } }}><Icon name="trash" size={15} /></Button>
+          <ConfirmButton className="dh-btn v-ghost s-sm danger-text" title={`Delete ${p.name}`} confirmLabel="Delete?" onConfirm={() => { removeObjectRecord('product', p.id); openObject(null); toast('Product deleted', 'warn'); }}><span className="dh-cb-hidden" /></ConfirmButton>
         </div>
       </div>
 

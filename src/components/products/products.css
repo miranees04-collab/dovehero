@@ -246,6 +246,8 @@
 }
 .dh-pw-bulk-clear:hover { color: var(--ink); text-decoration: underline; }
 .dh-btn.danger-text { color: var(--red); }
+.dh-btn.danger-text.armed { background: var(--red); color: #fff; }
+.dh-cb-hidden { display: none; }
 
 /* ---------------- Table ---------------- */
 .dh-pw-scroll {

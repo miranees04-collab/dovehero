@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Badge } from '@/components/ui/primitives';
 import { InlineEdit } from '@/components/ui/InlineEdit';
+import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { useStore } from '@/store/useStore';
 import type { SalesDoc, SalesLine, Product, CurrencyCode, PaymentMethod } from '@/types';
 import { DOC_META, docTotals, docBalance, docStatusTone, dueLabel, docHtml, checkoutUrl, price as fmtPrice, CURRENCIES, PAYMENT_METHODS } from '@/data/products';
@@ -19,6 +20,7 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
   const receive = useStore((s) => s.receivePO);
   const toast = useStore((s) => s.toast);
   const [checkout, setCheckout] = useState(false);
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -125,7 +127,7 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
 
         <div className="dh-doc-foot">
           <div className="dh-doc-foot-left">
-            <button className="dh-doc-del" onClick={() => { if (confirm(`Delete ${doc.number}?`)) { remove(id); onClose(); } }}><Icon name="trash" size={14} /> Delete</button>
+            <ConfirmButton className="dh-doc-del" confirmLabel={`Delete ${doc.number}?`} onConfirm={() => { remove(id); toast(`${doc.number} deleted`, 'warn'); onClose(); }}>Delete</ConfirmButton>
             <button className="dh-doc-del alt" onClick={() => { downloadDoc(doc); toast(`${doc.number} downloaded`, 'success'); }}><Icon name="download" size={14} /> PDF</button>
             {doc.dunning ? <span className="dh-doc-dun"><Icon name="clock" size={12} /> {doc.dunning} reminder{doc.dunning > 1 ? 's' : ''} sent</span> : null}
           </div>
@@ -140,17 +142,64 @@ export function DocBuilder({ id, onClose }: { id: string; onClose: () => void })
               <Button variant="ghost" onClick={() => { navigator.clipboard?.writeText(checkoutUrl(doc)).catch(() => {}); setCheckout(true); }}><Icon name="globe" size={15} /> Payment link</Button>
             )}
             {doc.kind === 'invoice' && docBalance(doc) > 0 && doc.status !== 'Void' && (
-              <Button variant="ghost" onClick={() => {
-                const bal = docBalance(doc);
-                const raw = window.prompt(`Payment amount (balance ${fmtPrice(bal, doc.currency)})`, String(bal));
-                if (raw != null) recordPayment(id, Number(raw) || 0);
-              }}><Icon name="dollar" size={15} /> Record payment</Button>
+              <Button variant="ghost" onClick={() => setPaying(true)}><Icon name="dollar" size={15} /> Record payment</Button>
             )}
             <Button variant="primary" onClick={onClose}><Icon name="check" size={15} /> Done</Button>
           </div>
         </div>
       </div>
       {checkout && <CheckoutModal doc={doc} onClose={() => setCheckout(false)} />}
+      {paying && (
+        <RecordPayInline
+          doc={doc}
+          onClose={() => setPaying(false)}
+          onSubmit={(amt, method) => { recordPayment(id, amt, method); setPaying(false); }}
+        />
+      )}
+    </>
+  );
+}
+
+/** In-app record-payment dialog for a single invoice (replaces a blocked window.prompt). */
+function RecordPayInline({ doc, onClose, onSubmit }: { doc: SalesDoc; onClose: () => void; onSubmit: (amount: number, method: PaymentMethod) => void }) {
+  const bal = docBalance(doc);
+  const [amount, setAmount] = useState(String(bal));
+  const [method, setMethod] = useState<PaymentMethod>('Card');
+  const sym = CURRENCIES[doc.currency].symbol;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <>
+      <div className="dh-pw-scrim center" style={{ zIndex: 320 }} onClick={onClose} />
+      <div className="dh-cp" style={{ width: 440, zIndex: 321 }} role="dialog" aria-label="Record payment">
+        <div className="dh-doc-head">
+          <div className="dh-doc-head-id"><span className="dh-doc-badge" style={{ background: '#10B98118', color: '#10B981' }}><Icon name="dollar" size={14} /> Record payment</span><b className="mono">{doc.number}</b></div>
+          <button className="dh-pw-x" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
+        </div>
+        <div className="dh-cp-body">
+          <div className="dh-cp-grid">
+            <div>
+              <label className="dh-pw-flabel">Amount</label>
+              <div className="dh-cp-money"><span>{sym}</span><input type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
+            </div>
+            <div>
+              <label className="dh-pw-flabel">Method</label>
+              <select className="dh-pw-input" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+          <p className="dh-pw-hint-inline">Balance due <b>{fmtPrice(bal, doc.currency)}</b> · a payment record is created and the invoice updated.</p>
+        </div>
+        <div className="dh-cp-foot"><span /><div className="dh-cp-foot-btns">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={() => onSubmit(Number(amount) || 0, method)}><Icon name="check" size={15} /> Record {fmtPrice(Number(amount) || 0, doc.currency)}</Button>
+        </div></div>
+      </div>
     </>
   );
 }
